@@ -26,8 +26,6 @@
     "test:e2e:debug": "playwright test --debug",
     "test:e2e:visual": "playwright test visual-regression.spec.ts",
     "test:e2e:visual:update": "playwright test visual-regression.spec.ts --update-snapshots",
-    "test:server": "node test/server/test-server.js",
-    "test:server:background": "node test/server/test-server.js &",
     "lint": "eslint src/**/*.ts src/**/*.vue",
     "lint:fix": "eslint src/**/*.ts src/**/*.vue --fix",
     "type-check": "tsc --noEmit && vue-tsc --noEmit",
