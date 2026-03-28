@@ -240,6 +240,86 @@
       "severity": "high",
       "reason": "False positive: SHA-512 integrity hash in package-lock.json, not an IBM Cloud API Key",
       "created_at": "2026-03-28T13:45:53.801815Z"
+    },
+    {
+      "fingerprint": "d0a22f1df7eb4a60bdeb0908fcd6cdc0a874ea42b985b77aca1e41ea5b4282d0",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: chai is a well-known assertion library, not a typosquat of chalk",
+      "created_at": "2026-03-28T14:15:19.660048Z"
+    },
+    {
+      "fingerprint": "cb9b10a8259a737dd902646f4ed79625c0bd1ac13641b518b98d727f6c9bb1fe",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: with is a legitimate pug dependency, not a typosquat of vite",
+      "created_at": "2026-03-28T14:15:22.775686Z"
+    },
+    {
+      "fingerprint": "cf1f6d0ceab0e882cfe577c816db0126df610645d4d4ad654ef7b65c0ee6da7c",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: ini is a well-known config file parser, not a typosquat of nw",
+      "created_at": "2026-03-28T14:15:25.943478Z"
+    },
+    {
+      "fingerprint": "7b568bd1a5e5c3f0b90389c777c65a282cf232d50f83315b47efe8d9481e7346",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: saxes is a well-known SAX parser for jsdom, not a typosquat of sass",
+      "created_at": "2026-03-28T14:15:28.666376Z"
+    },
+    {
+      "fingerprint": "b883f602c08f9faf84403e33296ba1aa68f690ab51c2cad8b807247af62a16c1",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: pump is a well-known stream utility by mafintosh, not a typosquat of gulp",
+      "created_at": "2026-03-28T14:15:31.796958Z"
+    },
+    {
+      "fingerprint": "e92763645d560f8c59fc993c3ca4d8be38941bbd02f49f2adcc23a0eadcdf210",
+      "rule_id": "SEC-533",
+      "file_path": ".nox/baseline.json",
+      "severity": "high",
+      "reason": "False positive: nox baseline fingerprint hash, not an IBM Cloud API Key",
+      "created_at": "2026-03-28T14:15:34.968303Z"
+    },
+    {
+      "fingerprint": "a797fb1420f5f3081312b04161406d1b339b5d18578126b79a90df46c8d7516d",
+      "rule_id": "SEC-533",
+      "file_path": ".nox/baseline.json",
+      "severity": "high",
+      "reason": "False positive: nox baseline fingerprint hash, not an IBM Cloud API Key",
+      "created_at": "2026-03-28T14:15:37.557969Z"
+    },
+    {
+      "fingerprint": "613b935d24fd11c69cfbda273a13fa1bfa88164274e3b5bb8c397833a9cab57d",
+      "rule_id": "SEC-533",
+      "file_path": ".nox/baseline.json",
+      "severity": "high",
+      "reason": "False positive: nox baseline fingerprint hash, not an IBM Cloud API Key",
+      "created_at": "2026-03-28T14:15:38.448411Z"
+    },
+    {
+      "fingerprint": "293102db36f383214dd015b3b9cd881c653319b463986d03e3a213df15b48279",
+      "rule_id": "SEC-533",
+      "file_path": ".nox/baseline.json",
+      "severity": "high",
+      "reason": "False positive: nox baseline fingerprint hash, not an IBM Cloud API Key",
+      "created_at": "2026-03-28T14:15:39.77692Z"
+    },
+    {
+      "fingerprint": "9090f3dda0997568dcdbadb01c8b16af2aad159ea6c2202ad5345ee5f4bec662",
+      "rule_id": "SEC-533",
+      "file_path": ".nox/baseline.json",
+      "severity": "high",
+      "reason": "False positive: nox baseline fingerprint hash, not an IBM Cloud API Key",
+      "created_at": "2026-03-28T14:15:40.374015Z"
     }
   ]
 }
