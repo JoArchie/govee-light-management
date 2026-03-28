@@ -160,6 +160,86 @@
       "severity": "critical",
       "reason": "False positive: open is a well-known package by sindresorhus to open URLs/files, not a typosquat of boxen",
       "created_at": "2026-03-28T13:43:30.656133Z"
+    },
+    {
+      "fingerprint": "56c96ce3db2893b8a878f607255ed43dc7dc447e373fe35da19a7569a24a808f",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: nopt is a well-known npm option parser by npm Inc, not a typosquat of next",
+      "created_at": "2026-03-28T13:45:31.917073Z"
+    },
+    {
+      "fingerprint": "5348de7198f0a0f45b7bd12254bae5884f527d71440d937bd0131c0a66f1844f",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: mrmime is a legitimate MIME type utility by lukeed, not a typosquat of mime",
+      "created_at": "2026-03-28T13:45:35.109487Z"
+    },
+    {
+      "fingerprint": "07973530253c83a1251cc88660d8767147e941b5626ab2cb0b9643f30ee7c0c6",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: acorn is a well-known JavaScript parser, not a typosquat of cors",
+      "created_at": "2026-03-28T13:45:37.754189Z"
+    },
+    {
+      "fingerprint": "8a6432b2bf4f0fd61ab7ad8f622ee4c678f9f9e0af3acb7623ae6a6413ded3cf",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: bl is a well-known buffer list package, not a typosquat of d3",
+      "created_at": "2026-03-28T13:45:39.089402Z"
+    },
+    {
+      "fingerprint": "0ccd126bfdafd196d7b7aa13e13ef0399b9b710df01e57f5a0a745b418088730",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: pino is a well-known Node.js logger, not a typosquat of sinon",
+      "created_at": "2026-03-28T13:45:40.424558Z"
+    },
+    {
+      "fingerprint": "be93a376b3004ddccc204559ef8968393344be0a773686d227785f5bb2d6618c",
+      "rule_id": "SEC-533",
+      "file_path": "package-lock.json",
+      "severity": "high",
+      "reason": "False positive: SHA-512 integrity hash in package-lock.json, not an IBM Cloud API Key",
+      "created_at": "2026-03-28T13:45:43.150884Z"
+    },
+    {
+      "fingerprint": "15711f8ff271d5503f287ae6e826644861baa59660ee459afd793db9aaac3736",
+      "rule_id": "SEC-533",
+      "file_path": "package-lock.json",
+      "severity": "high",
+      "reason": "False positive: SHA-512 integrity hash in package-lock.json, not an IBM Cloud API Key",
+      "created_at": "2026-03-28T13:45:45.871893Z"
+    },
+    {
+      "fingerprint": "0b9a9f6bb32618287f5bcd3ce5b16c641a55d0ec1867c943e573389b4de9c06c",
+      "rule_id": "SEC-533",
+      "file_path": "package-lock.json",
+      "severity": "high",
+      "reason": "False positive: SHA-512 integrity hash in package-lock.json, not an IBM Cloud API Key",
+      "created_at": "2026-03-28T13:45:48.548612Z"
+    },
+    {
+      "fingerprint": "eacf7be4de9afb93599ee360a037432b6f7741c5e51354919beaa2cd48f71a96",
+      "rule_id": "SEC-533",
+      "file_path": "package-lock.json",
+      "severity": "high",
+      "reason": "False positive: SHA-512 integrity hash in package-lock.json, not an IBM Cloud API Key",
+      "created_at": "2026-03-28T13:45:51.212669Z"
+    },
+    {
+      "fingerprint": "d8493cdaaf21241ed5e6a5ad6ae50bff599c4807bba3027df8d29ca893ea0a92",
+      "rule_id": "SEC-533",
+      "file_path": "package-lock.json",
+      "severity": "high",
+      "reason": "False positive: SHA-512 integrity hash in package-lock.json, not an IBM Cloud API Key",
+      "created_at": "2026-03-28T13:45:53.801815Z"
     }
   ]
 }
