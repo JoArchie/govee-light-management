@@ -3,8 +3,7 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * Playwright configuration for E2E testing of Stream Deck plugin UI
  *
- * Tests the actual Vite-built Vue Property Inspectors served from the
- * plugin's ui/dist directory.
+ * Tests the SDPI-based Property Inspectors served from the plugin's ui/ directory.
  */
 export default defineConfig({
   testDir: './test/e2e',
@@ -15,21 +14,6 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
 
   reporter: 'html',
-
-  snapshotDir: './test/e2e/__snapshots__',
-  snapshotPathTemplate: '{snapshotDir}/{testFilePath}/{testName}-{projectName}{ext}',
-
-  expect: {
-    toHaveScreenshot: {
-      maxDiffPixelRatio: 0.01,
-      threshold: 0.2,
-      animations: 'disabled',
-    },
-    toMatchSnapshot: {
-      maxDiffPixelRatio: 0.01,
-      threshold: 0.2,
-    },
-  },
 
   use: {
     baseURL: 'http://localhost:3333',
@@ -46,7 +30,7 @@ export default defineConfig({
     },
   ],
 
-  /* Serve the built plugin directory (same root as Stream Deck sees) */
+  /* Serve the plugin directory */
   webServer: {
     command: 'python3 -m http.server 3333 --directory com.felixgeelhaar.govee-light-management.sdPlugin',
     url: 'http://localhost:3333',

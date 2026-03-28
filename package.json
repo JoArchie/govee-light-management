@@ -4,7 +4,7 @@
   "description": "Enterprise-grade Stream Deck plugin for managing Govee lights with advanced group functionality",
   "main": "com.felixgeelhaar.govee-light-management.sdPlugin/bin/plugin.js",
   "scripts": {
-    "build": "npm run build:backend && npm run build:frontend",
+    "build": "npm run build:backend",
     "build:backend": "vite build --config vite.backend.config.ts",
     "build:frontend": "vite build",
     "dev": "npm run dev:backend & npm run dev:frontend",

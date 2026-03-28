@@ -8,7 +8,7 @@
       "UUID": "com.felixgeelhaar.govee-light-management.lights",
       "Icon": "imgs/actions/light/icon",
       "Tooltip": "Control individual Govee lights with advanced settings",
-      "PropertyInspectorPath": "ui/dist/src/frontend/light-control.html",
+      "PropertyInspectorPath": "ui/light-control.html",
       "Controllers": ["Keypad"],
       "States": [
         {
@@ -22,7 +22,7 @@
       "UUID": "com.felixgeelhaar.govee-light-management.groups",
       "Icon": "imgs/actions/group/icon",
       "Tooltip": "Control multiple Govee lights as a group",
-      "PropertyInspectorPath": "ui/dist/src/frontend/group-control.html",
+      "PropertyInspectorPath": "ui/group-control.html",
       "Controllers": ["Keypad"],
       "States": [
         {
@@ -36,7 +36,7 @@
       "UUID": "com.felixgeelhaar.govee-light-management.brightness-dial",
       "Icon": "imgs/actions/brightness-dial/icon",
       "Tooltip": "Control light brightness with Stream Deck+ dial (rotate to adjust, press to toggle power)",
-      "PropertyInspectorPath": "ui/dist/src/frontend/brightness-dial.html",
+      "PropertyInspectorPath": "ui/brightness-dial.html",
       "Controllers": ["Encoder"],
       "Encoder": {
         "Icon": "imgs/actions/brightness-dial/icon",
@@ -59,7 +59,7 @@
       "UUID": "com.felixgeelhaar.govee-light-management.colortemp-dial",
       "Icon": "imgs/actions/colortemp-dial/icon",
       "Tooltip": "Control color temperature with Stream Deck+ dial (rotate to adjust warm/cool, press to toggle power)",
-      "PropertyInspectorPath": "ui/dist/src/frontend/colortemp-dial.html",
+      "PropertyInspectorPath": "ui/colortemp-dial.html",
       "Controllers": ["Encoder"],
       "Encoder": {
         "Icon": "imgs/actions/colortemp-dial/icon",
@@ -82,7 +82,7 @@
       "UUID": "com.felixgeelhaar.govee-light-management.colorhue-dial",
       "Icon": "imgs/actions/colorhue-dial/icon",
       "Tooltip": "Control color hue with Stream Deck+ dial (rotate to change color, press to toggle power)",
-      "PropertyInspectorPath": "ui/dist/src/frontend/colorhue-dial.html",
+      "PropertyInspectorPath": "ui/colorhue-dial.html",
       "Controllers": ["Encoder"],
       "Encoder": {
         "Icon": "imgs/actions/colorhue-dial/icon",
@@ -105,7 +105,7 @@
       "UUID": "com.felixgeelhaar.govee-light-management.scene-control",
       "Icon": "imgs/actions/scene/icon",
       "Tooltip": "Apply predefined scenes to your lights (sunrise, sunset, rainbow, etc.)",
-      "PropertyInspectorPath": "ui/dist/src/frontend/scene-control.html",
+      "PropertyInspectorPath": "ui/scene-control.html",
       "Controllers": ["Keypad"],
       "States": [
         {
@@ -119,7 +119,7 @@
       "UUID": "com.felixgeelhaar.govee-light-management.music-mode",
       "Icon": "imgs/actions/music/icon",
       "Tooltip": "Activate music visualization mode with customizable sensitivity",
-      "PropertyInspectorPath": "ui/dist/src/frontend/music-mode.html",
+      "PropertyInspectorPath": "ui/music-mode.html",
       "Controllers": ["Keypad"],
       "States": [
         {
@@ -133,7 +133,7 @@
       "UUID": "com.felixgeelhaar.govee-light-management.segment-color-dial",
       "Icon": "imgs/actions/segment-color-dial/icon",
       "Tooltip": "Control individual segment colors on RGB IC lights (rotate to select color, press to apply)",
-      "PropertyInspectorPath": "ui/dist/src/frontend/segment-color-dial.html",
+      "PropertyInspectorPath": "ui/segment-color-dial.html",
       "Controllers": ["Encoder"],
       "Encoder": {
         "Icon": "imgs/actions/segment-color-dial/icon",

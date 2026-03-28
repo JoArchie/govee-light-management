@@ -1,60 +1,47 @@
 /**
- * E2E tests for the Stream Deck+ Dial Property Inspectors
- *
- * Tests the actual Vite-built Vue components for brightness, color hue,
- * color temperature, and segment color dial actions.
+ * E2E tests for the Stream Deck+ Dial Property Inspectors (SDPI)
  */
 import { test, expect } from '@playwright/test';
 
 const DIAL_PIS = [
-  { name: 'Brightness Dial', url: '/ui/dist/src/frontend/brightness-dial.html' },
-  { name: 'Color Hue Dial', url: '/ui/dist/src/frontend/colorhue-dial.html' },
-  { name: 'Color Temperature Dial', url: '/ui/dist/src/frontend/colortemp-dial.html' },
-  { name: 'Segment Color Dial', url: '/ui/dist/src/frontend/segment-color-dial.html' },
+  { name: 'Brightness Dial', url: '/ui/brightness-dial.html', settings: ['stepSize'] },
+  { name: 'Color Hue Dial', url: '/ui/colorhue-dial.html', settings: ['saturation', 'stepSize'] },
+  { name: 'Color Temperature Dial', url: '/ui/colortemp-dial.html', settings: ['stepSize'] },
+  { name: 'Segment Color Dial', url: '/ui/segment-color-dial.html', settings: ['segmentIndex', 'stepSize'] },
 ];
 
-for (const { name, url } of DIAL_PIS) {
+for (const { name, url, settings } of DIAL_PIS) {
   test.describe(`${name} Property Inspector`, () => {
     test.beforeEach(async ({ page }) => {
       await page.goto(url);
-      await page.waitForSelector('#app');
     });
 
-    test('should mount Vue app', async ({ page }) => {
-      const app = page.locator('#app');
-      await expect(app).not.toBeEmpty();
+    test('should have setup and settings panels', async ({ page }) => {
+      await expect(page.locator('#setup')).toBeAttached();
+      await expect(page.locator('#settings')).toBeAttached();
     });
 
-    test('should render API Configuration section', async ({ page }) => {
-      const section = page.locator('[data-testid="api-key-section"]');
-      await expect(section).toBeVisible();
+    test('should have API key input and Connect button', async ({ page }) => {
+      await expect(page.locator('#apiKey')).toBeAttached();
+      await expect(page.locator('#connect')).toBeAttached();
     });
 
-    test('should render Light Selection section', async ({ page }) => {
-      const section = page.locator('[data-testid="light-selection-section"]');
-      await expect(section).toBeVisible();
-      await expect(section.locator('h2')).toContainText('Light Selection');
+    test('should have device selector with refresh', async ({ page }) => {
+      const select = page.locator('sdpi-select[setting="selectedDeviceId"]');
+      await expect(select).toBeAttached();
+      await expect(select).toHaveAttribute('show-refresh', '');
     });
 
-    test('should render Dial Configuration section', async ({ page }) => {
-      const view = page.locator('.pi-view');
-      await expect(view).toBeVisible();
-      // All dial views have a configuration section
-      const headers = view.locator('h2');
-      const count = await headers.count();
-      expect(count).toBeGreaterThanOrEqual(2);
-    });
+    for (const setting of settings) {
+      test(`should have ${setting} control`, async ({ page }) => {
+        const control = page.locator(`sdpi-range[setting="${setting}"]`);
+        await expect(control).toBeAttached();
+      });
+    }
 
-    test('should render API key input', async ({ page }) => {
-      const input = page.locator('#apiKey');
-      await expect(input).toBeVisible();
-      await expect(input).toHaveAttribute('type', 'password');
-    });
-
-    test('should accept API key input', async ({ page }) => {
-      const input = page.locator('#apiKey');
-      await input.fill('test-key-12345');
-      await expect(input).toHaveValue('test-key-12345');
+    test('should have setup guide', async ({ page }) => {
+      const guide = page.locator('.guide ol li');
+      await expect(guide).toHaveCount(3);
     });
   });
 }

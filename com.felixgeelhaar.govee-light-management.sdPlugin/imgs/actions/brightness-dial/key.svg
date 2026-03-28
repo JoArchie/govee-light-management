@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 144">
+  <rect width="144" height="144" rx="16" fill="#00ABE7"/>
+  <!-- Sun/brightness icon -->
+  <circle cx="72" cy="72" r="18" fill="none" stroke="#fff" stroke-width="5"/>
+  <line x1="72" y1="32" x2="72" y2="44" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
+  <line x1="72" y1="100" x2="72" y2="112" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
+  <line x1="32" y1="72" x2="44" y2="72" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
+  <line x1="100" y1="72" x2="112" y2="72" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
+  <line x1="43.7" y1="43.7" x2="52.2" y2="52.2" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
+  <line x1="91.8" y1="91.8" x2="100.3" y2="100.3" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
+  <line x1="100.3" y1="43.7" x2="91.8" y2="52.2" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
+  <line x1="52.2" y1="91.8" x2="43.7" y2="100.3" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
+</svg>

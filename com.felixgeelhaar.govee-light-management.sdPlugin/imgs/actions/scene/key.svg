@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 144">
+  <rect width="144" height="144" rx="16" fill="#00ABE7"/>
+  <!-- Sparkle/stars scene icon -->
+  <!-- Large 4-point star -->
+  <path d="M72 38 L76 62 L100 66 L76 70 L72 94 L68 70 L44 66 L68 62Z" fill="#fff"/>
+  <!-- Small star top-right -->
+  <path d="M100 36 L102 44 L110 46 L102 48 L100 56 L98 48 L90 46 L98 44Z" fill="#fff"/>
+  <!-- Small star bottom-left -->
+  <path d="M46 84 L48 90 L54 92 L48 94 L46 100 L44 94 L38 92 L44 90Z" fill="#fff"/>
+</svg>
