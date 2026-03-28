@@ -1,0 +1,39 @@
+#!/usr/bin/env sh
+
+# ============================================================
+# Pre-commit hook: lint, format, type-check, test, security
+# ============================================================
+
+# 1. Lint & Format staged files via lint-staged
+npx lint-staged || exit 1
+
+# 2. Type-check (backend + frontend)
+npm run type-check || exit 1
+
+# 3. Run unit tests (fail-fast, no watch mode)
+npx vitest run --reporter=dot || exit 1
+
+# 4. Security scan on changed files (nox diff)
+if command -v nox >/dev/null 2>&1; then
+  echo "Running nox security scan on changed files..."
+  NOX_OUTPUT=$(nox diff -json 2>&1)
+  NOX_EXIT=$?
+
+  if [ $NOX_EXIT -ne 0 ]; then
+    # Check for critical/high findings not in baseline
+    CRITICAL=$(echo "$NOX_OUTPUT" | grep -c '"severity":"critical"' 2>/dev/null || true)
+    HIGH=$(echo "$NOX_OUTPUT" | grep -c '"severity":"high"' 2>/dev/null || true)
+
+    if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
+      echo ""
+      echo "=== NOX SECURITY ALERT ==="
+      echo "Found $CRITICAL critical and $HIGH high severity findings."
+      echo "Run 'nox diff' for details or 'nox baseline add <fingerprint>' to suppress false positives."
+      echo "=========================="
+      exit 1
+    fi
+  fi
+  echo "Security scan passed."
+else
+  echo "Warning: nox not found, skipping security scan. Install from https://nox.dev"
+fi
