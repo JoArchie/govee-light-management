@@ -168,6 +168,9 @@ export class GroupControlAction extends SingletonAction<GroupControlSettings> {
       case "getLights":
         await this.handleGetLights(ev, settings);
         break;
+      case "getDevices":
+        await this.handleGetDevices(ev, settings);
+        break;
       case "saveGroup":
         await this.handleSaveGroup(ev, settings);
         break;
@@ -556,6 +559,45 @@ export class GroupControlAction extends SingletonAction<GroupControlSettings> {
       await streamDeck.ui.sendToPropertyInspector({
         event: "lightsReceived",
         error: "Failed to fetch lights. Check your API key and connection.",
+      });
+    }
+  }
+
+  /**
+   * Handle request for devices in SDPI datasource format
+   */
+  private async handleGetDevices(
+    ev: SendToPluginEvent<JsonValue, GroupControlSettings>,
+    settings: GroupControlSettings,
+  ): Promise<void> {
+    try {
+      const apiKey =
+        settings.apiKey || (await globalSettingsService.getApiKey());
+      if (!apiKey) {
+        await streamDeck.ui.sendToPropertyInspector({
+          event: "getDevices",
+          items: [],
+        });
+        return;
+      }
+      await this.ensureServices(apiKey);
+      if (!this.deviceService) {
+        throw new Error("Device service unavailable");
+      }
+      const lights = await this.deviceService.discover(true);
+      const items = lights.map((light) => ({
+        label: `${light.label ?? light.name} (${light.model})`,
+        value: `${light.deviceId}|${light.model}`,
+      }));
+      await streamDeck.ui.sendToPropertyInspector({
+        event: "getDevices",
+        items,
+      });
+    } catch (error) {
+      streamDeck.logger.error("Failed to fetch devices for SDPI:", error);
+      await streamDeck.ui.sendToPropertyInspector({
+        event: "getDevices",
+        items: [],
       });
     }
   }

@@ -249,7 +249,7 @@ export class ColorHueDialAction extends SingletonAction<ColorHueDialSettings> {
    * Handle dial release
    */
   override async onDialUp(
-    ev: DialUpEvent<ColorHueDialSettings>,
+    _ev: DialUpEvent<ColorHueDialSettings>,
   ): Promise<void> {
     // Visual feedback is handled through the dial's rainbow gradient bar display
     // No additional action needed - the updated hue value is shown automatically
@@ -273,6 +273,9 @@ export class ColorHueDialAction extends SingletonAction<ColorHueDialSettings> {
         break;
       case "getLights":
         await this.handleGetLights(ev, settings);
+        break;
+      case "getDevices":
+        await this.handleGetDevices(ev, settings);
         break;
       case "setSettings":
         await this.handleSetSettings(ev);
@@ -325,6 +328,7 @@ export class ColorHueDialAction extends SingletonAction<ColorHueDialSettings> {
    * Update visual display (title and feedback)
    */
   private async updateDisplay(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     action: any,
     settings: ColorHueDialSettings,
   ): Promise<void> {
@@ -526,6 +530,45 @@ export class ColorHueDialAction extends SingletonAction<ColorHueDialSettings> {
       await streamDeck.ui.sendToPropertyInspector({
         event: "lightsReceived",
         error: "Failed to fetch lights. Check your API key and connection.",
+      });
+    }
+  }
+
+  /**
+   * Handle request for devices in SDPI datasource format
+   */
+  private async handleGetDevices(
+    _ev: SendToPluginEvent<JsonValue, ColorHueDialSettings>,
+    settings: ColorHueDialSettings,
+  ): Promise<void> {
+    try {
+      const apiKey =
+        settings.apiKey || (await globalSettingsService.getApiKey());
+      if (!apiKey) {
+        await streamDeck.ui.sendToPropertyInspector({
+          event: "getDevices",
+          items: [],
+        });
+        return;
+      }
+      await this.ensureServices(apiKey);
+      if (!this.deviceService) {
+        throw new Error("Device service unavailable");
+      }
+      const lights = await this.deviceService.discover(true);
+      const items = lights.map((light) => ({
+        label: `${light.label ?? light.name} (${light.model})`,
+        value: `${light.deviceId}|${light.model}`,
+      }));
+      await streamDeck.ui.sendToPropertyInspector({
+        event: "getDevices",
+        items,
+      });
+    } catch (error) {
+      streamDeck.logger.error("Failed to fetch devices for SDPI:", error);
+      await streamDeck.ui.sendToPropertyInspector({
+        event: "getDevices",
+        items: [],
       });
     }
   }

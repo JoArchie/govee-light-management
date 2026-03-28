@@ -149,6 +149,9 @@ export class SceneControlAction extends SingletonAction<SceneControlSettings> {
       case "getLights":
         await this.handleGetLights(ev, settings);
         break;
+      case "getDevices":
+        await this.handleGetDevices(ev, settings);
+        break;
       case "getScenes":
         await this.handleGetScenes(ev, settings);
         break;
@@ -346,6 +349,45 @@ export class SceneControlAction extends SingletonAction<SceneControlSettings> {
         event: "lights",
         lights: [],
         error: error instanceof Error ? error.message : "Failed to get lights",
+      });
+    }
+  }
+
+  /**
+   * Handle request for devices in SDPI datasource format
+   */
+  private async handleGetDevices(
+    ev: SendToPluginEvent<JsonValue, SceneControlSettings>,
+    settings: SceneControlSettings,
+  ): Promise<void> {
+    try {
+      const apiKey =
+        settings.apiKey || (await globalSettingsService.getApiKey());
+      if (!apiKey) {
+        await streamDeck.ui.sendToPropertyInspector({
+          event: "getDevices",
+          items: [],
+        });
+        return;
+      }
+      await this.ensureServices(apiKey);
+      if (!this.deviceService) {
+        throw new Error("Device service unavailable");
+      }
+      const lights = await this.deviceService.discover(true);
+      const items = lights.map((light) => ({
+        label: `${light.label ?? light.name} (${light.model})`,
+        value: `${light.deviceId}|${light.model}`,
+      }));
+      await streamDeck.ui.sendToPropertyInspector({
+        event: "getDevices",
+        items,
+      });
+    } catch (error) {
+      streamDeck.logger.error("Failed to fetch devices for SDPI:", error);
+      await streamDeck.ui.sendToPropertyInspector({
+        event: "getDevices",
+        items: [],
       });
     }
   }

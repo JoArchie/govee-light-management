@@ -188,6 +188,9 @@ export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSett
       case "getLights":
         await this.handleGetLights(ev, settings);
         break;
+      case "getDevices":
+        await this.handleGetDevices(ev, settings);
+        break;
     }
   }
 
@@ -222,6 +225,7 @@ export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSett
    * Update action display with current color and segment info
    */
   private async updateDisplay(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     action: any,
     settings: SegmentColorDialSettings,
   ): Promise<void> {
@@ -360,6 +364,45 @@ export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSett
         event: "apiKeyValidated",
         valid: false,
         error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+
+  /**
+   * Handle request for devices in SDPI datasource format
+   */
+  private async handleGetDevices(
+    ev: SendToPluginEvent<JsonValue, SegmentColorDialSettings>,
+    settings: SegmentColorDialSettings,
+  ): Promise<void> {
+    try {
+      const apiKey =
+        settings.apiKey || (await globalSettingsService.getApiKey());
+      if (!apiKey) {
+        await streamDeck.ui.sendToPropertyInspector({
+          event: "getDevices",
+          items: [],
+        });
+        return;
+      }
+      await this.ensureServices(apiKey);
+      if (!this.lightRepository) {
+        throw new Error("Light repository unavailable");
+      }
+      const lights = await this.lightRepository.getAllLights();
+      const items = lights.map((light) => ({
+        label: `${light.name} (${light.model})`,
+        value: `${light.deviceId}|${light.model}`,
+      }));
+      await streamDeck.ui.sendToPropertyInspector({
+        event: "getDevices",
+        items,
+      });
+    } catch (error) {
+      streamDeck.logger.error("Failed to fetch devices for SDPI:", error);
+      await streamDeck.ui.sendToPropertyInspector({
+        event: "getDevices",
+        items: [],
       });
     }
   }

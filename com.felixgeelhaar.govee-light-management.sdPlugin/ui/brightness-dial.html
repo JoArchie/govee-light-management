@@ -10,8 +10,8 @@
 <body>
 	<div id="settings" class="hidden">
 		<sdpi-item label="Device">
-			<select id="deviceSelect" class="sdpi-item-value select"><option value="">Select a device...</option></select>
-			<button id="refreshDevices" style="margin-top:4px;cursor:pointer">↻ Refresh</button>
+			<sdpi-select setting="selectedDeviceId" placeholder="" datasource="getDevices" show-refresh
+				label-setting="selectedLightName"></sdpi-select>
 		</sdpi-item>
 
 		<sdpi-item label="Step Size">
