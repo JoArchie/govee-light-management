@@ -1,0 +1,245 @@
+{
+  "schema_version": "1.0.0",
+  "entries": [
+    {
+      "fingerprint": "4e71957693d18c54a964c4f075682d3703b0b13709b87bd6dca76f56fc0a5494",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: glob is a well-known npm package for file pattern matching, not a typosquat of got",
+      "created_at": "2026-03-28T13:42:46.69038Z"
+    },
+    {
+      "fingerprint": "f81207f5b030c3a768dc6f1a33eec1966c2d37cca070d96edc6c385721e68b90",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: listr2 is the official successor to listr, not a typosquat",
+      "created_at": "2026-03-28T13:42:46.713386Z"
+    },
+    {
+      "fingerprint": "1e35d9f067ed81af7bf0c66921ffa08490f283a1da75a9f7365b4f8839bf4882",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: recast is a well-known AST transformation library, not a typosquat of react",
+      "created_at": "2026-03-28T13:42:46.730433Z"
+    },
+    {
+      "fingerprint": "2d5247c9e4649f1ade5334e1cc449853e322b1aa2089263e5ea3fc2ad350ca39",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: ejs is a well-known templating engine, not a typosquat of rxjs",
+      "created_at": "2026-03-28T13:42:46.7363Z"
+    },
+    {
+      "fingerprint": "a4183abd48e0461f9519cedcd65a03a5ada56a6e903413e10581837d5607a4c7",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: gopd is a legitimate package (Object.getOwnPropertyDescriptor), not a typosquat of got",
+      "created_at": "2026-03-28T13:42:46.741958Z"
+    },
+    {
+      "fingerprint": "e672097c603a7ac93a018f40a3a74b9e71fd25a6990f3f97816416f058f80911",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: cac is a legitimate CLI argument parser by egoist, not a typosquat of chai",
+      "created_at": "2026-03-28T13:42:46.749923Z"
+    },
+    {
+      "fingerprint": "1108bd4c1ee08b4c71e8d6cd8072e1f5688750ca0c82e2a70b1196a3c668c522",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: he is a well-known HTML entity encoder/decoder, not a typosquat of d3",
+      "created_at": "2026-03-28T13:42:49.292874Z"
+    },
+    {
+      "fingerprint": "48704323261dff85e1c16ecb485dc00713ccb37e0f2533af0ec5d424f327c564",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: ws is a well-known WebSocket library for Node.js, not a typosquat of d3",
+      "created_at": "2026-03-28T13:42:51.958278Z"
+    },
+    {
+      "fingerprint": "7a2fecad7f73569f0432104fa08d3437a105503bcb5bb6877ab730d43f62294f",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: tar is a well-known archive utility package, not a typosquat of swr",
+      "created_at": "2026-03-28T13:42:55.071303Z"
+    },
+    {
+      "fingerprint": "52bdea72c1f177646aad9708f3c94ad921cd0f622e8d664e36681e910a541fbe",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: zod is a well-known TypeScript schema validation library, not a typosquat of got",
+      "created_at": "2026-03-28T13:42:57.614618Z"
+    },
+    {
+      "fingerprint": "fadfe38edb5ee5eb5011dfbb2b74b692651398db2c5fbf8e47f2359bb3ea5e64",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: vitest is the official Vite test framework, not a typosquat of vite",
+      "created_at": "2026-03-28T13:43:03.225107Z"
+    },
+    {
+      "fingerprint": "40e31d76474dbd4bade7ae807eeaaebd4bb51538ae960f265e16a19833facbd2",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: levn is a legitimate type/value coercion library (optionator dep), not a typosquat of lerna",
+      "created_at": "2026-03-28T13:43:06.831373Z"
+    },
+    {
+      "fingerprint": "64fb42e7b117f0ca4d0012c965504b52ad71e7136978abd4982ecd664a1d3384",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: sirv is a legitimate static file server by lukeed, not a typosquat of swr",
+      "created_at": "2026-03-28T13:43:09.486293Z"
+    },
+    {
+      "fingerprint": "943cb872b7385b3254a6d5f351869f5cb0fd7f27a8ca0a2e5fd8a2dda338f0be",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: parse5 is a well-known HTML parser (jsdom dep), not a typosquat of parcel",
+      "created_at": "2026-03-28T13:43:13.042558Z"
+    },
+    {
+      "fingerprint": "a319071c19311f98744387f33e41e276c12622b2893c48d9e81366e35194f966",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: pug is a well-known template engine (formerly Jade), not a typosquat of pm2",
+      "created_at": "2026-03-28T13:43:15.717765Z"
+    },
+    {
+      "fingerprint": "0b9360aa7f0a97c89e3783f0481d2aedad7a6c7683ae0a8a247a26a4744c4f04",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: vue is the Vue.js framework, not a typosquat of vite",
+      "created_at": "2026-03-28T13:43:18.82311Z"
+    },
+    {
+      "fingerprint": "a468eb39fcdb1e01a8eb6b8f10219cdbcbed8143edf27ea043c1e41de9a1000b",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: ajv is a well-known JSON schema validator, not a typosquat of ejs",
+      "created_at": "2026-03-28T13:43:21.934063Z"
+    },
+    {
+      "fingerprint": "ce7b050e8898bdc09649e6b36d24bd3c5e562b6a38bb00ddbf29495daabf60de",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: ms is a well-known millisecond conversion utility, not a typosquat of d3",
+      "created_at": "2026-03-28T13:43:26.057142Z"
+    },
+    {
+      "fingerprint": "515493faa007a5276ea163f33094654b928436a8a72fb0283218f6430bbff32f",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: rc is a well-known config loader by dominictarr, not a typosquat of d3",
+      "created_at": "2026-03-28T13:43:27.714353Z"
+    },
+    {
+      "fingerprint": "12a4cccdd6b7bb6e198ca936e75c491caca0534e3cb23a2333ac14d52f01f8a6",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: open is a well-known package by sindresorhus to open URLs/files, not a typosquat of boxen",
+      "created_at": "2026-03-28T13:43:30.656133Z"
+    },
+    {
+      "fingerprint": "56c96ce3db2893b8a878f607255ed43dc7dc447e373fe35da19a7569a24a808f",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: nopt is a well-known npm option parser by npm Inc, not a typosquat of next",
+      "created_at": "2026-03-28T13:45:31.917073Z"
+    },
+    {
+      "fingerprint": "5348de7198f0a0f45b7bd12254bae5884f527d71440d937bd0131c0a66f1844f",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: mrmime is a legitimate MIME type utility by lukeed, not a typosquat of mime",
+      "created_at": "2026-03-28T13:45:35.109487Z"
+    },
+    {
+      "fingerprint": "07973530253c83a1251cc88660d8767147e941b5626ab2cb0b9643f30ee7c0c6",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: acorn is a well-known JavaScript parser, not a typosquat of cors",
+      "created_at": "2026-03-28T13:45:37.754189Z"
+    },
+    {
+      "fingerprint": "8a6432b2bf4f0fd61ab7ad8f622ee4c678f9f9e0af3acb7623ae6a6413ded3cf",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: bl is a well-known buffer list package, not a typosquat of d3",
+      "created_at": "2026-03-28T13:45:39.089402Z"
+    },
+    {
+      "fingerprint": "0ccd126bfdafd196d7b7aa13e13ef0399b9b710df01e57f5a0a745b418088730",
+      "rule_id": "VULN-002",
+      "file_path": "package-lock.json",
+      "severity": "critical",
+      "reason": "False positive: pino is a well-known Node.js logger, not a typosquat of sinon",
+      "created_at": "2026-03-28T13:45:40.424558Z"
+    },
+    {
+      "fingerprint": "be93a376b3004ddccc204559ef8968393344be0a773686d227785f5bb2d6618c",
+      "rule_id": "SEC-533",
+      "file_path": "package-lock.json",
+      "severity": "high",
+      "reason": "False positive: SHA-512 integrity hash in package-lock.json, not an IBM Cloud API Key",
+      "created_at": "2026-03-28T13:45:43.150884Z"
+    },
+    {
+      "fingerprint": "15711f8ff271d5503f287ae6e826644861baa59660ee459afd793db9aaac3736",
+      "rule_id": "SEC-533",
+      "file_path": "package-lock.json",
+      "severity": "high",
+      "reason": "False positive: SHA-512 integrity hash in package-lock.json, not an IBM Cloud API Key",
+      "created_at": "2026-03-28T13:45:45.871893Z"
+    },
+    {
+      "fingerprint": "0b9a9f6bb32618287f5bcd3ce5b16c641a55d0ec1867c943e573389b4de9c06c",
+      "rule_id": "SEC-533",
+      "file_path": "package-lock.json",
+      "severity": "high",
+      "reason": "False positive: SHA-512 integrity hash in package-lock.json, not an IBM Cloud API Key",
+      "created_at": "2026-03-28T13:45:48.548612Z"
+    },
+    {
+      "fingerprint": "eacf7be4de9afb93599ee360a037432b6f7741c5e51354919beaa2cd48f71a96",
+      "rule_id": "SEC-533",
+      "file_path": "package-lock.json",
+      "severity": "high",
+      "reason": "False positive: SHA-512 integrity hash in package-lock.json, not an IBM Cloud API Key",
+      "created_at": "2026-03-28T13:45:51.212669Z"
+    },
+    {
+      "fingerprint": "d8493cdaaf21241ed5e6a5ad6ae50bff599c4807bba3027df8d29ca893ea0a92",
+      "rule_id": "SEC-533",
+      "file_path": "package-lock.json",
+      "severity": "high",
+      "reason": "False positive: SHA-512 integrity hash in package-lock.json, not an IBM Cloud API Key",
+      "created_at": "2026-03-28T13:45:53.801815Z"
+    }
+  ]
+}
