@@ -172,7 +172,7 @@ export class CloudTransport implements ITransport {
   }
 
   async supports(
-    device: Pick<LightItem, "deviceId" | "model">,
+    _device: Pick<LightItem, "deviceId" | "model">,
   ): Promise<boolean> {
     const apiKey = await this.getApiKey();
     return Boolean(apiKey);

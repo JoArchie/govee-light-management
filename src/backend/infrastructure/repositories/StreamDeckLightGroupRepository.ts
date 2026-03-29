@@ -2,6 +2,7 @@ import { ILightGroupRepository } from "../../domain/repositories/ILightGroupRepo
 import { LightGroup } from "../../domain/entities/LightGroup";
 import { Light } from "../../domain/entities/Light";
 import streamDeck from "@elgato/streamdeck";
+import type { JsonValue } from "@elgato/utils";
 
 interface SerializedLightGroup {
   id: string;
@@ -196,7 +197,8 @@ export class StreamDeckLightGroupRepository implements ILightGroupRepository {
   private async saveStorage(storage: LightGroupStorage): Promise<void> {
     try {
       const settings = await streamDeck.settings.getGlobalSettings();
-      settings[StreamDeckLightGroupRepository.STORAGE_KEY] = storage as any;
+      settings[StreamDeckLightGroupRepository.STORAGE_KEY] =
+        storage as unknown as JsonValue;
       await streamDeck.settings.setGlobalSettings(settings);
     } catch (error) {
       streamDeck.logger.error("Failed to save storage:", error);

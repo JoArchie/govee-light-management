@@ -5,11 +5,7 @@
  * and Govee API SegmentColor (index property).
  */
 
-import {
-  ColorRgb,
-  Brightness,
-  SegmentColor as ApiSegmentColor,
-} from "@felixgeelhaar/govee-api-client";
+import { SegmentColor as ApiSegmentColor } from "@felixgeelhaar/govee-api-client";
 import { SegmentColor as DomainSegmentColor } from "../../domain/value-objects/SegmentColor";
 
 /**

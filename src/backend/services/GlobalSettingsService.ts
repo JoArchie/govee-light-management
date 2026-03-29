@@ -1,4 +1,5 @@
 import { streamDeck } from "@elgato/streamdeck";
+import type { JsonValue } from "@elgato/utils";
 
 export interface GlobalPluginSettings {
   apiKey?: string;
@@ -66,7 +67,9 @@ export class GlobalSettingsService {
   }
 
   async save(settings: GlobalPluginSettings): Promise<void> {
-    await streamDeck.settings.setGlobalSettings?.(settings as any);
+    await streamDeck.settings.setGlobalSettings?.(
+      settings as unknown as Record<string, JsonValue>,
+    );
     this.cache = { ...settings };
     this.lastFetched = Date.now();
   }

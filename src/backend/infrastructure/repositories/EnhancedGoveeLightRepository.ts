@@ -539,12 +539,12 @@ export class EnhancedGoveeLightRepository implements ILightRepository {
       "deviceId" in device &&
       "model" in device &&
       "deviceName" in device &&
-      typeof (device as any).deviceId === "string" &&
-      (device as any).deviceId.trim() !== "" &&
-      typeof (device as any).model === "string" &&
-      (device as any).model.trim() !== "" &&
-      typeof (device as any).deviceName === "string" &&
-      (device as any).deviceName.trim() !== ""
+      typeof (device as Record<string, unknown>).deviceId === "string" &&
+      ((device as Record<string, unknown>).deviceId as string).trim() !== "" &&
+      typeof (device as Record<string, unknown>).model === "string" &&
+      ((device as Record<string, unknown>).model as string).trim() !== "" &&
+      typeof (device as Record<string, unknown>).deviceName === "string" &&
+      ((device as Record<string, unknown>).deviceName as string).trim() !== ""
     );
   }
 
