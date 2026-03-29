@@ -20,8 +20,19 @@ test.describe('Group Control Property Inspector', () => {
     await expect(page.locator('#connect')).toBeAttached();
   });
 
-  test('should have device selector', async ({ page }) => {
-    await expect(page.locator('sdpi-select[setting="selectedDeviceId"]')).toBeAttached();
+  test('should have group selector', async ({ page }) => {
+    await expect(page.locator('#groupSelect')).toBeAttached();
+  });
+
+  test('should have New Group and Delete buttons', async ({ page }) => {
+    await expect(page.locator('#createGroupBtn')).toBeAttached();
+    await expect(page.locator('#deleteGroupBtn')).toBeAttached();
+  });
+
+  test('should have inline group creation panel (hidden by default)', async ({ page }) => {
+    const panel = page.locator('#createGroupPanel');
+    await expect(panel).toBeAttached();
+    await expect(panel).not.toBeVisible();
   });
 
   test('should have control mode selector', async ({ page }) => {

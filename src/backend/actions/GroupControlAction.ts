@@ -167,6 +167,7 @@ export class GroupControlAction extends SingletonAction<GroupControlSettings> {
         break;
       case "getGroups":
         await this.handleGetGroups(ev, settings);
+        await this.handleGetGroupsDatasource(ev, settings);
         break;
       case "getLights":
         await this.handleGetLights(ev, settings);
@@ -321,37 +322,37 @@ export class GroupControlAction extends SingletonAction<GroupControlSettings> {
           await this.lightControlService.controlGroup(group, "off");
           break;
 
-        case "brightness":
-          if (settings.brightnessValue !== undefined) {
-            commandName = "group.brightness";
-            const brightness = new Brightness(settings.brightnessValue);
-            await this.lightControlService.controlGroup(
-              group,
-              "brightness",
-              brightness,
-            );
-          }
+        case "brightness": {
+          commandName = "group.brightness";
+          const brightness = new Brightness(settings.brightnessValue ?? 50);
+          await this.lightControlService.controlGroup(
+            group,
+            "brightness",
+            brightness,
+          );
           break;
+        }
 
-        case "color":
-          if (settings.colorValue) {
-            commandName = "group.color";
-            const color = ColorRgb.fromHex(settings.colorValue);
-            await this.lightControlService.controlGroup(group, "color", color);
-          }
+        case "color": {
+          commandName = "group.color";
+          const color = ColorRgb.fromHex(settings.colorValue || "#ffffff");
+          await this.lightControlService.controlGroup(group, "color", color);
           break;
+        }
 
-        case "colorTemp":
-          if (settings.colorTempValue) {
-            commandName = "group.colorTemperature";
-            const colorTemp = new ColorTemperature(settings.colorTempValue);
-            await this.lightControlService.controlGroup(
-              group,
-              "colorTemperature",
-              colorTemp,
-            );
-          }
+        case "colorTemp": {
+          commandName = "group.colorTemperature";
+          // Convert 0-100 scale to 2000-9000K Kelvin range
+          const tempPercent = settings.colorTempValue ?? 50;
+          const kelvin = Math.round(2000 + (tempPercent / 100) * 7000);
+          const colorTemp = new ColorTemperature(kelvin);
+          await this.lightControlService.controlGroup(
+            group,
+            "colorTemperature",
+            colorTemp,
+          );
           break;
+        }
       }
 
       telemetryService.recordCommand({
@@ -512,6 +513,49 @@ export class GroupControlAction extends SingletonAction<GroupControlSettings> {
       await streamDeck.ui.sendToPropertyInspector({
         event: "groupsReceived",
         error: "Failed to fetch groups. Check your API key and connection.",
+      });
+    }
+  }
+
+  /**
+   * Handle getGroups in SDPI datasource format ({event, items})
+   */
+  private async handleGetGroupsDatasource(
+    _ev: SendToPluginEvent<JsonValue, GroupControlSettings>,
+    settings: GroupControlSettings,
+  ): Promise<void> {
+    try {
+      const apiKey =
+        settings.apiKey || (await globalSettingsService.getApiKey());
+      if (!apiKey) {
+        await streamDeck.ui.sendToPropertyInspector({
+          event: "getGroups",
+          items: [],
+        });
+        return;
+      }
+      await this.ensureServices(apiKey);
+      if (!this.groupService) {
+        await streamDeck.ui.sendToPropertyInspector({
+          event: "getGroups",
+          items: [],
+        });
+        return;
+      }
+      const groups = await this.groupService.getAllGroups();
+      const items = groups.map((g) => ({
+        label: `${g.name} (${g.size} lights)`,
+        value: g.id,
+      }));
+      await streamDeck.ui.sendToPropertyInspector({
+        event: "getGroups",
+        items,
+      });
+    } catch (error) {
+      streamDeck.logger.error("Failed to fetch groups for datasource:", error);
+      await streamDeck.ui.sendToPropertyInspector({
+        event: "getGroups",
+        items: [],
       });
     }
   }
@@ -774,7 +818,9 @@ export class GroupControlAction extends SingletonAction<GroupControlSettings> {
     }
 
     try {
-      await this.ensureServices(settings.apiKey);
+      const apiKey =
+        settings.apiKey || (await globalSettingsService.getApiKey());
+      await this.ensureServices(apiKey);
 
       if (!this.groupService) {
         throw new Error("Group service unavailable");
