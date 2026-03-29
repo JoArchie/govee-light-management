@@ -90,15 +90,12 @@ export class LightControlAction extends SingletonAction<LightControlSettings> {
     await ev.action.setTitle(title);
 
     // Load current light if configured
-    if (
-      settings.selectedDeviceId &&
-      settings.selectedModel &&
-      this.lightRepository
-    ) {
+    const device = this.parseDevice(settings);
+    if (device && this.lightRepository) {
       try {
         const foundLight = await this.lightRepository.findLight(
-          settings.selectedDeviceId,
-          settings.selectedModel,
+          device.deviceId,
+          device.model,
         );
         this.currentLight = foundLight || undefined;
         if (this.currentLight) {
@@ -228,9 +225,30 @@ export class LightControlAction extends SingletonAction<LightControlSettings> {
   /**
    * Check if action is properly configured
    */
+  /**
+   * Parse device ID and model from settings.
+   * selectedDeviceId may be composite "deviceId|model" format from SDPI.
+   */
+  private parseDevice(settings: LightControlSettings): {
+    deviceId: string;
+    model: string;
+  } | null {
+    if (settings.selectedModel && settings.selectedDeviceId) {
+      return {
+        deviceId: settings.selectedDeviceId,
+        model: settings.selectedModel,
+      };
+    }
+    if (settings.selectedDeviceId?.includes("|")) {
+      const [deviceId, model] = settings.selectedDeviceId.split("|");
+      return { deviceId, model };
+    }
+    return null;
+  }
+
   private async isConfigured(settings: LightControlSettings): Promise<boolean> {
     const apiKey = settings.apiKey || (await globalSettingsService.getApiKey());
-    return !!(apiKey && settings.selectedDeviceId && settings.selectedModel);
+    return !!(apiKey && this.parseDevice(settings));
   }
 
   /**

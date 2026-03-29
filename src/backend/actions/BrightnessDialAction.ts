@@ -72,15 +72,18 @@ export class BrightnessDialAction extends SingletonAction<BrightnessDialSettings
     await this.ensureServices(apiKey);
 
     // Load current light if configured
-    if (
-      settings.selectedDeviceId &&
-      settings.selectedModel &&
-      this.lightRepository
-    ) {
+    const deviceId = settings.selectedDeviceId;
+    const model =
+      settings.selectedModel ||
+      (deviceId?.includes("|") ? deviceId.split("|")[1] : undefined);
+    const parsedDeviceId = deviceId?.includes("|")
+      ? deviceId.split("|")[0]
+      : deviceId;
+    if (parsedDeviceId && model && this.lightRepository) {
       try {
         const foundLight = await this.lightRepository.findLight(
-          settings.selectedDeviceId,
-          settings.selectedModel,
+          parsedDeviceId,
+          model,
         );
         this.currentLight = foundLight || undefined;
         if (this.currentLight) {
@@ -301,12 +304,15 @@ export class BrightnessDialAction extends SingletonAction<BrightnessDialSettings
   /**
    * Check if action is properly configured
    */
-  private isConfigured(settings: BrightnessDialSettings): boolean {
-    return !!(
-      settings.apiKey &&
+  private async isConfigured(
+    settings: BrightnessDialSettings,
+  ): Promise<boolean> {
+    const apiKey = settings.apiKey || (await globalSettingsService.getApiKey());
+    const hasDevice = !!(
       settings.selectedDeviceId &&
-      settings.selectedModel
+      (settings.selectedModel || settings.selectedDeviceId.includes("|"))
     );
+    return !!(apiKey && hasDevice);
   }
 
   /**
