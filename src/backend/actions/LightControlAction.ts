@@ -304,11 +304,8 @@ export class LightControlAction extends SingletonAction<LightControlSettings> {
         }
 
         case "brightness": {
-          if (settings.brightnessValue === undefined) {
-            throw new Error("Brightness value required");
-          }
           commandName = "brightness";
-          const brightness = new Brightness(settings.brightnessValue);
+          const brightness = new Brightness(settings.brightnessValue ?? 50);
           await this.lightControlService.controlLight(
             light,
             "brightness",
@@ -318,21 +315,17 @@ export class LightControlAction extends SingletonAction<LightControlSettings> {
         }
 
         case "color": {
-          if (!settings.colorValue) {
-            throw new Error("Color value required");
-          }
           commandName = "color";
-          const color = ColorRgb.fromHex(settings.colorValue);
+          const color = ColorRgb.fromHex(settings.colorValue || "#ffffff");
           await this.lightControlService.controlLight(light, "color", color);
           break;
         }
 
         case "colorTemp": {
-          if (!settings.colorTempValue) {
-            throw new Error("Color temperature value required");
-          }
           commandName = "colorTemperature";
-          const colorTemp = new ColorTemperature(settings.colorTempValue);
+          const colorTemp = new ColorTemperature(
+            settings.colorTempValue ?? 4500,
+          );
           await this.lightControlService.controlLight(
             light,
             "colorTemperature",
