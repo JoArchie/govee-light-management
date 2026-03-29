@@ -13,29 +13,26 @@
 			const tempItem = document.getElementById("tempItem");
 
 			function updateVisibility(mode) {
+				if (!brightnessItem || !colorItem || !tempItem) return;
 				brightnessItem.style.display = mode === "brightness" ? "" : "none";
 				colorItem.style.display = mode === "color" ? "" : "none";
 				tempItem.style.display = mode === "colorTemp" ? "" : "none";
 			}
 
-			// Listen for SDPI select changes
-			const modeSelect = document.querySelector('sdpi-select[setting="controlMode"]');
-			if (modeSelect) {
-				// Initial state
-				updateVisibility(modeSelect.value || "toggle");
-				// Watch for changes via MutationObserver (SDPI web components)
-				const observer = new MutationObserver(() => updateVisibility(modeSelect.value));
-				observer.observe(modeSelect, { attributes: true, subtree: true });
-				modeSelect.addEventListener("change", (e) => updateVisibility(e.target.value));
-			}
+			// Wait for SDPI to be ready, then listen for settings changes
+			const waitForSDPI = setInterval(() => {
+				if (typeof SDPIComponents === "undefined" || !SDPIComponents.streamDeckClient) return;
+				clearInterval(waitForSDPI);
 
-			// Also listen for settings received from Stream Deck
-			if (typeof SDPIComponents !== "undefined" && SDPIComponents.streamDeckClient) {
-				SDPIComponents.streamDeckClient.didReceiveSettings?.subscribe((msg) => {
+				// When settings are received (including after changes), update visibility
+				SDPIComponents.streamDeckClient.didReceiveSettings.subscribe((msg) => {
 					const mode = msg.payload?.settings?.controlMode;
 					if (mode) updateVisibility(mode);
 				});
-			}
+			}, 100);
+
+			// Default: hide all conditional items
+			updateVisibility("toggle");
 		});
 	</script>
 </head>
