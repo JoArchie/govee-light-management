@@ -5,6 +5,7 @@
   "main": "com.felixgeelhaar.govee-light-management.sdPlugin/bin/plugin.js",
   "scripts": {
     "build": "npm run build:backend",
+    "postinstall": "npx patch-package",
     "build:backend": "vite build --config vite.backend.config.ts",
     "build:frontend": "vite build",
     "dev": "npm run dev:backend & npm run dev:frontend",
