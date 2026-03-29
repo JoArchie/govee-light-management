@@ -1,37 +1,30 @@
 import streamDeck from "@elgato/streamdeck";
 
-import {
-  LightControlAction,
-  GroupControlAction,
-  BrightnessDialAction,
-  ColorTempDialAction,
-  ColorHueDialAction,
-  SceneControlAction,
-  MusicModeAction,
-  SegmentColorDialAction,
-} from "./actions";
+import { OnOffAction } from "./actions/OnOffAction";
+import { BrightnessAction } from "./actions/BrightnessAction";
+import { ColorAction } from "./actions/ColorAction";
+import { ColorTemperatureAction } from "./actions/ColorTemperatureAction";
+import { BrightnessDialAction } from "./actions/BrightnessDialAction";
+import { ColorTempDialAction } from "./actions/ColorTempDialAction";
+import { ColorHueDialAction } from "./actions/ColorHueDialAction";
+import { SegmentColorDialAction } from "./actions/SegmentColorDialAction";
 
-// Set appropriate logging level for production
 streamDeck.logger.setLevel("info");
 
-// Register the enterprise-grade light control actions
-streamDeck.actions.registerAction(new LightControlAction());
-streamDeck.actions.registerAction(new GroupControlAction());
+// Keypad actions
+streamDeck.actions.registerAction(new OnOffAction());
+streamDeck.actions.registerAction(new BrightnessAction());
+streamDeck.actions.registerAction(new ColorAction());
+streamDeck.actions.registerAction(new ColorTemperatureAction());
 
-// Register Stream Deck+ encoder actions
+// Encoder actions (Stream Deck+)
 streamDeck.actions.registerAction(new BrightnessDialAction());
 streamDeck.actions.registerAction(new ColorTempDialAction());
 streamDeck.actions.registerAction(new ColorHueDialAction());
-
-// Register advanced feature actions (v1.1.0+)
-streamDeck.actions.registerAction(new SceneControlAction());
-streamDeck.actions.registerAction(new MusicModeAction());
 streamDeck.actions.registerAction(new SegmentColorDialAction());
 
-// Connect to Stream Deck
 streamDeck.connect();
 
-// Log successful initialization
 streamDeck.logger.info(
   "Govee Light Management plugin initialized successfully",
 );

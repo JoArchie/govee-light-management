@@ -1,0 +1,115 @@
+import {
+  action,
+  KeyDownEvent,
+  SingletonAction,
+  WillAppearEvent,
+  type DidReceiveSettingsEvent,
+  type SendToPluginEvent,
+  streamDeck,
+} from "@elgato/streamdeck";
+import type { JsonValue } from "@elgato/utils";
+import { ColorTemperature } from "@felixgeelhaar/govee-api-client";
+import {
+  ActionServices,
+  type BaseSettings,
+  type DeviceTarget,
+} from "./shared/ActionServices";
+import { telemetryService } from "../services/TelemetryService";
+
+type ColorTemperatureSettings = BaseSettings & {
+  colorTempValue?: number; // 0-100 scale
+};
+
+@action({ UUID: "com.felixgeelhaar.govee-light-management.colortemp" })
+export class ColorTemperatureAction extends SingletonAction<ColorTemperatureSettings> {
+  private services = new ActionServices();
+  private target?: DeviceTarget;
+
+  override async onWillAppear(
+    ev: WillAppearEvent<ColorTemperatureSettings>,
+  ): Promise<void> {
+    const { settings } = ev.payload;
+    const apiKey = await this.services.getApiKey(settings);
+    await this.services.ensureServices(apiKey);
+
+    this.target = (await this.services.resolveTarget(settings)) || undefined;
+    await ev.action.setTitle(this.getTitle(settings));
+  }
+
+  override async onDidReceiveSettings(
+    ev: DidReceiveSettingsEvent<ColorTemperatureSettings>,
+  ): Promise<void> {
+    const { settings } = ev.payload;
+    const apiKey = await this.services.getApiKey(settings);
+    await this.services.ensureServices(apiKey);
+
+    this.target = (await this.services.resolveTarget(settings)) || undefined;
+    await ev.action.setTitle(this.getTitle(settings));
+  }
+
+  override async onKeyDown(
+    ev: KeyDownEvent<ColorTemperatureSettings>,
+  ): Promise<void> {
+    const { settings } = ev.payload;
+
+    const apiKey = await this.services.getApiKey(settings);
+    if (!apiKey || !this.target) {
+      await ev.action.showAlert();
+      return;
+    }
+
+    await this.services.ensureServices(apiKey);
+    const started = Date.now();
+
+    try {
+      // Convert 0-100 scale to 2000-9000K
+      const tempPercent = settings.colorTempValue ?? 50;
+      const kelvin = Math.round(2000 + (tempPercent / 100) * 7000);
+      const colorTemp = new ColorTemperature(kelvin);
+
+      await this.services.controlTarget(
+        this.target,
+        "colorTemperature",
+        colorTemp,
+      );
+
+      telemetryService.recordCommand({
+        command: `${this.target.type}.colorTemperature`,
+        durationMs: Date.now() - started,
+        success: true,
+      });
+
+      await ev.action.setTitle(this.getTitle(settings));
+    } catch (error) {
+      streamDeck.logger.error("Failed to set color temperature:", error);
+      await ev.action.showAlert();
+    }
+  }
+
+  override async onSendToPlugin(
+    ev: SendToPluginEvent<JsonValue, ColorTemperatureSettings>,
+  ): Promise<void> {
+    if (!(ev.payload instanceof Object) || !("event" in ev.payload)) return;
+
+    switch (ev.payload.event) {
+      case "getDevices":
+        await this.services.handleGetDevices();
+        break;
+      case "saveGroup":
+        await this.services.handleSaveGroup(ev.payload);
+        break;
+      case "deleteGroup":
+        await this.services.handleDeleteGroup(ev.payload);
+        break;
+    }
+  }
+
+  private getTitle(settings: ColorTemperatureSettings): string {
+    const name = settings.selectedLightName;
+    if (!name) return "Color Temp";
+    const shortName = name.length > 12 ? name.substring(0, 12) + "…" : name;
+    const val = settings.colorTempValue ?? 50;
+    const kelvin = Math.round(2000 + (val / 100) * 7000);
+    return `${kelvin}K\n${shortName}`;
+  }
+}
