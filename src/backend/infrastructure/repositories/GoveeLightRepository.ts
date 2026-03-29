@@ -15,6 +15,19 @@ import streamDeck from "@elgato/streamdeck";
 export class GoveeLightRepository implements ILightRepository {
   private client: GoveeClient;
 
+  /**
+   * Check if an error is a Zod ValidationError from the client library.
+   * The govee-api-client has strict Zod schemas that sometimes reject
+   * valid Govee API responses. Commands still execute successfully.
+   */
+  private isValidationError(error: unknown): boolean {
+    return (
+      error instanceof Error &&
+      (error.constructor.name === "ValidationError" ||
+        error.message.includes("API response validation failed"))
+    );
+  }
+
   constructor(apiKey: string, enableRetries = true) {
     this.client = new GoveeClient({
       apiKey,
@@ -83,6 +96,15 @@ export class GoveeLightRepository implements ILightRepository {
 
       light.updateState({ isOn });
     } catch (error) {
+      // Govee API may return responses that fail strict Zod validation
+      // but the command was still executed successfully
+      if (this.isValidationError(error)) {
+        streamDeck.logger.warn(
+          `Power command sent but response validation failed for ${light.name} - command likely succeeded`,
+        );
+        light.updateState({ isOn });
+        return;
+      }
       streamDeck.logger.error(
         `Failed to set power for light ${light.name}:`,
         error,
@@ -97,10 +119,14 @@ export class GoveeLightRepository implements ILightRepository {
     try {
       await this.client.setBrightness(light.deviceId, light.model, brightness);
       light.updateState({ brightness });
-      streamDeck.logger.info(
-        `Light ${light.name} brightness set to ${brightness.level}%`,
-      );
     } catch (error) {
+      if (this.isValidationError(error)) {
+        streamDeck.logger.warn(
+          `Brightness command sent but response validation failed for ${light.name}`,
+        );
+        light.updateState({ brightness });
+        return;
+      }
       streamDeck.logger.error(
         `Failed to set brightness for light ${light.name}:`,
         error,
@@ -115,10 +141,14 @@ export class GoveeLightRepository implements ILightRepository {
     try {
       await this.client.setColor(light.deviceId, light.model, color);
       light.updateState({ color, colorTemperature: undefined });
-      streamDeck.logger.info(
-        `Light ${light.name} color set to ${color.toString()}`,
-      );
     } catch (error) {
+      if (this.isValidationError(error)) {
+        streamDeck.logger.warn(
+          `Color command sent but response validation failed for ${light.name}`,
+        );
+        light.updateState({ color, colorTemperature: undefined });
+        return;
+      }
       streamDeck.logger.error(
         `Failed to set color for light ${light.name}:`,
         error,
@@ -140,10 +170,14 @@ export class GoveeLightRepository implements ILightRepository {
         colorTemperature,
       );
       light.updateState({ colorTemperature, color: undefined });
-      streamDeck.logger.info(
-        `Light ${light.name} color temperature set to ${colorTemperature.kelvin}K`,
-      );
     } catch (error) {
+      if (this.isValidationError(error)) {
+        streamDeck.logger.warn(
+          `Color temperature command sent but response validation failed for ${light.name}`,
+        );
+        light.updateState({ colorTemperature, color: undefined });
+        return;
+      }
       streamDeck.logger.error(
         `Failed to set color temperature for light ${light.name}:`,
         error,
@@ -169,6 +203,13 @@ export class GoveeLightRepository implements ILightRepository {
         `Light ${light.name} turned on with brightness ${brightness.level}%`,
       );
     } catch (error) {
+      if (this.isValidationError(error)) {
+        streamDeck.logger.warn(
+          `Turn on with brightness command sent but response validation failed for ${light.name}`,
+        );
+        light.updateState({ isOn: true, brightness });
+        return;
+      }
       streamDeck.logger.error(
         `Failed to turn on light ${light.name} with brightness:`,
         error,
@@ -197,10 +238,19 @@ export class GoveeLightRepository implements ILightRepository {
         brightness: brightness || light.state.brightness,
         colorTemperature: undefined,
       });
-      streamDeck.logger.info(
-        `Light ${light.name} turned on with color ${color.toString()}`,
-      );
     } catch (error) {
+      if (this.isValidationError(error)) {
+        streamDeck.logger.warn(
+          `Turn on with color command sent but response validation failed for ${light.name}`,
+        );
+        light.updateState({
+          isOn: true,
+          color,
+          brightness: brightness || light.state.brightness,
+          colorTemperature: undefined,
+        });
+        return;
+      }
       streamDeck.logger.error(
         `Failed to turn on light ${light.name} with color:`,
         error,
@@ -229,10 +279,19 @@ export class GoveeLightRepository implements ILightRepository {
         brightness: brightness || light.state.brightness,
         color: undefined,
       });
-      streamDeck.logger.info(
-        `Light ${light.name} turned on with color temperature ${colorTemperature.kelvin}K`,
-      );
     } catch (error) {
+      if (this.isValidationError(error)) {
+        streamDeck.logger.warn(
+          `Turn on with color temperature command sent but response validation failed for ${light.name}`,
+        );
+        light.updateState({
+          isOn: true,
+          colorTemperature,
+          brightness: brightness || light.state.brightness,
+          color: undefined,
+        });
+        return;
+      }
       streamDeck.logger.error(
         `Failed to turn on light ${light.name} with color temperature:`,
         error,
@@ -277,6 +336,12 @@ export class GoveeLightRepository implements ILightRepository {
 
       light.updateState(newState);
     } catch (error) {
+      if (this.isValidationError(error)) {
+        streamDeck.logger.warn(
+          `State query response validation failed for ${light.name} - using cached state`,
+        );
+        return;
+      }
       streamDeck.logger.error(
         `Failed to get state for light ${light.name}:`,
         error,

@@ -6,6 +6,38 @@
 	<link rel="stylesheet" href="./css/main.css" />
 	<script src="./js/sdpi-components.js"></script>
 	<script src="./js/setup.js"></script>
+	<script>
+		document.addEventListener("DOMContentLoaded", () => {
+			const brightnessItem = document.getElementById("brightnessItem");
+			const colorItem = document.getElementById("colorItem");
+			const tempItem = document.getElementById("tempItem");
+
+			function updateVisibility(mode) {
+				brightnessItem.style.display = mode === "brightness" ? "" : "none";
+				colorItem.style.display = mode === "color" ? "" : "none";
+				tempItem.style.display = mode === "colorTemp" ? "" : "none";
+			}
+
+			// Listen for SDPI select changes
+			const modeSelect = document.querySelector('sdpi-select[setting="controlMode"]');
+			if (modeSelect) {
+				// Initial state
+				updateVisibility(modeSelect.value || "toggle");
+				// Watch for changes via MutationObserver (SDPI web components)
+				const observer = new MutationObserver(() => updateVisibility(modeSelect.value));
+				observer.observe(modeSelect, { attributes: true, subtree: true });
+				modeSelect.addEventListener("change", (e) => updateVisibility(e.target.value));
+			}
+
+			// Also listen for settings received from Stream Deck
+			if (typeof SDPIComponents !== "undefined" && SDPIComponents.streamDeckClient) {
+				SDPIComponents.streamDeckClient.didReceiveSettings?.subscribe((msg) => {
+					const mode = msg.payload?.settings?.controlMode;
+					if (mode) updateVisibility(mode);
+				});
+			}
+		});
+	</script>
 </head>
 <body>
 	<div id="settings" class="hidden">
@@ -25,15 +57,15 @@
 			</sdpi-select>
 		</sdpi-item>
 
-		<sdpi-item label="Brightness">
+		<sdpi-item label="Brightness" id="brightnessItem" style="display:none">
 			<sdpi-range setting="brightnessValue" default="50" min="1" max="100" step="1" showlabels></sdpi-range>
 		</sdpi-item>
 
-		<sdpi-item label="Color">
+		<sdpi-item label="Color" id="colorItem" style="display:none">
 			<sdpi-color setting="colorValue"></sdpi-color>
 		</sdpi-item>
 
-		<sdpi-item label="Temperature">
+		<sdpi-item label="Temperature" id="tempItem" style="display:none">
 			<sdpi-range setting="colorTempValue" default="4500" min="2000" max="9000" step="100" showlabels></sdpi-range>
 		</sdpi-item>
 	</div>
