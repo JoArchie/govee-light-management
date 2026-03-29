@@ -11,27 +11,62 @@
 			const brightnessItem = document.getElementById("brightnessItem");
 			const colorItem = document.getElementById("colorItem");
 			const tempItem = document.getElementById("tempItem");
+			let currentMode = "toggle";
 
 			function updateVisibility(mode) {
 				if (!brightnessItem || !colorItem || !tempItem) return;
+				if (mode === currentMode) return;
+				currentMode = mode;
 				brightnessItem.style.display = mode === "brightness" ? "" : "none";
 				colorItem.style.display = mode === "color" ? "" : "none";
 				tempItem.style.display = mode === "colorTemp" ? "" : "none";
 			}
 
-			// Wait for SDPI to be ready, then listen for settings changes
+			// Poll the SDPI component's rendered <select> inside its shadow DOM
+			// This catches user interactions that don't trigger didReceiveSettings
+			function watchModeSelect() {
+				const sdpiSelect = document.querySelector('sdpi-select[setting="controlMode"]');
+				if (!sdpiSelect) return;
+
+				// Try to find the native <select> inside the shadow DOM
+				const checkValue = () => {
+					const shadowSelect = sdpiSelect.shadowRoot?.querySelector("select");
+					if (shadowSelect) {
+						updateVisibility(shadowSelect.value);
+						shadowSelect.addEventListener("change", (e) => {
+							updateVisibility(e.target.value);
+						});
+						return true;
+					}
+					return false;
+				};
+
+				// The shadow DOM may not be ready immediately
+				if (!checkValue()) {
+					const observer = new MutationObserver(() => {
+						if (checkValue()) observer.disconnect();
+					});
+					observer.observe(sdpiSelect, { childList: true, subtree: true });
+					// Fallback: poll briefly
+					let attempts = 0;
+					const poll = setInterval(() => {
+						if (checkValue() || ++attempts > 20) clearInterval(poll);
+					}, 200);
+				}
+			}
+
+			// Also listen for settings from Stream Deck (handles initial load)
 			const waitForSDPI = setInterval(() => {
 				if (typeof SDPIComponents === "undefined" || !SDPIComponents.streamDeckClient) return;
 				clearInterval(waitForSDPI);
 
-				// When settings are received (including after changes), update visibility
 				SDPIComponents.streamDeckClient.didReceiveSettings.subscribe((msg) => {
 					const mode = msg.payload?.settings?.controlMode;
 					if (mode) updateVisibility(mode);
 				});
 			}, 100);
 
-			// Default: hide all conditional items
+			watchModeSelect();
 			updateVisibility("toggle");
 		});
 	</script>
