@@ -323,9 +323,10 @@ export class LightControlAction extends SingletonAction<LightControlSettings> {
 
         case "colorTemp": {
           commandName = "colorTemperature";
-          const colorTemp = new ColorTemperature(
-            settings.colorTempValue ?? 4500,
-          );
+          // Convert 0-100 scale to 2000-9000K Kelvin range
+          const tempPercent = settings.colorTempValue ?? 50;
+          const kelvin = Math.round(2000 + (tempPercent / 100) * 7000);
+          const colorTemp = new ColorTemperature(kelvin);
           await this.lightControlService.controlLight(
             light,
             "colorTemperature",

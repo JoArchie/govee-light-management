@@ -6,70 +6,6 @@
 	<link rel="stylesheet" href="./css/main.css" />
 	<script src="./js/sdpi-components.js"></script>
 	<script src="./js/setup.js"></script>
-	<script>
-		document.addEventListener("DOMContentLoaded", () => {
-			const brightnessItem = document.getElementById("brightnessItem");
-			const colorItem = document.getElementById("colorItem");
-			const tempItem = document.getElementById("tempItem");
-			let currentMode = "toggle";
-
-			function updateVisibility(mode) {
-				if (!brightnessItem || !colorItem || !tempItem) return;
-				if (mode === currentMode) return;
-				currentMode = mode;
-				brightnessItem.style.display = mode === "brightness" ? "" : "none";
-				colorItem.style.display = mode === "color" ? "" : "none";
-				tempItem.style.display = mode === "colorTemp" ? "" : "none";
-			}
-
-			// Poll the SDPI component's rendered <select> inside its shadow DOM
-			// This catches user interactions that don't trigger didReceiveSettings
-			function watchModeSelect() {
-				const sdpiSelect = document.querySelector('sdpi-select[setting="controlMode"]');
-				if (!sdpiSelect) return;
-
-				// Try to find the native <select> inside the shadow DOM
-				const checkValue = () => {
-					const shadowSelect = sdpiSelect.shadowRoot?.querySelector("select");
-					if (shadowSelect) {
-						updateVisibility(shadowSelect.value);
-						shadowSelect.addEventListener("change", (e) => {
-							updateVisibility(e.target.value);
-						});
-						return true;
-					}
-					return false;
-				};
-
-				// The shadow DOM may not be ready immediately
-				if (!checkValue()) {
-					const observer = new MutationObserver(() => {
-						if (checkValue()) observer.disconnect();
-					});
-					observer.observe(sdpiSelect, { childList: true, subtree: true });
-					// Fallback: poll briefly
-					let attempts = 0;
-					const poll = setInterval(() => {
-						if (checkValue() || ++attempts > 20) clearInterval(poll);
-					}, 200);
-				}
-			}
-
-			// Also listen for settings from Stream Deck (handles initial load)
-			const waitForSDPI = setInterval(() => {
-				if (typeof SDPIComponents === "undefined" || !SDPIComponents.streamDeckClient) return;
-				clearInterval(waitForSDPI);
-
-				SDPIComponents.streamDeckClient.didReceiveSettings.subscribe((msg) => {
-					const mode = msg.payload?.settings?.controlMode;
-					if (mode) updateVisibility(mode);
-				});
-			}, 100);
-
-			watchModeSelect();
-			updateVisibility("toggle");
-		});
-	</script>
 </head>
 <body>
 	<div id="settings" class="hidden">
@@ -90,7 +26,7 @@
 		</sdpi-item>
 
 		<sdpi-item label="Brightness" id="brightnessItem" style="display:none">
-			<sdpi-range setting="brightnessValue" default="50" min="1" max="100" step="1" showlabels></sdpi-range>
+			<sdpi-range setting="brightnessValue" default="50" min="0" max="100" step="1" showlabels></sdpi-range>
 		</sdpi-item>
 
 		<sdpi-item label="Color" id="colorItem" style="display:none">
@@ -98,7 +34,10 @@
 		</sdpi-item>
 
 		<sdpi-item label="Temperature" id="tempItem" style="display:none">
-			<sdpi-range setting="colorTempValue" default="4500" min="2000" max="9000" step="100" showlabels></sdpi-range>
+			<sdpi-range setting="colorTempValue" default="50" min="0" max="100" step="1" showlabels>
+				<span slot="min">Warm</span>
+				<span slot="max">Cool</span>
+			</sdpi-range>
 		</sdpi-item>
 	</div>
 

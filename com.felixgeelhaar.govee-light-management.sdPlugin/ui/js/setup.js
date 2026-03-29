@@ -1,7 +1,6 @@
 /**
  * Shared setup logic for all Property Inspectors.
  * Handles the two-panel flow: setup (API key) → settings (device + options).
- * Fetches devices directly from the Govee API.
  */
 document.addEventListener("DOMContentLoaded", () => {
 	const setupWrapper = document.getElementById("setup");
@@ -9,107 +8,40 @@ document.addEventListener("DOMContentLoaded", () => {
 	const connectElem = document.getElementById("connect");
 	const apiKeyElem = document.getElementById("apiKey");
 	const failedElem = document.getElementById("errorMessage");
-	const deviceSelect = document.getElementById("deviceSelect");
-	const refreshBtn = document.getElementById("refreshDevices");
 
-	let localApiKey = null;
-	let initialized = false;
+	// Optional conditional visibility elements
+	const conditionalItems = {
+		brightness: document.getElementById("brightnessItem"),
+		color: document.getElementById("colorItem"),
+		colorTemp: document.getElementById("tempItem"),
+	};
+	const hasConditionalItems = Object.values(conditionalItems).some(Boolean);
 
-	/**
-	 * Toggle between setup and settings panels.
-	 */
-	const showSettings = (show) => {
-		initialized = true;
-		if (show) {
-			settingsWrapper.classList.remove("hidden");
-			setupWrapper.classList.add("hidden");
-		} else {
+	function showPanel(isSetup) {
+		if (isSetup) {
 			setupWrapper.classList.remove("hidden");
 			settingsWrapper.classList.add("hidden");
+		} else {
+			settingsWrapper.classList.remove("hidden");
+			setupWrapper.classList.add("hidden");
 		}
-	};
+	}
 
-	/**
-	 * Fetch devices from Govee API and populate the device select.
-	 */
-	const fetchDevices = async (apiKey) => {
-		if (!apiKey || !deviceSelect) return;
-
-		deviceSelect.disabled = true;
-		deviceSelect.innerHTML = '<option value="">Loading devices...</option>';
-
-		try {
-			const res = await fetch("https://openapi.api.govee.com/router/api/v1/user/devices", {
-				headers: {
-					"Content-Type": "application/json",
-					"Govee-API-Key": apiKey
-				}
-			});
-
-			if (!res.ok) {
-				deviceSelect.innerHTML = '<option value="">Failed to load devices</option>';
-				return;
-			}
-
-			const data = await res.json();
-			const devices = data.data || [];
-
-			deviceSelect.innerHTML = '<option value="">Select a device...</option>';
-			devices.forEach(device => {
-				const opt = document.createElement("option");
-				opt.value = device.device + "|" + device.sku;
-				opt.textContent = device.deviceName + " (" + device.sku + ")";
-				deviceSelect.appendChild(opt);
-			});
-
-			// Restore previously selected device
-			if (typeof SDPIComponents !== "undefined" && SDPIComponents.streamDeckClient) {
-				SDPIComponents.streamDeckClient.getSettings?.();
-			}
-		} catch {
-			deviceSelect.innerHTML = '<option value="">Error loading devices</option>';
-		} finally {
-			deviceSelect.disabled = false;
+	function updateConditionalVisibility(mode) {
+		if (!hasConditionalItems) return;
+		for (const [key, el] of Object.entries(conditionalItems)) {
+			if (el) el.style.display = key === mode ? "" : "none";
 		}
-	};
-
-	/**
-	 * Handle device selection change - save to settings.
-	 */
-	if (deviceSelect) {
-		deviceSelect.addEventListener("change", () => {
-			if (typeof SDPIComponents !== "undefined" && SDPIComponents.streamDeckClient) {
-				const selected = deviceSelect.options[deviceSelect.selectedIndex];
-				const [deviceId, model] = (deviceSelect.value || "").split("|");
-				SDPIComponents.streamDeckClient.setSettings({
-					selectedDeviceId: deviceSelect.value,
-					selectedModel: model || "",
-					selectedLightName: selected?.textContent || ""
-				});
-			}
-		});
 	}
 
 	/**
-	 * Handle refresh button click.
-	 */
-	if (refreshBtn) {
-		refreshBtn.addEventListener("click", () => {
-			if (localApiKey) fetchDevices(localApiKey);
-		});
-	}
-
-	/**
-	 * Handle the "Connect" button click - validate API key against Govee API.
+	 * Validate API key against Govee API.
 	 */
 	connectElem.addEventListener("click", async () => {
-		const toggleEnabledState = (enabled) => {
-			apiKeyElem.disabled = !enabled;
-			connectElem.disabled = !enabled;
-			connectElem.innerText = enabled ? "Connect" : "Connecting...";
-		};
-
-		toggleEnabledState(false);
+		apiKeyElem.disabled = true;
+		connectElem.disabled = true;
+		connectElem.innerText = "Connecting...";
+		failedElem.classList.add("hidden");
 
 		try {
 			const res = await fetch("https://openapi.api.govee.com/router/api/v1/user/devices", {
@@ -120,11 +52,12 @@ document.addEventListener("DOMContentLoaded", () => {
 			});
 
 			if (res.ok) {
-				localApiKey = apiKeyElem.value;
 				SDPIComponents.streamDeckClient.setGlobalSettings({ apiKey: apiKeyElem.value });
-				showSettings(true);
-				fetchDevices(apiKeyElem.value);
-				failedElem.classList.add("hidden");
+				showPanel(false);
+				// Refresh device selects after connecting
+				document.querySelectorAll("sdpi-select[datasource]").forEach(el => {
+					if (el.refresh) el.refresh();
+				});
 			} else {
 				failedElem.classList.remove("hidden");
 			}
@@ -132,68 +65,51 @@ document.addEventListener("DOMContentLoaded", () => {
 			failedElem.classList.remove("hidden");
 		}
 
-		toggleEnabledState(true);
+		apiKeyElem.disabled = false;
+		connectElem.disabled = false;
+		connectElem.innerText = "Connect";
 	});
 
 	/**
-	 * Initialize once SDPIComponents is ready.
+	 * Initialize when SDPI is ready.
 	 */
-	const init = () => {
-		if (typeof SDPIComponents === "undefined" || !SDPIComponents.streamDeckClient) {
-			setTimeout(() => {
-				if (!initialized) showSettings(false);
-			}, 1000);
-			return;
+	function init() {
+		const client = SDPIComponents.streamDeckClient;
+
+		// Show correct panel based on global API key
+		client.didReceiveGlobalSettings.subscribe((msg) => {
+			const apiKey = msg.payload?.settings?.apiKey;
+			showPanel(!apiKey);
+		});
+
+		// Update conditional visibility when action settings change
+		if (hasConditionalItems) {
+			client.didReceiveSettings.subscribe((msg) => {
+				const mode = msg.payload?.settings?.controlMode;
+				if (mode) updateConditionalVisibility(mode);
+			});
 		}
 
-		// Monitor global settings changes.
-		SDPIComponents.streamDeckClient.didReceiveGlobalSettings.subscribe((globalSettings) => {
-			const apiKey = globalSettings.payload?.settings?.apiKey;
-			if (apiKey !== localApiKey) {
-				localApiKey = apiKey;
-				if (apiKey) fetchDevices(apiKey);
-			}
-			showSettings(!!apiKey);
-		});
-
-		// Restore selected device from action settings.
-		SDPIComponents.streamDeckClient.didReceiveSettings.subscribe((settings) => {
-			const deviceId = settings.payload?.settings?.selectedDeviceId;
-			if (deviceId && deviceSelect) {
-				// Try to select the saved device
-				const options = deviceSelect.options;
-				for (let i = 0; i < options.length; i++) {
-					if (options[i].value === deviceId) {
-						deviceSelect.selectedIndex = i;
-						break;
-					}
-				}
-			}
-		});
-
-		// Request current settings on load.
-		SDPIComponents.streamDeckClient.getGlobalSettings();
-
-		// Fallback: if no response within 2 seconds, show setup panel
-		setTimeout(() => {
-			if (!initialized) showSettings(false);
-		}, 2000);
-	};
-
-	// Try to initialize immediately, or wait for SDPI to be ready
-	if (typeof SDPIComponents !== "undefined" && SDPIComponents.streamDeckClient) {
-		init();
-	} else {
-		const checkInterval = setInterval(() => {
-			if (typeof SDPIComponents !== "undefined" && SDPIComponents.streamDeckClient) {
-				clearInterval(checkInterval);
-				init();
-			}
-		}, 100);
-
-		setTimeout(() => {
-			clearInterval(checkInterval);
-			if (!initialized) showSettings(false);
-		}, 3000);
+		// Request current settings
+		client.getGlobalSettings();
 	}
+
+	// Wait for SDPI components to be ready
+	const check = setInterval(() => {
+		if (typeof SDPIComponents !== "undefined" && SDPIComponents.streamDeckClient) {
+			clearInterval(check);
+			init();
+		}
+	}, 50);
+
+	// Fallback: show setup after 3s if SDPI never loads
+	setTimeout(() => {
+		clearInterval(check);
+		if (setupWrapper.classList.contains("hidden") && settingsWrapper.classList.contains("hidden")) {
+			showPanel(true);
+		}
+	}, 3000);
+
+	// Default: hide conditional items
+	updateConditionalVisibility("toggle");
 });

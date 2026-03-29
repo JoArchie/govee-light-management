@@ -15,7 +15,10 @@
 		</sdpi-item>
 
 		<sdpi-item label="Step Size">
-			<sdpi-range setting="stepSize" default="100" min="50" max="500" step="50" showlabels></sdpi-range>
+			<sdpi-range setting="stepSize" default="5" min="1" max="25" step="1" showlabels>
+				<span slot="min">Fine</span>
+				<span slot="max">Coarse</span>
+			</sdpi-range>
 		</sdpi-item>
 	</div>
 
