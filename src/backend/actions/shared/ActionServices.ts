@@ -165,6 +165,40 @@ export class ActionServices {
   }
 
   /**
+   * Handle getGroups - returns group list for group manager UI
+   */
+  async handleGetGroups(): Promise<void> {
+    try {
+      const apiKey = await globalSettingsService.getApiKey();
+      if (!apiKey) {
+        await streamDeck.ui.sendToPropertyInspector({
+          event: "groupsReceived",
+          groups: [],
+        });
+        return;
+      }
+      await this.ensureServices(apiKey);
+      if (!this.groupService) {
+        await streamDeck.ui.sendToPropertyInspector({
+          event: "groupsReceived",
+          groups: [],
+        });
+        return;
+      }
+      const groups = await this.groupService.getAllGroups();
+      await streamDeck.ui.sendToPropertyInspector({
+        event: "groupsReceived",
+        groups: groups.map((g) => ({ id: g.id, name: g.name, size: g.size })),
+      });
+    } catch {
+      await streamDeck.ui.sendToPropertyInspector({
+        event: "groupsReceived",
+        groups: [],
+      });
+    }
+  }
+
+  /**
    * Handle getDevices SDPI datasource - returns both lights and groups
    */
   async handleGetDevices(): Promise<void> {

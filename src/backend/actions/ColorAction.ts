@@ -85,6 +85,9 @@ export class ColorAction extends SingletonAction<ColorSettings> {
       case "getDevices":
         await this.services.handleGetDevices();
         break;
+      case "getGroups":
+        await this.services.handleGetGroups();
+        break;
       case "saveGroup":
         await this.services.handleSaveGroup(ev.payload);
         break;

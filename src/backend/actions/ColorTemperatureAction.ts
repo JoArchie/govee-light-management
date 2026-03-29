@@ -95,6 +95,9 @@ export class ColorTemperatureAction extends SingletonAction<ColorTemperatureSett
       case "getDevices":
         await this.services.handleGetDevices();
         break;
+      case "getGroups":
+        await this.services.handleGetGroups();
+        break;
       case "saveGroup":
         await this.services.handleSaveGroup(ev.payload);
         break;
