@@ -60,7 +60,9 @@ export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSett
     // Use validated settings or fall back to original (for backwards compatibility)
     const safeSettings = validatedSettings || settings;
 
-    await this.ensureServices(safeSettings.apiKey);
+    const apiKey =
+      safeSettings.apiKey || (await globalSettingsService.getApiKey());
+    await this.ensureServices(apiKey);
 
     // Initialize color values from settings
     this.currentHue = settings.hue ?? 0;
@@ -100,7 +102,7 @@ export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSett
   ): Promise<void> {
     const { settings, ticks } = ev.payload;
 
-    if (!this.isConfigured(settings)) {
+    if (!(await this.isConfigured(settings))) {
       return;
     }
 
@@ -128,7 +130,7 @@ export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSett
   ): Promise<void> {
     const { settings } = ev.payload;
 
-    if (!this.isConfigured(settings)) {
+    if (!(await this.isConfigured(settings))) {
       await ev.action.showAlert();
       streamDeck.logger.warn("Segment color action not properly configured");
       return;
@@ -212,9 +214,12 @@ export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSett
   /**
    * Check if action is properly configured
    */
-  private isConfigured(settings: SegmentColorDialSettings): boolean {
+  private async isConfigured(
+    settings: SegmentColorDialSettings,
+  ): Promise<boolean> {
+    const apiKey = settings.apiKey || (await globalSettingsService.getApiKey());
     return !!(
-      settings.apiKey &&
+      apiKey &&
       settings.selectedDeviceId &&
       settings.selectedModel &&
       settings.segmentIndex !== undefined

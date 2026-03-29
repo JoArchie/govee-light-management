@@ -81,7 +81,9 @@ export class LightControlAction extends SingletonAction<LightControlSettings> {
     // Use validated settings or fall back to original (for backwards compatibility)
     const safeSettings = validatedSettings || settings;
 
-    await this.ensureServices(safeSettings.apiKey);
+    const apiKey =
+      safeSettings.apiKey || (await globalSettingsService.getApiKey());
+    await this.ensureServices(apiKey);
 
     // Set initial title based on configuration
     const title = this.getActionTitle(settings);
@@ -120,11 +122,15 @@ export class LightControlAction extends SingletonAction<LightControlSettings> {
   ): Promise<void> {
     const { settings } = ev.payload;
 
-    if (!this.isConfigured(settings)) {
+    if (!(await this.isConfigured(settings))) {
       await ev.action.showAlert();
       streamDeck.logger.warn("Light control action not properly configured");
       return;
     }
+
+    // Ensure services are initialized with global API key fallback
+    const apiKey = settings.apiKey || (await globalSettingsService.getApiKey());
+    await this.ensureServices(apiKey);
 
     if (!this.currentLight || !this.lightControlService) {
       await ev.action.showAlert();
@@ -222,12 +228,9 @@ export class LightControlAction extends SingletonAction<LightControlSettings> {
   /**
    * Check if action is properly configured
    */
-  private isConfigured(settings: LightControlSettings): boolean {
-    return !!(
-      settings.apiKey &&
-      settings.selectedDeviceId &&
-      settings.selectedModel
-    );
+  private async isConfigured(settings: LightControlSettings): Promise<boolean> {
+    const apiKey = settings.apiKey || (await globalSettingsService.getApiKey());
+    return !!(apiKey && settings.selectedDeviceId && settings.selectedModel);
   }
 
   /**

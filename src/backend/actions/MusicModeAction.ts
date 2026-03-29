@@ -52,7 +52,9 @@ export class MusicModeAction extends SingletonAction<MusicModeSettings> {
   ): Promise<void> {
     const { settings } = ev.payload;
 
-    await this.ensureServices(settings.apiKey);
+    const apiKeyForInit =
+      settings.apiKey || (await globalSettingsService.getApiKey());
+    await this.ensureServices(apiKeyForInit);
 
     // Set initial title based on configuration
     const title = this.getActionTitle(settings);
@@ -89,11 +91,14 @@ export class MusicModeAction extends SingletonAction<MusicModeSettings> {
   override async onKeyDown(ev: KeyDownEvent<MusicModeSettings>): Promise<void> {
     const { settings } = ev.payload;
 
-    if (!this.isConfigured(settings)) {
+    if (!(await this.isConfigured(settings))) {
       await ev.action.showAlert();
       streamDeck.logger.warn("Music mode action not properly configured");
       return;
     }
+
+    const apiKey = settings.apiKey || (await globalSettingsService.getApiKey());
+    await this.ensureServices(apiKey);
 
     if (!this.currentLight || !this.lightRepository) {
       await ev.action.showAlert();
@@ -192,9 +197,10 @@ export class MusicModeAction extends SingletonAction<MusicModeSettings> {
   /**
    * Check if action is properly configured
    */
-  private isConfigured(settings: MusicModeSettings): boolean {
+  private async isConfigured(settings: MusicModeSettings): Promise<boolean> {
+    const apiKey = settings.apiKey || (await globalSettingsService.getApiKey());
     return !!(
-      settings.apiKey &&
+      apiKey &&
       settings.selectedDeviceId &&
       settings.selectedModel &&
       settings.musicMode

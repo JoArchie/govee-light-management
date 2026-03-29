@@ -51,7 +51,9 @@ export class SceneControlAction extends SingletonAction<SceneControlSettings> {
   ): Promise<void> {
     const { settings } = ev.payload;
 
-    await this.ensureServices(settings.apiKey);
+    const apiKeyForInit =
+      settings.apiKey || (await globalSettingsService.getApiKey());
+    await this.ensureServices(apiKeyForInit);
 
     // Set initial title based on configuration
     const title = this.getActionTitle(settings);
@@ -90,11 +92,14 @@ export class SceneControlAction extends SingletonAction<SceneControlSettings> {
   ): Promise<void> {
     const { settings } = ev.payload;
 
-    if (!this.isConfigured(settings)) {
+    if (!(await this.isConfigured(settings))) {
       await ev.action.showAlert();
       streamDeck.logger.warn("Scene control action not properly configured");
       return;
     }
+
+    const apiKey = settings.apiKey || (await globalSettingsService.getApiKey());
+    await this.ensureServices(apiKey);
 
     if (!this.currentLight || !this.sceneService) {
       await ev.action.showAlert();
@@ -191,9 +196,10 @@ export class SceneControlAction extends SingletonAction<SceneControlSettings> {
   /**
    * Check if action is properly configured
    */
-  private isConfigured(settings: SceneControlSettings): boolean {
+  private async isConfigured(settings: SceneControlSettings): Promise<boolean> {
+    const apiKey = settings.apiKey || (await globalSettingsService.getApiKey());
     return !!(
-      settings.apiKey &&
+      apiKey &&
       settings.selectedDeviceId &&
       settings.selectedModel &&
       settings.selectedSceneId

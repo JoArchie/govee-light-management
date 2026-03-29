@@ -67,7 +67,9 @@ export class BrightnessDialAction extends SingletonAction<BrightnessDialSettings
     // Use validated settings or fall back to original (for backwards compatibility)
     const safeSettings = validatedSettings || settings;
 
-    await this.ensureServices(safeSettings.apiKey);
+    const apiKey =
+      safeSettings.apiKey || (await globalSettingsService.getApiKey());
+    await this.ensureServices(apiKey);
 
     // Load current light if configured
     if (
@@ -110,7 +112,7 @@ export class BrightnessDialAction extends SingletonAction<BrightnessDialSettings
   ): Promise<void> {
     const { settings, ticks } = ev.payload;
 
-    if (!this.isConfigured(settings)) {
+    if (!(await this.isConfigured(settings))) {
       await ev.action.showAlert();
       streamDeck.logger.warn("Brightness dial action not properly configured");
       return;

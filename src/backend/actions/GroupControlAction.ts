@@ -74,7 +74,9 @@ export class GroupControlAction extends SingletonAction<GroupControlSettings> {
     // Use validated settings or fall back to original (for backwards compatibility)
     const safeSettings = validatedSettings || settings;
 
-    await this.ensureServices(safeSettings.apiKey);
+    const apiKey =
+      safeSettings.apiKey || (await globalSettingsService.getApiKey());
+    await this.ensureServices(apiKey);
 
     // Set initial title based on configuration
     const title = this.getActionTitle(settings);
@@ -108,13 +110,14 @@ export class GroupControlAction extends SingletonAction<GroupControlSettings> {
   ): Promise<void> {
     const { settings } = ev.payload;
 
-    await this.ensureServices(settings.apiKey);
-
-    if (!this.isConfigured(settings)) {
+    if (!(await this.isConfigured(settings))) {
       await ev.action.showAlert();
       streamDeck.logger.warn("Group control action not properly configured");
       return;
     }
+
+    const apiKey = settings.apiKey || (await globalSettingsService.getApiKey());
+    await this.ensureServices(apiKey);
 
     if (!this.currentGroup || !this.lightControlService) {
       await ev.action.showAlert();
@@ -265,8 +268,9 @@ export class GroupControlAction extends SingletonAction<GroupControlSettings> {
   /**
    * Check if action is properly configured
    */
-  private isConfigured(settings: GroupControlSettings): boolean {
-    return !!(settings.apiKey && settings.selectedGroupId);
+  private async isConfigured(settings: GroupControlSettings): Promise<boolean> {
+    const apiKey = settings.apiKey || (await globalSettingsService.getApiKey());
+    return !!(apiKey && settings.selectedGroupId);
   }
 
   /**

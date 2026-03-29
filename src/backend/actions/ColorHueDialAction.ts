@@ -68,7 +68,9 @@ export class ColorHueDialAction extends SingletonAction<ColorHueDialSettings> {
     // Use validated settings or fall back to original (for backwards compatibility)
     const safeSettings = validatedSettings || settings;
 
-    await this.ensureServices(safeSettings.apiKey);
+    const apiKey =
+      safeSettings.apiKey || (await globalSettingsService.getApiKey());
+    await this.ensureServices(apiKey);
 
     // Load current light if configured
     if (
@@ -114,7 +116,7 @@ export class ColorHueDialAction extends SingletonAction<ColorHueDialSettings> {
   ): Promise<void> {
     const { settings, ticks } = ev.payload;
 
-    if (!this.isConfigured(settings)) {
+    if (!(await this.isConfigured(settings))) {
       await ev.action.showAlert();
       streamDeck.logger.warn("Color hue dial action not properly configured");
       return;
@@ -199,7 +201,7 @@ export class ColorHueDialAction extends SingletonAction<ColorHueDialSettings> {
   ): Promise<void> {
     const { settings } = ev.payload;
 
-    if (!this.isConfigured(settings)) {
+    if (!(await this.isConfigured(settings))) {
       await ev.action.showAlert();
       return;
     }
@@ -316,12 +318,9 @@ export class ColorHueDialAction extends SingletonAction<ColorHueDialSettings> {
   /**
    * Check if action is properly configured
    */
-  private isConfigured(settings: ColorHueDialSettings): boolean {
-    return !!(
-      settings.apiKey &&
-      settings.selectedDeviceId &&
-      settings.selectedModel
-    );
+  private async isConfigured(settings: ColorHueDialSettings): Promise<boolean> {
+    const apiKey = settings.apiKey || (await globalSettingsService.getApiKey());
+    return !!(apiKey && settings.selectedDeviceId && settings.selectedModel);
   }
 
   /**
