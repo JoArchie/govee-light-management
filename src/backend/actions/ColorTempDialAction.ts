@@ -5,6 +5,7 @@ import {
   DialUpEvent,
   SingletonAction,
   WillAppearEvent,
+  type DidReceiveSettingsEvent,
   type SendToPluginEvent,
   streamDeck,
 } from "@elgato/streamdeck";
@@ -109,6 +110,41 @@ export class ColorTempDialAction extends SingletonAction<ColorTempDialSettings> 
     } else {
       await ev.action.setTitle("Configure\nColor Temp");
     }
+  }
+
+  /**
+   * Reload light when settings change from Property Inspector
+   */
+  override async onDidReceiveSettings(
+    ev: DidReceiveSettingsEvent<ColorTempDialSettings>,
+  ): Promise<void> {
+    const { settings } = ev.payload;
+    const apiKey = settings.apiKey || (await globalSettingsService.getApiKey());
+    await this.ensureServices(apiKey);
+
+    const deviceId = settings.selectedDeviceId;
+    const model =
+      settings.selectedModel ||
+      (deviceId?.includes("|") ? deviceId.split("|")[1] : undefined);
+    const parsedDeviceId = deviceId?.includes("|")
+      ? deviceId.split("|")[0]
+      : deviceId;
+    if (parsedDeviceId && model && this.lightRepository) {
+      try {
+        const foundLight = await this.lightRepository.findLight(
+          parsedDeviceId,
+          model,
+        );
+        this.currentLight = foundLight || undefined;
+      } catch (error) {
+        streamDeck.logger.warn(
+          "Failed to reload light on settings change:",
+          error,
+        );
+      }
+    }
+
+    await this.updateDisplay(ev.action, settings);
   }
 
   /**

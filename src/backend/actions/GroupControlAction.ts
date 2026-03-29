@@ -3,6 +3,7 @@ import {
   KeyDownEvent,
   SingletonAction,
   WillAppearEvent,
+  type DidReceiveSettingsEvent,
   type SendToPluginEvent,
   streamDeck,
 } from "@elgato/streamdeck";
@@ -100,6 +101,34 @@ export class GroupControlAction extends SingletonAction<GroupControlSettings> {
         streamDeck.logger.error("Failed to load group:", error);
       }
     }
+  }
+
+  /**
+   * Reload group when settings change from the Property Inspector
+   */
+  override async onDidReceiveSettings(
+    ev: DidReceiveSettingsEvent<GroupControlSettings>,
+  ): Promise<void> {
+    const { settings } = ev.payload;
+    const apiKey = settings.apiKey || (await globalSettingsService.getApiKey());
+    await this.ensureServices(apiKey);
+
+    if (settings.selectedGroupId && this.groupService) {
+      try {
+        const foundGroup = await this.groupService.findGroupById(
+          settings.selectedGroupId,
+        );
+        this.currentGroup = foundGroup || undefined;
+      } catch (error) {
+        streamDeck.logger.warn(
+          "Failed to reload group on settings change:",
+          error,
+        );
+      }
+    }
+
+    const title = this.getActionTitle(settings);
+    await ev.action.setTitle(title);
   }
 
   /**

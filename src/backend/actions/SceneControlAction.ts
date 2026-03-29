@@ -3,6 +3,7 @@ import {
   KeyDownEvent,
   SingletonAction,
   WillAppearEvent,
+  type DidReceiveSettingsEvent,
   type SendToPluginEvent,
   streamDeck,
 } from "@elgato/streamdeck";
@@ -85,6 +86,42 @@ export class SceneControlAction extends SingletonAction<SceneControlSettings> {
         streamDeck.logger.error("Failed to load light state:", error);
       }
     }
+  }
+
+  /**
+   * Reload light when settings change from Property Inspector
+   */
+  override async onDidReceiveSettings(
+    ev: DidReceiveSettingsEvent<SceneControlSettings>,
+  ): Promise<void> {
+    const { settings } = ev.payload;
+    const apiKey = settings.apiKey || (await globalSettingsService.getApiKey());
+    await this.ensureServices(apiKey);
+
+    const deviceId = settings.selectedDeviceId;
+    const model =
+      settings.selectedModel ||
+      (deviceId?.includes("|") ? deviceId.split("|")[1] : undefined);
+    const parsedDeviceId = deviceId?.includes("|")
+      ? deviceId.split("|")[0]
+      : deviceId;
+    if (parsedDeviceId && model && this.lightRepository) {
+      try {
+        const foundLight = await this.lightRepository.findLight(
+          parsedDeviceId,
+          model,
+        );
+        this.currentLight = foundLight || undefined;
+      } catch (error) {
+        streamDeck.logger.warn(
+          "Failed to reload light on settings change:",
+          error,
+        );
+      }
+    }
+
+    const title = this.getActionTitle(settings);
+    await ev.action.setTitle(title);
   }
 
   /**
