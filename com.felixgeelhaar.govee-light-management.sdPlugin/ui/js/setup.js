@@ -75,7 +75,7 @@ document.addEventListener("DOMContentLoaded", () => {
 			<sdpi-item label="Groups">
 				<div>
 					<div id="groupList"></div>
-					<button id="newGroupBtn" class="sdpi-item-value group-add-btn">+ New Group</button>
+					<button type="button" id="newGroupBtn" class="sdpi-item-value group-add-btn">+ New Group</button>
 				</div>
 			</sdpi-item>
 			<div id="groupCreateForm" style="display:none">
@@ -85,10 +85,10 @@ document.addEventListener("DOMContentLoaded", () => {
 				<sdpi-item label="Lights">
 					<div id="groupLightList" class="light-checklist"></div>
 				</sdpi-item>
-				<sdpi-item label="&nbsp;">
-					<button id="saveGroupBtn" class="sdpi-item-value group-action-btn">Create</button>
-					<button id="cancelGroupBtn" class="sdpi-item-value group-cancel-btn">Cancel</button>
-				</sdpi-item>
+				<div class="group-btn-row">
+					<button type="button" id="saveGroupBtn" class="group-action-btn">Create</button>
+					<button type="button" id="cancelGroupBtn" class="group-cancel-btn">Cancel</button>
+				</div>
 			</div>
 			<div id="groupStatus" class="group-status"></div>
 		`;

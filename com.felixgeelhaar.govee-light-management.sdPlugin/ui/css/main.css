@@ -61,6 +61,12 @@
 	font-style: italic;
 }
 
+.group-btn-row {
+	display: flex;
+	gap: 8px;
+	padding: 4px 16px 4px 30%;
+}
+
 .group-add-btn,
 .group-action-btn,
 .group-cancel-btn {
