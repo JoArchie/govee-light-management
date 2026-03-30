@@ -61,6 +61,35 @@
 	font-style: italic;
 }
 
+.group-add-btn,
+.group-action-btn,
+.group-cancel-btn {
+	background: #464646;
+	border: none;
+	border-radius: 3px;
+	color: #d8d8d8;
+	cursor: pointer;
+	font-size: 12px;
+	padding: 4px 12px;
+	margin-top: 6px;
+	text-align: center;
+}
+
+.group-add-btn:hover,
+.group-action-btn:hover {
+	background: #555;
+}
+
+.group-cancel-btn {
+	background: transparent;
+	opacity: 0.6;
+	margin-left: 4px;
+}
+
+.group-cancel-btn:hover {
+	opacity: 1;
+}
+
 .light-checklist {
 	max-height: 120px;
 	overflow-y: auto;

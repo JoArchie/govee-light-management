@@ -73,10 +73,10 @@ document.addEventListener("DOMContentLoaded", () => {
 		container.innerHTML = `
 			<hr class="group-separator" />
 			<sdpi-item label="Groups">
-				<div id="groupList"></div>
-			</sdpi-item>
-			<sdpi-item label="">
-				<sdpi-button id="newGroupBtn">+ New Group</sdpi-button>
+				<div>
+					<div id="groupList"></div>
+					<button id="newGroupBtn" class="sdpi-item-value group-add-btn">+ New Group</button>
+				</div>
 			</sdpi-item>
 			<div id="groupCreateForm" style="display:none">
 				<sdpi-item label="Name">
@@ -85,9 +85,9 @@ document.addEventListener("DOMContentLoaded", () => {
 				<sdpi-item label="Lights">
 					<div id="groupLightList" class="light-checklist"></div>
 				</sdpi-item>
-				<sdpi-item label="">
-					<sdpi-button id="saveGroupBtn">Create</sdpi-button>
-					<sdpi-button id="cancelGroupBtn" value="cancel">Cancel</sdpi-button>
+				<sdpi-item label="&nbsp;">
+					<button id="saveGroupBtn" class="sdpi-item-value group-action-btn">Create</button>
+					<button id="cancelGroupBtn" class="sdpi-item-value group-cancel-btn">Cancel</button>
 				</sdpi-item>
 			</div>
 			<div id="groupStatus" class="group-status"></div>
