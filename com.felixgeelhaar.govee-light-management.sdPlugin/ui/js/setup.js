@@ -71,24 +71,26 @@ document.addEventListener("DOMContentLoaded", () => {
 		let devices = [];
 
 		container.innerHTML = `
-			<details class="group-details">
-				<summary>Manage Groups</summary>
-				<div class="group-content">
-					<div class="group-list" id="groupList"></div>
-					<div class="btn-row">
-						<button id="newGroupBtn" class="btn-create">+ New Group</button>
-					</div>
-					<div id="groupCreateForm" style="display:none">
-						<input id="groupNameInput" class="group-name-input" type="text" placeholder="Group name" />
-						<div id="groupLightList" class="light-list"></div>
-						<div class="btn-row">
-							<button id="saveGroupBtn" class="btn-create">Create</button>
-							<button id="cancelGroupBtn" class="btn-cancel">Cancel</button>
-						</div>
-					</div>
-					<div id="groupStatus"></div>
-				</div>
-			</details>
+			<hr class="group-separator" />
+			<sdpi-item label="Groups">
+				<div id="groupList"></div>
+			</sdpi-item>
+			<sdpi-item label="">
+				<sdpi-button id="newGroupBtn">+ New Group</sdpi-button>
+			</sdpi-item>
+			<div id="groupCreateForm" style="display:none">
+				<sdpi-item label="Name">
+					<input id="groupNameInput" type="text" class="sdpi-item-value" placeholder="e.g. Living Room" />
+				</sdpi-item>
+				<sdpi-item label="Lights">
+					<div id="groupLightList" class="light-checklist"></div>
+				</sdpi-item>
+				<sdpi-item label="">
+					<sdpi-button id="saveGroupBtn">Create</sdpi-button>
+					<sdpi-button id="cancelGroupBtn" value="cancel">Cancel</sdpi-button>
+				</sdpi-item>
+			</div>
+			<div id="groupStatus" class="group-status"></div>
 		`;
 
 		const groupList = document.getElementById("groupList");
@@ -99,26 +101,26 @@ document.addEventListener("DOMContentLoaded", () => {
 
 		function showStatus(msg, isError) {
 			statusEl.textContent = msg;
-			statusEl.className = "status-msg " + (isError ? "error" : "success");
+			statusEl.className = "group-status " + (isError ? "error" : "success");
 			setTimeout(() => { statusEl.textContent = ""; }, 3000);
 		}
 
 		function renderGroups(groups) {
 			groupList.innerHTML = "";
 			if (groups.length === 0) {
-				groupList.innerHTML = '<div class="group-empty">No groups yet</div>';
+				groupList.innerHTML = '<span class="group-empty">No groups yet</span>';
 				return;
 			}
 			groups.forEach(g => {
 				const row = document.createElement("div");
 				row.className = "group-row";
 				row.innerHTML = `
-					<span class="group-name">${g.name} <small>(${g.size || "?"} lights)</small></span>
-					<button class="btn-delete" data-id="${g.id}">✕</button>
+					<span class="group-label">${g.name} <small>(${g.size || "?"} lights)</small></span>
+					<button class="group-delete-btn" data-id="${g.id}">✕</button>
 				`;
-				row.querySelector(".btn-delete").addEventListener("click", () => {
+				row.querySelector(".group-delete-btn").addEventListener("click", () => {
 					if (confirm("Delete group '" + g.name + "'?")) {
-						client.sendToPlugin({ event: "deleteGroup", groupId: g.id });
+						sendToPlugin({ event: "deleteGroup", groupId: g.id });
 					}
 				});
 				groupList.appendChild(row);
@@ -149,15 +151,15 @@ document.addEventListener("DOMContentLoaded", () => {
 			const checked = [...document.querySelectorAll('input[name="grpLight"]:checked')];
 			if (!name) { showStatus("Enter a name", true); return; }
 			if (checked.length === 0) { showStatus("Select lights", true); return; }
-			client.sendToPlugin({
+			sendToPlugin({
 				event: "saveGroup",
 				group: { name, lightIds: checked.map(cb => cb.value) }
 			});
 		});
 
-		// Listen for backend responses
-		client.sendToPropertyInspector?.subscribe((msg) => {
-			const p = msg.payload || msg;
+		// Listen for backend responses via raw WebSocket
+		document.addEventListener("sdpi:message", (evt) => {
+			const p = evt.detail || {};
 
 			if (p.event === "getDevices" && p.items) {
 				// Flatten: items may have children (Lights/Groups optgroups)
@@ -182,7 +184,7 @@ document.addEventListener("DOMContentLoaded", () => {
 				if (p.success) {
 					showStatus("Group created!", false);
 					createForm.style.display = "none";
-					client.sendToPlugin({ event: "getGroups" });
+					sendToPlugin({ event: "getGroups" });
 					// Refresh device dropdown to include new group
 					document.querySelectorAll("sdpi-select[datasource]").forEach(el => {
 						if (el.refresh) el.refresh();
@@ -195,7 +197,7 @@ document.addEventListener("DOMContentLoaded", () => {
 			if (p.event === "groupDeleted") {
 				if (p.success) {
 					showStatus("Deleted", false);
-					client.sendToPlugin({ event: "getGroups" });
+					sendToPlugin({ event: "getGroups" });
 					document.querySelectorAll("sdpi-select[datasource]").forEach(el => {
 						if (el.refresh) el.refresh();
 					});
@@ -206,8 +208,8 @@ document.addEventListener("DOMContentLoaded", () => {
 		});
 
 		// Fetch groups and devices
-		client.sendToPlugin({ event: "getGroups" });
-		client.sendToPlugin({ event: "getDevices" });
+		sendToPlugin({ event: "getGroups" });
+		sendToPlugin({ event: "getDevices" });
 	}
 
 	// ── Initialize ──
