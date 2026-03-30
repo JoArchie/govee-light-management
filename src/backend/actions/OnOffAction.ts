@@ -8,11 +8,7 @@ import {
   streamDeck,
 } from "@elgato/streamdeck";
 import type { JsonValue } from "@elgato/utils";
-import {
-  ActionServices,
-  type BaseSettings,
-  type DeviceTarget,
-} from "./shared/ActionServices";
+import { ActionServices, type BaseSettings } from "./shared/ActionServices";
 import { telemetryService } from "../services/TelemetryService";
 
 type OnOffSettings = BaseSettings & {
@@ -22,40 +18,35 @@ type OnOffSettings = BaseSettings & {
 @action({ UUID: "com.felixgeelhaar.govee-light-management.lights" })
 export class OnOffAction extends SingletonAction<OnOffSettings> {
   private services = new ActionServices();
-  private target?: DeviceTarget;
 
   override async onWillAppear(
     ev: WillAppearEvent<OnOffSettings>,
   ): Promise<void> {
-    const { settings } = ev.payload;
-    const apiKey = await this.services.getApiKey(settings);
-    await this.services.ensureServices(apiKey);
-
-    this.target = (await this.services.resolveTarget(settings)) || undefined;
-    await ev.action.setTitle(this.getTitle(settings));
+    await ev.action.setTitle(this.getTitle(ev.payload.settings));
   }
 
   override async onDidReceiveSettings(
     ev: DidReceiveSettingsEvent<OnOffSettings>,
   ): Promise<void> {
-    const { settings } = ev.payload;
-    const apiKey = await this.services.getApiKey(settings);
-    await this.services.ensureServices(apiKey);
-
-    this.target = (await this.services.resolveTarget(settings)) || undefined;
-    await ev.action.setTitle(this.getTitle(settings));
+    await ev.action.setTitle(this.getTitle(ev.payload.settings));
   }
 
   override async onKeyDown(ev: KeyDownEvent<OnOffSettings>): Promise<void> {
     const { settings } = ev.payload;
 
     const apiKey = await this.services.getApiKey(settings);
-    if (!apiKey || !this.target) {
+    if (!apiKey || !settings.selectedDeviceId) {
       await ev.action.showAlert();
       return;
     }
 
     await this.services.ensureServices(apiKey);
+    const target = await this.services.resolveTarget(settings);
+
+    if (!target) {
+      await ev.action.showAlert();
+      return;
+    }
 
     const operation = settings.operation || "toggle";
     const started = Date.now();
@@ -63,22 +54,19 @@ export class OnOffAction extends SingletonAction<OnOffSettings> {
     try {
       if (operation === "toggle") {
         const isOn =
-          this.target.type === "light"
-            ? this.target.light?.isOn
-            : this.target.group?.getStateSummary().allOn;
-        const cmd = isOn ? "off" : "on";
-        await this.services.controlTarget(this.target, cmd);
+          target.type === "light"
+            ? target.light?.isOn
+            : target.group?.getStateSummary().allOn;
+        await this.services.controlTarget(target, isOn ? "off" : "on");
       } else {
-        await this.services.controlTarget(this.target, operation);
+        await this.services.controlTarget(target, operation);
       }
 
       telemetryService.recordCommand({
-        command: `${this.target.type}.${operation}`,
+        command: `${target.type}.${operation}`,
         durationMs: Date.now() - started,
         success: true,
       });
-
-      await ev.action.setTitle(this.getTitle(settings));
     } catch (error) {
       streamDeck.logger.error("Failed to control:", error);
       await ev.action.showAlert();

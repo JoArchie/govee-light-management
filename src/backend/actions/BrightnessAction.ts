@@ -9,11 +9,7 @@ import {
 } from "@elgato/streamdeck";
 import type { JsonValue } from "@elgato/utils";
 import { Brightness } from "@felixgeelhaar/govee-api-client";
-import {
-  ActionServices,
-  type BaseSettings,
-  type DeviceTarget,
-} from "./shared/ActionServices";
+import { ActionServices, type BaseSettings } from "./shared/ActionServices";
 import { telemetryService } from "../services/TelemetryService";
 
 type BrightnessSettings = BaseSettings & {
@@ -23,28 +19,17 @@ type BrightnessSettings = BaseSettings & {
 @action({ UUID: "com.felixgeelhaar.govee-light-management.brightness" })
 export class BrightnessAction extends SingletonAction<BrightnessSettings> {
   private services = new ActionServices();
-  private target?: DeviceTarget;
 
   override async onWillAppear(
     ev: WillAppearEvent<BrightnessSettings>,
   ): Promise<void> {
-    const { settings } = ev.payload;
-    const apiKey = await this.services.getApiKey(settings);
-    await this.services.ensureServices(apiKey);
-
-    this.target = (await this.services.resolveTarget(settings)) || undefined;
-    await ev.action.setTitle(this.getTitle(settings));
+    await ev.action.setTitle(this.getTitle(ev.payload.settings));
   }
 
   override async onDidReceiveSettings(
     ev: DidReceiveSettingsEvent<BrightnessSettings>,
   ): Promise<void> {
-    const { settings } = ev.payload;
-    const apiKey = await this.services.getApiKey(settings);
-    await this.services.ensureServices(apiKey);
-
-    this.target = (await this.services.resolveTarget(settings)) || undefined;
-    await ev.action.setTitle(this.getTitle(settings));
+    await ev.action.setTitle(this.getTitle(ev.payload.settings));
   }
 
   override async onKeyDown(
@@ -53,25 +38,30 @@ export class BrightnessAction extends SingletonAction<BrightnessSettings> {
     const { settings } = ev.payload;
 
     const apiKey = await this.services.getApiKey(settings);
-    if (!apiKey || !this.target) {
+    if (!apiKey || !settings.selectedDeviceId) {
       await ev.action.showAlert();
       return;
     }
 
     await this.services.ensureServices(apiKey);
+    const target = await this.services.resolveTarget(settings);
+
+    if (!target) {
+      await ev.action.showAlert();
+      return;
+    }
+
     const started = Date.now();
 
     try {
       const brightness = new Brightness(settings.brightnessValue ?? 50);
-      await this.services.controlTarget(this.target, "brightness", brightness);
+      await this.services.controlTarget(target, "brightness", brightness);
 
       telemetryService.recordCommand({
-        command: `${this.target.type}.brightness`,
+        command: `${target.type}.brightness`,
         durationMs: Date.now() - started,
         success: true,
       });
-
-      await ev.action.setTitle(this.getTitle(settings));
     } catch (error) {
       streamDeck.logger.error("Failed to set brightness:", error);
       await ev.action.showAlert();
