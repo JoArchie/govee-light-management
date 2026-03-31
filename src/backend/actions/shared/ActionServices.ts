@@ -391,6 +391,28 @@ export class ActionServices {
   }
 
   /**
+   * Show a spinner on a key while an async operation runs.
+   * Returns a function to stop the spinner.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  showSpinner(action: any, label?: string): () => void {
+    const frames = ["◐", "◓", "◑", "◒"];
+    let i = 0;
+    let stopped = false;
+    const interval = setInterval(() => {
+      if (stopped) return;
+      const text = label ? `${frames[i]}\n${label}` : frames[i];
+      action.setTitle(text).catch(() => {});
+      i = (i + 1) % frames.length;
+    }, 150);
+
+    return () => {
+      stopped = true;
+      clearInterval(interval);
+    };
+  }
+
+  /**
    * Execute a control command on either a light or group
    */
   async controlTarget(

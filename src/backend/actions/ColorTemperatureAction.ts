@@ -58,7 +58,18 @@ export class ColorTemperatureAction extends SingletonAction<ColorTemperatureSett
       const kelvin = Math.round(2000 + (tempPercent / 100) * 7000);
       const colorTemp = new ColorTemperature(kelvin);
 
-      await this.services.controlTarget(target, "colorTemperature", colorTemp);
+      const shortName = settings.selectedLightName?.substring(0, 12);
+      const stopSpinner = this.services.showSpinner(ev.action, shortName);
+      try {
+        await this.services.controlTarget(
+          target,
+          "colorTemperature",
+          colorTemp,
+        );
+      } finally {
+        stopSpinner();
+      }
+      await ev.action.setTitle(this.getTitle(settings));
 
       telemetryService.recordCommand({
         command: `${target.type}.colorTemperature`,

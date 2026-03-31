@@ -67,12 +67,20 @@ export class OnOffAction extends SingletonAction<OnOffSettings> {
         this.powerState.set(contextId, command === "on");
       }
 
-      // Update title immediately for responsiveness
+      // Show spinner during API call
+      const name = settings.selectedLightName;
+      const shortName =
+        name && name.length > 12 ? name.substring(0, 12) + "…" : name;
+      const stopSpinner = this.services.showSpinner(ev.action, shortName);
+
+      try {
+        await this.services.controlTarget(target, command);
+      } finally {
+        stopSpinner();
+      }
+
+      // Update title to reflect new state
       await ev.action.setTitle(this.getTitle(settings, contextId));
-
-      await this.services.controlTarget(target, command);
-
-      // Show success feedback
 
       telemetryService.recordCommand({
         command: `${target.type}.${operation}`,

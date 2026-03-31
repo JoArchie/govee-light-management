@@ -55,7 +55,14 @@ export class BrightnessAction extends SingletonAction<BrightnessSettings> {
 
     try {
       const brightness = new Brightness(settings.brightnessValue ?? 50);
-      await this.services.controlTarget(target, "brightness", brightness);
+      const shortName = settings.selectedLightName?.substring(0, 12);
+      const stopSpinner = this.services.showSpinner(ev.action, shortName);
+      try {
+        await this.services.controlTarget(target, "brightness", brightness);
+      } finally {
+        stopSpinner();
+      }
+      await ev.action.setTitle(this.getTitle(settings));
 
       telemetryService.recordCommand({
         command: `${target.type}.brightness`,

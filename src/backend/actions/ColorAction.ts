@@ -53,7 +53,14 @@ export class ColorAction extends SingletonAction<ColorSettings> {
 
     try {
       const color = ColorRgb.fromHex(settings.colorValue || "#ffffff");
-      await this.services.controlTarget(target, "color", color);
+      const shortName = settings.selectedLightName?.substring(0, 12);
+      const stopSpinner = this.services.showSpinner(ev.action, shortName);
+      try {
+        await this.services.controlTarget(target, "color", color);
+      } finally {
+        stopSpinner();
+      }
+      await ev.action.setTitle(this.getTitle(settings));
 
       telemetryService.recordCommand({
         command: `${target.type}.color`,
