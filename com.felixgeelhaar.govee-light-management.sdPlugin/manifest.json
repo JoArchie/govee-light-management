@@ -2,6 +2,7 @@
   "Name": "Govee Light Management",
   "Version": "2.0.0.0",
   "Author": "Felix Geelhaar",
+  "URL": "https://github.com/felixgeelhaar/govee-light-management",
   "Actions": [
     {
       "Name": "On / Off",
