@@ -1,5 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 56 56">
-  <!-- Light bulb category icon - white on transparent -->
-  <path d="M28 8 C18 8 10 16 10 26 C10 32 14 37 18 40 L18 44 C18 46 20 48 22 48 L34 48 C36 48 38 46 38 44 L38 40 C42 37 46 32 46 26 C46 16 38 8 28 8 Z" fill="none" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/>
-  <line x1="22" y1="44" x2="34" y2="44" stroke="#fff" stroke-width="2"/>
+  <!-- Light bulb with rays - white on transparent -->
+  <path d="M28 10 C19 10 12 17 12 26 C12 31.5 15 36 19 39 L19 43 C19 44.5 20.5 46 22 46 L34 46 C35.5 46 37 44.5 37 43 L37 39 C41 36 44 31.5 44 26 C44 17 37 10 28 10Z"
+    fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/>
+  <line x1="23" y1="43" x2="33" y2="43" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- Rays -->
+  <line x1="28" y1="2" x2="28" y2="5" stroke="#fff" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+  <line x1="46" y1="14" x2="43.5" y2="16" stroke="#fff" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+  <line x1="10" y1="14" x2="12.5" y2="16" stroke="#fff" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+  <line x1="50" y1="28" x2="47" y2="28" stroke="#fff" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+  <line x1="6" y1="28" x2="9" y2="28" stroke="#fff" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
 </svg>
