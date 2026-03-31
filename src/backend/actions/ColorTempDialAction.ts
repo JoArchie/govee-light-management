@@ -2,6 +2,7 @@ import {
   action,
   DialRotateEvent,
   DialDownEvent,
+  TouchTapEvent,
   SingletonAction,
   WillAppearEvent,
   type DidReceiveSettingsEvent,
@@ -66,26 +67,37 @@ export class ColorTempDialAction extends SingletonAction<ColorTempDialSettings> 
   override async onDialDown(
     ev: DialDownEvent<ColorTempDialSettings>,
   ): Promise<void> {
-    const { settings } = ev.payload;
-    const ctx = ev.action.id;
+    await this.togglePower(ev.action, ev.payload.settings);
+  }
+
+  override async onTouchTap(
+    ev: TouchTapEvent<ColorTempDialSettings>,
+  ): Promise<void> {
+    await this.togglePower(ev.action, ev.payload.settings);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private async togglePower(
+    action: any,
+    settings: ColorTempDialSettings,
+  ): Promise<void> {
+    const ctx = action.id;
     const apiKey = await this.services.getApiKey(settings);
     if (!apiKey || !settings.selectedDeviceId) {
-      await ev.action.showAlert();
+      await action.showAlert();
       return;
     }
     await this.services.ensureServices(apiKey);
     const target = await this.services.resolveTarget(settings);
     if (!target) {
-      await ev.action.showAlert();
+      await action.showAlert();
       return;
     }
 
     const isOn = this.powerMap.get(ctx) ?? true;
-    const command = isOn ? "off" : "on";
     this.powerMap.set(ctx, !isOn);
-
-    await this.services.controlTarget(target, command);
-    await this.updateDisplay(ev.action, settings);
+    await this.services.controlTarget(target, isOn ? "off" : "on");
+    await this.updateDisplay(action, settings);
   }
 
   override async onSendToPlugin(
@@ -108,7 +120,6 @@ export class ColorTempDialAction extends SingletonAction<ColorTempDialSettings> 
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async updateDisplay(
     action: any,
     settings: ColorTempDialSettings,
