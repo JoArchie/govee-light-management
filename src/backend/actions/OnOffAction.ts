@@ -73,7 +73,6 @@ export class OnOffAction extends SingletonAction<OnOffSettings> {
       await this.services.controlTarget(target, command);
 
       // Show success feedback
-      await ev.action.showOk();
 
       telemetryService.recordCommand({
         command: `${target.type}.${operation}`,
