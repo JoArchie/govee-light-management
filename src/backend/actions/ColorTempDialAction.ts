@@ -18,13 +18,15 @@ type ColorTempDialSettings = BaseSettings & {
 @action({ UUID: "com.felixgeelhaar.govee-light-management.colortemp-dial" })
 export class ColorTempDialAction extends SingletonAction<ColorTempDialSettings> {
   private services = new ActionServices();
-  private tempMap = new Map<string, number>(); // per-context temp (0-100 scale)
+  private tempMap = new Map<string, number>();
+  private powerMap = new Map<string, boolean>();
 
   override async onWillAppear(
     ev: WillAppearEvent<ColorTempDialSettings>,
   ): Promise<void> {
-    const contextId = ev.action.id;
-    if (!this.tempMap.has(contextId)) this.tempMap.set(contextId, 50);
+    const ctx = ev.action.id;
+    if (!this.tempMap.has(ctx)) this.tempMap.set(ctx, 50);
+    if (!this.powerMap.has(ctx)) this.powerMap.set(ctx, true);
     await this.updateDisplay(ev.action, ev.payload.settings);
   }
 
@@ -38,11 +40,11 @@ export class ColorTempDialAction extends SingletonAction<ColorTempDialSettings> 
     ev: DialRotateEvent<ColorTempDialSettings>,
   ): Promise<void> {
     const { settings } = ev.payload;
-    const contextId = ev.action.id;
+    const ctx = ev.action.id;
     const step = settings.stepSize || 5;
-    const current = this.tempMap.get(contextId) ?? 50;
+    const current = this.tempMap.get(ctx) ?? 50;
     const next = Math.max(0, Math.min(100, current + ev.payload.ticks * step));
-    this.tempMap.set(contextId, next);
+    this.tempMap.set(ctx, next);
 
     await this.updateDisplay(ev.action, settings);
 
@@ -52,10 +54,9 @@ export class ColorTempDialAction extends SingletonAction<ColorTempDialSettings> 
     const target = await this.services.resolveTarget(settings);
     if (!target) return;
 
-    // Convert 0-100 scale to 2000-9000K
     const kelvin = Math.round(2000 + (next / 100) * 7000);
     await this.services.controlTargetThrottled(
-      contextId,
+      ctx,
       target,
       "colorTemperature",
       new ColorTemperature(kelvin),
@@ -66,6 +67,7 @@ export class ColorTempDialAction extends SingletonAction<ColorTempDialSettings> 
     ev: DialDownEvent<ColorTempDialSettings>,
   ): Promise<void> {
     const { settings } = ev.payload;
+    const ctx = ev.action.id;
     const apiKey = await this.services.getApiKey(settings);
     if (!apiKey || !settings.selectedDeviceId) {
       await ev.action.showAlert();
@@ -78,11 +80,12 @@ export class ColorTempDialAction extends SingletonAction<ColorTempDialSettings> 
       return;
     }
 
-    const isOn =
-      target.type === "light"
-        ? target.light?.isOn
-        : target.group?.getStateSummary().allOn;
-    await this.services.controlTarget(target, isOn ? "off" : "on");
+    const isOn = this.powerMap.get(ctx) ?? true;
+    const command = isOn ? "off" : "on";
+    this.powerMap.set(ctx, !isOn);
+
+    await this.services.controlTarget(target, command);
+    await this.updateDisplay(ev.action, settings);
   }
 
   override async onSendToPlugin(
@@ -110,16 +113,17 @@ export class ColorTempDialAction extends SingletonAction<ColorTempDialSettings> 
     action: any,
     settings: ColorTempDialSettings,
   ): Promise<void> {
-    const contextId = action.id || "default";
-    const temp = this.tempMap.get(contextId) ?? 50;
+    const ctx = action.id || "default";
+    const temp = this.tempMap.get(ctx) ?? 50;
+    const isOn = this.powerMap.get(ctx) ?? true;
     const kelvin = Math.round(2000 + (temp / 100) * 7000);
     const name = settings.selectedLightName || "Color Temp";
     const shortName = name.length > 10 ? name.substring(0, 10) + "…" : name;
 
-    await action.setTitle(`${kelvin}K\n${shortName}`);
+    await action.setTitle(`${isOn ? kelvin + "K" : "Off"}\n${shortName}`);
     await action.setFeedback({
-      value: temp,
-      indicator: { value: temp, opacity: 1 },
+      value: isOn ? temp : 0,
+      indicator: { value: isOn ? temp : 0, opacity: isOn ? 1 : 0.3 },
     });
   }
 }

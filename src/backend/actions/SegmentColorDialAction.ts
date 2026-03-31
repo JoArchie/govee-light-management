@@ -6,7 +6,6 @@ import {
   WillAppearEvent,
   type DidReceiveSettingsEvent,
   type SendToPluginEvent,
-  streamDeck,
 } from "@elgato/streamdeck";
 import type { JsonValue } from "@elgato/utils";
 import { ColorRgb } from "@felixgeelhaar/govee-api-client";
@@ -20,13 +19,15 @@ type SegmentColorDialSettings = BaseSettings & {
 @action({ UUID: "com.felixgeelhaar.govee-light-management.segment-color-dial" })
 export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSettings> {
   private services = new ActionServices();
-  private hueMap = new Map<string, number>(); // per-context hue
+  private hueMap = new Map<string, number>();
+  private powerMap = new Map<string, boolean>();
 
   override async onWillAppear(
     ev: WillAppearEvent<SegmentColorDialSettings>,
   ): Promise<void> {
-    const contextId = ev.action.id;
-    if (!this.hueMap.has(contextId)) this.hueMap.set(contextId, 0);
+    const ctx = ev.action.id;
+    if (!this.hueMap.has(ctx)) this.hueMap.set(ctx, 0);
+    if (!this.powerMap.has(ctx)) this.powerMap.set(ctx, true);
     await this.updateDisplay(ev.action, ev.payload.settings);
   }
 
@@ -40,22 +41,29 @@ export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSett
     ev: DialRotateEvent<SegmentColorDialSettings>,
   ): Promise<void> {
     const { settings } = ev.payload;
-    const contextId = ev.action.id;
+    const ctx = ev.action.id;
     const step = settings.stepSize || 15;
-    const current = this.hueMap.get(contextId) ?? 0;
+    const current = this.hueMap.get(ctx) ?? 0;
     const next = (((current + ev.payload.ticks * step) % 360) + 360) % 360;
-    this.hueMap.set(contextId, next);
+    this.hueMap.set(ctx, next);
 
     await this.updateDisplay(ev.action, settings);
 
-    // Segment color applies on dial press, not rotation (preview only)
+    const apiKey = await this.services.getApiKey(settings);
+    if (!apiKey || !settings.selectedDeviceId) return;
+    await this.services.ensureServices(apiKey);
+    const target = await this.services.resolveTarget(settings);
+    if (!target) return;
+
+    const color = this.hsvToRgb(next, 100, 100);
+    await this.services.controlTargetThrottled(ctx, target, "color", color);
   }
 
   override async onDialDown(
     ev: DialDownEvent<SegmentColorDialSettings>,
   ): Promise<void> {
     const { settings } = ev.payload;
-    const contextId = ev.action.id;
+    const ctx = ev.action.id;
     const apiKey = await this.services.getApiKey(settings);
     if (!apiKey || !settings.selectedDeviceId) {
       await ev.action.showAlert();
@@ -68,16 +76,12 @@ export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSett
       return;
     }
 
-    // Apply current hue as color
-    const hue = this.hueMap.get(contextId) ?? 0;
-    const color = this.hsvToRgb(hue, 100, 100);
+    const isOn = this.powerMap.get(ctx) ?? true;
+    const command = isOn ? "off" : "on";
+    this.powerMap.set(ctx, !isOn);
 
-    try {
-      await this.services.controlTarget(target, "color", color);
-    } catch (error) {
-      streamDeck.logger.error("Failed to set segment color:", error);
-      await ev.action.showAlert();
-    }
+    await this.services.controlTarget(target, command);
+    await this.updateDisplay(ev.action, settings);
   }
 
   override async onSendToPlugin(
@@ -105,55 +109,50 @@ export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSett
     action: any,
     settings: SegmentColorDialSettings,
   ): Promise<void> {
-    const contextId = action.id || "default";
-    const hue = this.hueMap.get(contextId) ?? 0;
-    const seg = settings.segmentIndex ?? 0;
+    const ctx = action.id || "default";
+    const hue = this.hueMap.get(ctx) ?? 0;
+    const isOn = this.powerMap.get(ctx) ?? true;
     const name = settings.selectedLightName || "Segment";
     const shortName = name.length > 8 ? name.substring(0, 8) + "…" : name;
 
-    await action.setTitle(`${hue}° S${seg}\n${shortName}`);
+    await action.setTitle(`${isOn ? hue + "°" : "Off"}\n${shortName}`);
     await action.setFeedback({
       value: Math.round((hue / 360) * 100),
-      indicator: { value: Math.round((hue / 360) * 100), opacity: 1 },
+      indicator: {
+        value: Math.round((hue / 360) * 100),
+        opacity: isOn ? 1 : 0.3,
+      },
     });
   }
 
   private hsvToRgb(h: number, s: number, v: number): ColorRgb {
-    const sn = s / 100;
-    const vn = v / 100;
+    const sn = s / 100,
+      vn = v / 100;
     const c = vn * sn;
     const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
     const m = vn - c;
-
     let r = 0,
       g = 0,
       b = 0;
     if (h < 60) {
       r = c;
       g = x;
-      b = 0;
     } else if (h < 120) {
       r = x;
       g = c;
-      b = 0;
     } else if (h < 180) {
-      r = 0;
       g = c;
       b = x;
     } else if (h < 240) {
-      r = 0;
       g = x;
       b = c;
     } else if (h < 300) {
       r = x;
-      g = 0;
       b = c;
     } else {
       r = c;
-      g = 0;
       b = x;
     }
-
     return new ColorRgb(
       Math.round((r + m) * 255),
       Math.round((g + m) * 255),

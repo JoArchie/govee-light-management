@@ -18,14 +18,15 @@ type BrightnessDialSettings = BaseSettings & {
 @action({ UUID: "com.felixgeelhaar.govee-light-management.brightness-dial" })
 export class BrightnessDialAction extends SingletonAction<BrightnessDialSettings> {
   private services = new ActionServices();
-  private brightnessMap = new Map<string, number>(); // per-context brightness
+  private brightnessMap = new Map<string, number>();
+  private powerMap = new Map<string, boolean>();
 
   override async onWillAppear(
     ev: WillAppearEvent<BrightnessDialSettings>,
   ): Promise<void> {
-    const contextId = ev.action.id;
-    if (!this.brightnessMap.has(contextId))
-      this.brightnessMap.set(contextId, 50);
+    const ctx = ev.action.id;
+    if (!this.brightnessMap.has(ctx)) this.brightnessMap.set(ctx, 50);
+    if (!this.powerMap.has(ctx)) this.powerMap.set(ctx, true);
     await this.updateDisplay(ev.action, ev.payload.settings);
   }
 
@@ -39,16 +40,14 @@ export class BrightnessDialAction extends SingletonAction<BrightnessDialSettings
     ev: DialRotateEvent<BrightnessDialSettings>,
   ): Promise<void> {
     const { settings } = ev.payload;
-    const contextId = ev.action.id;
+    const ctx = ev.action.id;
     const step = settings.stepSize || 5;
-    const current = this.brightnessMap.get(contextId) ?? 50;
+    const current = this.brightnessMap.get(ctx) ?? 50;
     const next = Math.max(0, Math.min(100, current + ev.payload.ticks * step));
-    this.brightnessMap.set(contextId, next);
+    this.brightnessMap.set(ctx, next);
 
-    // Update display immediately for responsiveness
     await this.updateDisplay(ev.action, settings);
 
-    // Throttled API call
     const apiKey = await this.services.getApiKey(settings);
     if (!apiKey || !settings.selectedDeviceId) return;
     await this.services.ensureServices(apiKey);
@@ -56,7 +55,7 @@ export class BrightnessDialAction extends SingletonAction<BrightnessDialSettings
     if (!target) return;
 
     await this.services.controlTargetThrottled(
-      contextId,
+      ctx,
       target,
       "brightness",
       new Brightness(next),
@@ -67,6 +66,7 @@ export class BrightnessDialAction extends SingletonAction<BrightnessDialSettings
     ev: DialDownEvent<BrightnessDialSettings>,
   ): Promise<void> {
     const { settings } = ev.payload;
+    const ctx = ev.action.id;
     const apiKey = await this.services.getApiKey(settings);
     if (!apiKey || !settings.selectedDeviceId) {
       await ev.action.showAlert();
@@ -79,12 +79,12 @@ export class BrightnessDialAction extends SingletonAction<BrightnessDialSettings
       return;
     }
 
-    // Toggle power on press
-    const isOn =
-      target.type === "light"
-        ? target.light?.isOn
-        : target.group?.getStateSummary().allOn;
-    await this.services.controlTarget(target, isOn ? "off" : "on");
+    const isOn = this.powerMap.get(ctx) ?? true;
+    const command = isOn ? "off" : "on";
+    this.powerMap.set(ctx, !isOn);
+
+    await this.services.controlTarget(target, command);
+    await this.updateDisplay(ev.action, settings);
   }
 
   override async onSendToPlugin(
@@ -112,15 +112,16 @@ export class BrightnessDialAction extends SingletonAction<BrightnessDialSettings
     action: any,
     settings: BrightnessDialSettings,
   ): Promise<void> {
-    const contextId = action.id || "default";
-    const brightness = this.brightnessMap.get(contextId) ?? 50;
+    const ctx = action.id || "default";
+    const brightness = this.brightnessMap.get(ctx) ?? 50;
+    const isOn = this.powerMap.get(ctx) ?? true;
     const name = settings.selectedLightName || "Brightness";
     const shortName = name.length > 10 ? name.substring(0, 10) + "…" : name;
 
-    await action.setTitle(`${brightness}%\n${shortName}`);
+    await action.setTitle(`${isOn ? brightness + "%" : "Off"}\n${shortName}`);
     await action.setFeedback({
-      value: brightness,
-      indicator: { value: brightness, opacity: 1 },
+      value: isOn ? brightness : 0,
+      indicator: { value: isOn ? brightness : 0, opacity: isOn ? 1 : 0.3 },
     });
   }
 }

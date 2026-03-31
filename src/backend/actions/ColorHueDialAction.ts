@@ -19,13 +19,15 @@ type ColorHueDialSettings = BaseSettings & {
 @action({ UUID: "com.felixgeelhaar.govee-light-management.colorhue-dial" })
 export class ColorHueDialAction extends SingletonAction<ColorHueDialSettings> {
   private services = new ActionServices();
-  private hueMap = new Map<string, number>(); // per-context hue (0-360)
+  private hueMap = new Map<string, number>();
+  private powerMap = new Map<string, boolean>();
 
   override async onWillAppear(
     ev: WillAppearEvent<ColorHueDialSettings>,
   ): Promise<void> {
-    const contextId = ev.action.id;
-    if (!this.hueMap.has(contextId)) this.hueMap.set(contextId, 0);
+    const ctx = ev.action.id;
+    if (!this.hueMap.has(ctx)) this.hueMap.set(ctx, 0);
+    if (!this.powerMap.has(ctx)) this.powerMap.set(ctx, true);
     await this.updateDisplay(ev.action, ev.payload.settings);
   }
 
@@ -39,12 +41,11 @@ export class ColorHueDialAction extends SingletonAction<ColorHueDialSettings> {
     ev: DialRotateEvent<ColorHueDialSettings>,
   ): Promise<void> {
     const { settings } = ev.payload;
-    const contextId = ev.action.id;
+    const ctx = ev.action.id;
     const step = settings.stepSize || 15;
-    const current = this.hueMap.get(contextId) ?? 0;
-    // Wrap around 0-360
+    const current = this.hueMap.get(ctx) ?? 0;
     const next = (((current + ev.payload.ticks * step) % 360) + 360) % 360;
-    this.hueMap.set(contextId, next);
+    this.hueMap.set(ctx, next);
 
     await this.updateDisplay(ev.action, settings);
 
@@ -55,18 +56,14 @@ export class ColorHueDialAction extends SingletonAction<ColorHueDialSettings> {
     if (!target) return;
 
     const color = this.hsvToRgb(next, settings.saturation ?? 100, 100);
-    await this.services.controlTargetThrottled(
-      contextId,
-      target,
-      "color",
-      color,
-    );
+    await this.services.controlTargetThrottled(ctx, target, "color", color);
   }
 
   override async onDialDown(
     ev: DialDownEvent<ColorHueDialSettings>,
   ): Promise<void> {
     const { settings } = ev.payload;
+    const ctx = ev.action.id;
     const apiKey = await this.services.getApiKey(settings);
     if (!apiKey || !settings.selectedDeviceId) {
       await ev.action.showAlert();
@@ -79,11 +76,12 @@ export class ColorHueDialAction extends SingletonAction<ColorHueDialSettings> {
       return;
     }
 
-    const isOn =
-      target.type === "light"
-        ? target.light?.isOn
-        : target.group?.getStateSummary().allOn;
-    await this.services.controlTarget(target, isOn ? "off" : "on");
+    const isOn = this.powerMap.get(ctx) ?? true;
+    const command = isOn ? "off" : "on";
+    this.powerMap.set(ctx, !isOn);
+
+    await this.services.controlTarget(target, command);
+    await this.updateDisplay(ev.action, settings);
   }
 
   override async onSendToPlugin(
@@ -111,58 +109,50 @@ export class ColorHueDialAction extends SingletonAction<ColorHueDialSettings> {
     action: any,
     settings: ColorHueDialSettings,
   ): Promise<void> {
-    const contextId = action.id || "default";
-    const hue = this.hueMap.get(contextId) ?? 0;
+    const ctx = action.id || "default";
+    const hue = this.hueMap.get(ctx) ?? 0;
+    const isOn = this.powerMap.get(ctx) ?? true;
     const name = settings.selectedLightName || "Color";
     const shortName = name.length > 10 ? name.substring(0, 10) + "…" : name;
 
-    await action.setTitle(`${hue}°\n${shortName}`);
+    await action.setTitle(`${isOn ? hue + "°" : "Off"}\n${shortName}`);
     await action.setFeedback({
       value: Math.round((hue / 360) * 100),
-      indicator: { value: Math.round((hue / 360) * 100), opacity: 1 },
+      indicator: {
+        value: Math.round((hue / 360) * 100),
+        opacity: isOn ? 1 : 0.3,
+      },
     });
   }
 
-  /**
-   * Convert HSV to ColorRgb.
-   * h: 0-360, s: 0-100, v: 0-100
-   */
   private hsvToRgb(h: number, s: number, v: number): ColorRgb {
-    const sn = s / 100;
-    const vn = v / 100;
+    const sn = s / 100,
+      vn = v / 100;
     const c = vn * sn;
     const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
     const m = vn - c;
-
     let r = 0,
       g = 0,
       b = 0;
     if (h < 60) {
       r = c;
       g = x;
-      b = 0;
     } else if (h < 120) {
       r = x;
       g = c;
-      b = 0;
     } else if (h < 180) {
-      r = 0;
       g = c;
       b = x;
     } else if (h < 240) {
-      r = 0;
       g = x;
       b = c;
     } else if (h < 300) {
       r = x;
-      g = 0;
       b = c;
     } else {
       r = c;
-      g = 0;
       b = x;
     }
-
     return new ColorRgb(
       Math.round((r + m) * 255),
       Math.round((g + m) * 255),
