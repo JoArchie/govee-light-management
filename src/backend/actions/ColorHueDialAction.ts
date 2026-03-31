@@ -72,7 +72,6 @@ export class ColorHueDialAction extends SingletonAction<ColorHueDialSettings> {
     await this.togglePower(ev.action, ev.payload.settings);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async togglePower(
     action: any,
     settings: ColorHueDialSettings,
@@ -123,10 +122,10 @@ export class ColorHueDialAction extends SingletonAction<ColorHueDialSettings> {
     const ctx = action.id || "default";
     const hue = this.hueMap.get(ctx) ?? 0;
     const isOn = this.powerMap.get(ctx) ?? true;
-    const name = settings.selectedLightName || "Color";
-    const shortName = name.length > 10 ? name.substring(0, 10) + "…" : name;
+    const name = settings.selectedLightName || "";
+    const short = name.length > 8 ? name.substring(0, 7) + "…" : name;
 
-    await action.setTitle(`${isOn ? hue + "°" : "Off"}\n${shortName}`);
+    await action.setTitle(isOn ? `${hue}° ${short}` : `○ ${short}`);
     await action.setFeedback({
       value: Math.round((hue / 360) * 100),
       indicator: {

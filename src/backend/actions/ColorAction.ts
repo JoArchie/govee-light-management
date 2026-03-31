@@ -96,8 +96,7 @@ export class ColorAction extends SingletonAction<ColorSettings> {
 
   private getTitle(settings: ColorSettings): string {
     const name = settings.selectedLightName;
-    if (!name) return "Color";
-    const shortName = name.length > 12 ? name.substring(0, 12) + "…" : name;
-    return `Color\n${shortName}`;
+    if (!name) return "";
+    return name.length > 8 ? name.substring(0, 7) + "…" : name;
   }
 }

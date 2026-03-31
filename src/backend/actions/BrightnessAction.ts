@@ -98,9 +98,9 @@ export class BrightnessAction extends SingletonAction<BrightnessSettings> {
 
   private getTitle(settings: BrightnessSettings): string {
     const name = settings.selectedLightName;
-    if (!name) return "Brightness";
-    const shortName = name.length > 12 ? name.substring(0, 12) + "…" : name;
+    if (!name) return "";
+    const short = name.length > 8 ? name.substring(0, 7) + "…" : name;
     const val = settings.brightnessValue ?? 50;
-    return `${val}%\n${shortName}`;
+    return `${val}% ${short}`;
   }
 }

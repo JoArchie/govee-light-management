@@ -75,7 +75,6 @@ export class BrightnessDialAction extends SingletonAction<BrightnessDialSettings
     await this.togglePower(ev.action, ev.payload.settings);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async togglePower(
     action: any,
     settings: BrightnessDialSettings,
@@ -126,10 +125,10 @@ export class BrightnessDialAction extends SingletonAction<BrightnessDialSettings
     const ctx = action.id || "default";
     const brightness = this.brightnessMap.get(ctx) ?? 50;
     const isOn = this.powerMap.get(ctx) ?? true;
-    const name = settings.selectedLightName || "Brightness";
-    const shortName = name.length > 10 ? name.substring(0, 10) + "…" : name;
+    const name = settings.selectedLightName || "";
+    const short = name.length > 8 ? name.substring(0, 7) + "…" : name;
 
-    await action.setTitle(`${isOn ? brightness + "%" : "Off"}\n${shortName}`);
+    await action.setTitle(isOn ? `${brightness}% ${short}` : `○ ${short}`);
     await action.setFeedback({
       value: isOn ? brightness : 0,
       indicator: { value: isOn ? brightness : 0, opacity: isOn ? 1 : 0.3 },

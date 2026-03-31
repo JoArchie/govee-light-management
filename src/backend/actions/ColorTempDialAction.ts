@@ -76,7 +76,6 @@ export class ColorTempDialAction extends SingletonAction<ColorTempDialSettings> 
     await this.togglePower(ev.action, ev.payload.settings);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async togglePower(
     action: any,
     settings: ColorTempDialSettings,
@@ -128,10 +127,10 @@ export class ColorTempDialAction extends SingletonAction<ColorTempDialSettings> 
     const temp = this.tempMap.get(ctx) ?? 50;
     const isOn = this.powerMap.get(ctx) ?? true;
     const kelvin = Math.round(2000 + (temp / 100) * 7000);
-    const name = settings.selectedLightName || "Color Temp";
-    const shortName = name.length > 10 ? name.substring(0, 10) + "…" : name;
+    const name = settings.selectedLightName || "";
+    const short = name.length > 8 ? name.substring(0, 7) + "…" : name;
 
-    await action.setTitle(`${isOn ? kelvin + "K" : "Off"}\n${shortName}`);
+    await action.setTitle(isOn ? `${kelvin}K ${short}` : `○ ${short}`);
     await action.setFeedback({
       value: isOn ? temp : 0,
       indicator: { value: isOn ? temp : 0, opacity: isOn ? 1 : 0.3 },

@@ -119,17 +119,16 @@ export class OnOffAction extends SingletonAction<OnOffSettings> {
 
   private getTitle(settings: OnOffSettings, contextId: string): string {
     const name = settings.selectedLightName;
-    if (!name) return "On / Off";
+    if (!name) return "";
 
-    const shortName = name.length > 12 ? name.substring(0, 12) + "…" : name;
+    const short = name.length > 8 ? name.substring(0, 7) + "…" : name;
     const op = settings.operation || "toggle";
 
     if (op === "toggle") {
       const isOn = this.powerState.get(contextId) ?? false;
-      return `${isOn ? "● On" : "○ Off"}\n${shortName}`;
+      return `${isOn ? "●" : "○"} ${short}`;
     }
 
-    const label = op === "on" ? "On" : "Off";
-    return `${label}\n${shortName}`;
+    return short;
   }
 }
