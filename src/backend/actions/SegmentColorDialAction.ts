@@ -9,344 +9,142 @@ import {
   streamDeck,
 } from "@elgato/streamdeck";
 import type { JsonValue } from "@elgato/utils";
-import { GoveeLightRepository } from "../infrastructure/repositories/GoveeLightRepository";
-import { Light } from "../domain/entities/Light";
-import { SegmentColor } from "../domain/value-objects/SegmentColor";
 import { ColorRgb } from "@felixgeelhaar/govee-api-client";
-import { globalSettingsService } from "../services/GlobalSettingsService";
-import {
-  ApiResponseValidator,
-  SegmentColorDialSettingsSchema,
-} from "../infrastructure/validation";
+import { ActionServices, type BaseSettings } from "./shared/ActionServices";
 
-type SegmentColorDialSettings = {
-  apiKey?: string;
-  selectedDeviceId?: string;
-  selectedModel?: string;
-  selectedLightName?: string;
-  segmentIndex?: number; // 0-14 for 15-segment lights
-  hue?: number; // 0-360 degrees
-  saturation?: number; // 0-100
-  brightness?: number; // 0-100
-  stepSize?: number; // Degrees per tick (default: 15)
+type SegmentColorDialSettings = BaseSettings & {
+  stepSize?: number;
+  segmentIndex?: number;
 };
 
-/**
- * Stream Deck+ encoder action for controlling individual segment colors on RGB IC lights
- */
 @action({ UUID: "com.felixgeelhaar.govee-light-management.segment-color-dial" })
 export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSettings> {
-  private lightRepository?: GoveeLightRepository;
-  private currentLight?: Light;
-  private currentApiKey?: string;
-  private currentHue: number = 0;
-  private currentSaturation: number = 100;
-  private currentBrightness: number = 100;
+  private services = new ActionServices();
+  private hueMap = new Map<string, number>(); // per-context hue
 
-  /**
-   * Initialize services when action appears
-   */
   override async onWillAppear(
     ev: WillAppearEvent<SegmentColorDialSettings>,
   ): Promise<void> {
-    const { settings } = ev.payload;
-
-    // Validate settings with Zod schema
-    const validatedSettings = ApiResponseValidator.safeParse(
-      SegmentColorDialSettingsSchema,
-      settings,
-      "SegmentColorDialSettings",
-    );
-
-    // Use validated settings or fall back to original (for backwards compatibility)
-    const safeSettings = validatedSettings || settings;
-
-    const apiKey =
-      safeSettings.apiKey || (await globalSettingsService.getApiKey());
-    await this.ensureServices(apiKey);
-
-    // Initialize color values from settings
-    this.currentHue = settings.hue ?? 0;
-    this.currentSaturation = settings.saturation ?? 100;
-    this.currentBrightness = settings.brightness ?? 100;
-
-    // Set initial title based on configuration
-    await this.updateDisplay(ev.action, settings);
-
-    // Load current light if configured
-    const deviceId = settings.selectedDeviceId;
-    const model =
-      settings.selectedModel ||
-      (deviceId?.includes("|") ? deviceId.split("|")[1] : undefined);
-    const parsedDeviceId = deviceId?.includes("|")
-      ? deviceId.split("|")[0]
-      : deviceId;
-    if (parsedDeviceId && model && this.lightRepository) {
-      try {
-        const foundLight = await this.lightRepository.findLight(
-          parsedDeviceId,
-          model,
-        );
-        this.currentLight = foundLight || undefined;
-        if (this.currentLight) {
-          await this.lightRepository.getLightState(this.currentLight);
-          await this.updateDisplay(ev.action, settings);
-        }
-      } catch (error) {
-        streamDeck.logger.error("Failed to load light state:", error);
-      }
-    }
+    const contextId = ev.action.id;
+    if (!this.hueMap.has(contextId)) this.hueMap.set(contextId, 0);
+    await this.updateDisplay(ev.action, ev.payload.settings);
   }
 
-  /**
-   * Reload light when settings change from the Property Inspector
-   */
   override async onDidReceiveSettings(
     ev: DidReceiveSettingsEvent<SegmentColorDialSettings>,
   ): Promise<void> {
-    const { settings } = ev.payload;
-    const apiKey = settings.apiKey || (await globalSettingsService.getApiKey());
-    await this.ensureServices(apiKey);
-
-    const deviceId = settings.selectedDeviceId;
-    const model =
-      settings.selectedModel ||
-      (deviceId?.includes("|") ? deviceId.split("|")[1] : undefined);
-    const parsedDeviceId = deviceId?.includes("|")
-      ? deviceId.split("|")[0]
-      : deviceId;
-    if (parsedDeviceId && model && this.lightRepository) {
-      try {
-        const foundLight = await this.lightRepository.findLight(
-          parsedDeviceId,
-          model,
-        );
-        this.currentLight = foundLight || undefined;
-      } catch (error) {
-        streamDeck.logger.warn(
-          "Failed to reload light on settings change:",
-          error,
-        );
-      }
-    }
-
-    await this.updateDisplay(ev.action, settings);
+    await this.updateDisplay(ev.action, ev.payload.settings);
   }
 
-  /**
-   * Handle dial rotation - adjust hue value
-   */
   override async onDialRotate(
     ev: DialRotateEvent<SegmentColorDialSettings>,
   ): Promise<void> {
-    const { settings, ticks } = ev.payload;
+    const { settings } = ev.payload;
+    const contextId = ev.action.id;
+    const step = settings.stepSize || 15;
+    const current = this.hueMap.get(contextId) ?? 0;
+    const next = (((current + ev.payload.ticks * step) % 360) + 360) % 360;
+    this.hueMap.set(contextId, next);
 
-    if (!(await this.isConfigured(settings))) {
-      return;
-    }
-
-    const stepSize = settings.stepSize || 15;
-    const change = ticks * stepSize;
-
-    // Update hue with wrapping at 360 degrees
-    this.currentHue = (this.currentHue + change + 360) % 360;
-
-    // Update settings
-    await ev.action.setSettings({
-      ...settings,
-      hue: this.currentHue,
-    });
-
-    // Update display with new color
     await this.updateDisplay(ev.action, settings);
+
+    // Segment color applies on dial press, not rotation (preview only)
   }
 
-  /**
-   * Handle dial press - apply segment color to light
-   */
   override async onDialDown(
     ev: DialDownEvent<SegmentColorDialSettings>,
   ): Promise<void> {
     const { settings } = ev.payload;
-
-    if (!(await this.isConfigured(settings))) {
+    const contextId = ev.action.id;
+    const apiKey = await this.services.getApiKey(settings);
+    if (!apiKey || !settings.selectedDeviceId) {
       await ev.action.showAlert();
-      streamDeck.logger.warn("Segment color action not properly configured");
+      return;
+    }
+    await this.services.ensureServices(apiKey);
+    const target = await this.services.resolveTarget(settings);
+    if (!target) {
+      await ev.action.showAlert();
       return;
     }
 
-    if (!this.currentLight || !this.lightRepository) {
-      await ev.action.showAlert();
-      streamDeck.logger.error("Light not available or service not initialized");
-      return;
-    }
-
-    // Check if light supports segment colors
-    if (!this.currentLight.supportsSegmentedColor()) {
-      await ev.action.showAlert();
-      streamDeck.logger.warn(
-        `Light ${this.currentLight.name} does not support segment colors`,
-      );
-      return;
-    }
+    // Apply current hue as color
+    const hue = this.hueMap.get(contextId) ?? 0;
+    const color = this.hsvToRgb(hue, 100, 100);
 
     try {
-      const rgb = this.hsvToRgb(
-        this.currentHue,
-        this.currentSaturation,
-        this.currentBrightness,
-      );
-      const color = new ColorRgb(rgb.r, rgb.g, rgb.b);
-      const segmentIndex = settings.segmentIndex ?? 0;
-      const segment = SegmentColor.create(segmentIndex, color);
-
-      await this.lightRepository.setSegmentColors(this.currentLight, [segment]);
-      streamDeck.logger.info(
-        `Applied color to segment ${segmentIndex + 1} on ${this.currentLight.name}`,
-      );
+      await this.services.controlTarget(target, "color", color);
     } catch (error) {
-      streamDeck.logger.error("Failed to apply segment color:", error);
+      streamDeck.logger.error("Failed to set segment color:", error);
       await ev.action.showAlert();
     }
   }
 
-  /**
-   * Handle messages from property inspector
-   */
   override async onSendToPlugin(
     ev: SendToPluginEvent<JsonValue, SegmentColorDialSettings>,
   ): Promise<void> {
-    if (!(ev.payload instanceof Object) || !("event" in ev.payload)) {
-      return;
-    }
-
-    const settings = await ev.action.getSettings();
-
+    if (!(ev.payload instanceof Object) || !("event" in ev.payload)) return;
     switch (ev.payload.event) {
-      case "validateApiKey":
-        await this.handleValidateApiKey(ev);
-        break;
-      case "getLights":
-        await this.handleGetLights(ev, settings);
-        break;
       case "getDevices":
-        await this.handleGetDevices(ev, settings);
+        await this.services.handleGetDevices();
+        break;
+      case "getGroups":
+        await this.services.handleGetGroups();
+        break;
+      case "saveGroup":
+        await this.services.handleSaveGroup(ev.payload);
+        break;
+      case "deleteGroup":
+        await this.services.handleDeleteGroup(ev.payload);
         break;
     }
   }
 
-  /**
-   * Initialize repositories
-   */
-  private async ensureServices(apiKey?: string): Promise<void> {
-    if (apiKey && apiKey !== this.currentApiKey) {
-      this.lightRepository = new GoveeLightRepository(apiKey, true);
-      this.currentApiKey = apiKey;
-      try {
-        await globalSettingsService.setApiKey(apiKey);
-      } catch (error) {
-        streamDeck.logger?.warn("Failed to persist API key globally", error);
-      }
-    }
-  }
-
-  /**
-   * Check if action is properly configured
-   */
-  private async isConfigured(
-    settings: SegmentColorDialSettings,
-  ): Promise<boolean> {
-    const apiKey = settings.apiKey || (await globalSettingsService.getApiKey());
-    const hasDevice = !!(
-      settings.selectedDeviceId &&
-      (settings.selectedModel || settings.selectedDeviceId.includes("|"))
-    );
-    return !!(apiKey && hasDevice && settings.segmentIndex !== undefined);
-  }
-
-  /**
-   * Update action display with current color and segment info
-   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async updateDisplay(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     action: any,
     settings: SegmentColorDialSettings,
   ): Promise<void> {
-    const title = this.getActionTitle(settings);
-    await action.setTitle(title);
+    const contextId = action.id || "default";
+    const hue = this.hueMap.get(contextId) ?? 0;
+    const seg = settings.segmentIndex ?? 0;
+    const name = settings.selectedLightName || "Segment";
+    const shortName = name.length > 8 ? name.substring(0, 8) + "…" : name;
 
-    // Set feedback bar with current color
-    const rgb = this.hsvToRgb(
-      this.currentHue,
-      this.currentSaturation,
-      this.currentBrightness,
-    );
-    const hexColor = this.rgbToHex(rgb.r, rgb.g, rgb.b);
-
+    await action.setTitle(`${hue}° S${seg}\n${shortName}`);
     await action.setFeedback({
-      bar: {
-        value: Math.round((this.currentHue / 360) * 100),
-        subtype: 2, // Rainbow gradient
-        bar_bg_c: hexColor,
-      },
+      value: Math.round((hue / 360) * 100),
+      indicator: { value: Math.round((hue / 360) * 100), opacity: 1 },
     });
   }
 
-  /**
-   * Get action title based on configuration
-   */
-  private getActionTitle(settings: SegmentColorDialSettings): string {
-    if (!settings.selectedLightName) {
-      return "Segment";
-    }
-
-    const segmentNumber = (settings.segmentIndex ?? 0) + 1;
-    const lightName =
-      settings.selectedLightName.length > 10
-        ? settings.selectedLightName.substring(0, 7) + "..."
-        : settings.selectedLightName;
-
-    return `${lightName}\nSeg ${segmentNumber}`;
-  }
-
-  /**
-   * Convert HSV to RGB
-   */
-  private hsvToRgb(
-    h: number,
-    s: number,
-    v: number,
-  ): { r: number; g: number; b: number } {
-    const hNorm = h / 360;
-    const sNorm = s / 100;
-    const vNorm = v / 100;
-
-    const c = vNorm * sNorm;
-    const x = c * (1 - Math.abs(((hNorm * 6) % 2) - 1));
-    const m = vNorm - c;
+  private hsvToRgb(h: number, s: number, v: number): ColorRgb {
+    const sn = s / 100;
+    const vn = v / 100;
+    const c = vn * sn;
+    const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+    const m = vn - c;
 
     let r = 0,
       g = 0,
       b = 0;
-    const hSextant = Math.floor(hNorm * 6);
-
-    if (hSextant === 0) {
+    if (h < 60) {
       r = c;
       g = x;
       b = 0;
-    } else if (hSextant === 1) {
+    } else if (h < 120) {
       r = x;
       g = c;
       b = 0;
-    } else if (hSextant === 2) {
+    } else if (h < 180) {
       r = 0;
       g = c;
       b = x;
-    } else if (hSextant === 3) {
+    } else if (h < 240) {
       r = 0;
       g = x;
       b = c;
-    } else if (hSextant === 4) {
+    } else if (h < 300) {
       r = x;
       g = 0;
       b = c;
@@ -356,140 +154,10 @@ export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSett
       b = x;
     }
 
-    return {
-      r: Math.round((r + m) * 255),
-      g: Math.round((g + m) * 255),
-      b: Math.round((b + m) * 255),
-    };
-  }
-
-  /**
-   * Convert RGB to hex color string
-   */
-  private rgbToHex(r: number, g: number, b: number): string {
-    const toHex = (n: number) => {
-      const hex = Math.max(0, Math.min(255, n)).toString(16);
-      return hex.length === 1 ? "0" + hex : hex;
-    };
-    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
-  }
-
-  /**
-   * Handle API key validation
-   */
-  private async handleValidateApiKey(
-    ev: SendToPluginEvent<JsonValue, SegmentColorDialSettings>,
-  ): Promise<void> {
-    if (
-      !(ev.payload instanceof Object) ||
-      !("apiKey" in ev.payload) ||
-      typeof ev.payload.apiKey !== "string"
-    ) {
-      await streamDeck.ui.sendToPropertyInspector({
-        event: "apiKeyValidated",
-        valid: false,
-        error: "Invalid API key format",
-      });
-      return;
-    }
-
-    try {
-      await this.ensureServices(ev.payload.apiKey);
-      if (this.lightRepository) {
-        await this.lightRepository.getAllLights();
-      }
-      await streamDeck.ui.sendToPropertyInspector({
-        event: "apiKeyValidated",
-        valid: true,
-      });
-    } catch (error) {
-      await streamDeck.ui.sendToPropertyInspector({
-        event: "apiKeyValidated",
-        valid: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
-    }
-  }
-
-  /**
-   * Handle request for devices in SDPI datasource format
-   */
-  private async handleGetDevices(
-    ev: SendToPluginEvent<JsonValue, SegmentColorDialSettings>,
-    settings: SegmentColorDialSettings,
-  ): Promise<void> {
-    try {
-      const apiKey =
-        settings.apiKey || (await globalSettingsService.getApiKey());
-      if (!apiKey) {
-        await streamDeck.ui.sendToPropertyInspector({
-          event: "getDevices",
-          items: [],
-        });
-        return;
-      }
-      await this.ensureServices(apiKey);
-      if (!this.lightRepository) {
-        throw new Error("Light repository unavailable");
-      }
-      const lights = await this.lightRepository.getAllLights();
-      const items = lights.map((light) => ({
-        label: `${light.name} (${light.model})`,
-        value: `${light.deviceId}|${light.model}`,
-      }));
-      await streamDeck.ui.sendToPropertyInspector({
-        event: "getDevices",
-        items,
-      });
-    } catch (error) {
-      streamDeck.logger.error("Failed to fetch devices for SDPI:", error);
-      await streamDeck.ui.sendToPropertyInspector({
-        event: "getDevices",
-        items: [],
-      });
-    }
-  }
-
-  /**
-   * Handle get lights request
-   */
-  private async handleGetLights(
-    ev: SendToPluginEvent<JsonValue, SegmentColorDialSettings>,
-    settings: SegmentColorDialSettings,
-  ): Promise<void> {
-    await this.ensureServices(settings.apiKey);
-
-    if (!this.lightRepository) {
-      await streamDeck.ui.sendToPropertyInspector({
-        event: "lights",
-        lights: [],
-        error: "API key not configured",
-      });
-      return;
-    }
-
-    try {
-      const allLights = await this.lightRepository.getAllLights();
-      // Only return lights that support segment colors
-      const segmentLights = allLights.filter((light) =>
-        light.supportsSegmentedColor(),
-      );
-
-      await streamDeck.ui.sendToPropertyInspector({
-        event: "lights",
-        lights: segmentLights.map((light) => ({
-          deviceId: light.deviceId,
-          model: light.model,
-          name: light.name,
-          isOnline: light.isOnline,
-        })),
-      });
-    } catch (error) {
-      await streamDeck.ui.sendToPropertyInspector({
-        event: "lights",
-        lights: [],
-        error: error instanceof Error ? error.message : "Failed to get lights",
-      });
-    }
+    return new ColorRgb(
+      Math.round((r + m) * 255),
+      Math.round((g + m) * 255),
+      Math.round((b + m) * 255),
+    );
   }
 }

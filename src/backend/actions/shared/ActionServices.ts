@@ -351,6 +351,45 @@ export class ActionServices {
   }
 
   /**
+   * Throttled control for dial actions.
+   * Accumulates rapid changes and only sends the final value after a delay.
+   * Key = action context ID to support multiple dials independently.
+   */
+  private dialTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private dialPending = new Map<string, () => Promise<void>>();
+
+  async controlTargetThrottled(
+    contextId: string,
+    target: DeviceTarget,
+    command: "on" | "off" | "brightness" | "color" | "colorTemperature",
+    value?: Brightness | ColorRgb | ColorTemperature,
+    delayMs = 200,
+  ): Promise<void> {
+    // Cancel any pending send for this context
+    const existingTimer = this.dialTimers.get(contextId);
+    if (existingTimer) clearTimeout(existingTimer);
+
+    // Queue the latest value
+    const sendFn = async () => {
+      this.dialTimers.delete(contextId);
+      this.dialPending.delete(contextId);
+      await this.controlTarget(target, command, value);
+    };
+
+    this.dialPending.set(contextId, sendFn);
+    this.dialTimers.set(
+      contextId,
+      setTimeout(() => {
+        const fn = this.dialPending.get(contextId);
+        if (fn)
+          fn().catch((e) =>
+            streamDeck.logger.error("Throttled control failed:", e),
+          );
+      }, delayMs),
+    );
+  }
+
+  /**
    * Execute a control command on either a light or group
    */
   async controlTarget(
