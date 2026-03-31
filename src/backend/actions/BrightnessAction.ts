@@ -57,6 +57,7 @@ export class BrightnessAction extends SingletonAction<BrightnessSettings> {
       const brightness = new Brightness(settings.brightnessValue ?? 50);
       await this.services.controlTarget(target, "brightness", brightness);
 
+      await ev.action.showOk();
       telemetryService.recordCommand({
         command: `${target.type}.brightness`,
         durationMs: Date.now() - started,

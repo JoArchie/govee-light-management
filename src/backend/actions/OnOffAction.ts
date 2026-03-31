@@ -5,7 +5,6 @@ import {
   WillAppearEvent,
   type DidReceiveSettingsEvent,
   type SendToPluginEvent,
-  streamDeck,
 } from "@elgato/streamdeck";
 import type { JsonValue } from "@elgato/utils";
 import { ActionServices, type BaseSettings } from "./shared/ActionServices";
@@ -18,21 +17,26 @@ type OnOffSettings = BaseSettings & {
 @action({ UUID: "com.felixgeelhaar.govee-light-management.lights" })
 export class OnOffAction extends SingletonAction<OnOffSettings> {
   private services = new ActionServices();
+  // Track power state per button context for toggle
+  private powerState = new Map<string, boolean>();
 
   override async onWillAppear(
     ev: WillAppearEvent<OnOffSettings>,
   ): Promise<void> {
-    await ev.action.setTitle(this.getTitle(ev.payload.settings));
+    const contextId = ev.action.id;
+    if (!this.powerState.has(contextId)) this.powerState.set(contextId, false);
+    await ev.action.setTitle(this.getTitle(ev.payload.settings, contextId));
   }
 
   override async onDidReceiveSettings(
     ev: DidReceiveSettingsEvent<OnOffSettings>,
   ): Promise<void> {
-    await ev.action.setTitle(this.getTitle(ev.payload.settings));
+    await ev.action.setTitle(this.getTitle(ev.payload.settings, ev.action.id));
   }
 
   override async onKeyDown(ev: KeyDownEvent<OnOffSettings>): Promise<void> {
     const { settings } = ev.payload;
+    const contextId = ev.action.id;
 
     const apiKey = await this.services.getApiKey(settings);
     if (!apiKey || !settings.selectedDeviceId) {
@@ -52,23 +56,35 @@ export class OnOffAction extends SingletonAction<OnOffSettings> {
     const started = Date.now();
 
     try {
+      let command: "on" | "off";
+
       if (operation === "toggle") {
-        const isOn =
-          target.type === "light"
-            ? target.light?.isOn
-            : target.group?.getStateSummary().allOn;
-        await this.services.controlTarget(target, isOn ? "off" : "on");
+        const currentlyOn = this.powerState.get(contextId) ?? false;
+        command = currentlyOn ? "off" : "on";
+        this.powerState.set(contextId, !currentlyOn);
       } else {
-        await this.services.controlTarget(target, operation);
+        command = operation as "on" | "off";
+        this.powerState.set(contextId, command === "on");
       }
+
+      // Update title immediately for responsiveness
+      await ev.action.setTitle(this.getTitle(settings, contextId));
+
+      await this.services.controlTarget(target, command);
+
+      // Show success feedback
+      await ev.action.showOk();
 
       telemetryService.recordCommand({
         command: `${target.type}.${operation}`,
         durationMs: Date.now() - started,
         success: true,
       });
-    } catch (error) {
-      streamDeck.logger.error("Failed to control:", error);
+    } catch {
+      // Revert power state on failure
+      const currentlyOn = this.powerState.get(contextId) ?? false;
+      this.powerState.set(contextId, !currentlyOn);
+      await ev.action.setTitle(this.getTitle(settings, contextId));
       await ev.action.showAlert();
     }
   }
@@ -94,11 +110,19 @@ export class OnOffAction extends SingletonAction<OnOffSettings> {
     }
   }
 
-  private getTitle(settings: OnOffSettings): string {
-    const name = settings.selectedLightName || "Configure";
+  private getTitle(settings: OnOffSettings, contextId: string): string {
+    const name = settings.selectedLightName;
+    if (!name) return "On / Off";
+
     const shortName = name.length > 12 ? name.substring(0, 12) + "…" : name;
     const op = settings.operation || "toggle";
-    const label = op === "toggle" ? "Toggle" : op === "on" ? "On" : "Off";
-    return settings.selectedLightName ? `${label}\n${shortName}` : "On / Off";
+
+    if (op === "toggle") {
+      const isOn = this.powerState.get(contextId) ?? false;
+      return `${isOn ? "● On" : "○ Off"}\n${shortName}`;
+    }
+
+    const label = op === "on" ? "On" : "Off";
+    return `${label}\n${shortName}`;
   }
 }

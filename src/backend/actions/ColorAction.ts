@@ -55,6 +55,7 @@ export class ColorAction extends SingletonAction<ColorSettings> {
       const color = ColorRgb.fromHex(settings.colorValue || "#ffffff");
       await this.services.controlTarget(target, "color", color);
 
+      await ev.action.showOk();
       telemetryService.recordCommand({
         command: `${target.type}.color`,
         durationMs: Date.now() - started,

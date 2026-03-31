@@ -60,6 +60,7 @@ export class ColorTemperatureAction extends SingletonAction<ColorTemperatureSett
 
       await this.services.controlTarget(target, "colorTemperature", colorTemp);
 
+      await ev.action.showOk();
       telemetryService.recordCommand({
         command: `${target.type}.colorTemperature`,
         durationMs: Date.now() - started,
