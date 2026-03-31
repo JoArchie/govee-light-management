@@ -143,7 +143,8 @@ export class ActionServices {
     const target = this.parseTarget(settings);
     if (!target) return null;
 
-    if (target.type === "group" && target.groupId && this.groupService) {
+    if (target.type === "group" && target.groupId) {
+      if (!this.groupService) return null;
       const group = await this.groupService.findGroupById(target.groupId);
       if (group) return { type: "group", group };
     }
