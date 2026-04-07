@@ -53,8 +53,7 @@ export class ColorAction extends SingletonAction<ColorSettings> {
 
     try {
       const color = ColorRgb.fromHex(settings.colorValue || "#ffffff");
-      const shortName = settings.selectedLightName?.substring(0, 12);
-      const stopSpinner = this.services.showSpinner(ev.action, shortName);
+      const stopSpinner = this.services.showSpinner(ev.action);
       try {
         await this.services.controlTarget(target, "color", color);
       } finally {
@@ -94,9 +93,7 @@ export class ColorAction extends SingletonAction<ColorSettings> {
     }
   }
 
-  private getTitle(settings: ColorSettings): string {
-    const name = settings.selectedLightName;
-    if (!name) return "";
-    return name.length > 8 ? name.substring(0, 7) + "…" : name;
+  private getTitle(_settings: ColorSettings): string {
+    return "";
   }
 }

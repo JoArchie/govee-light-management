@@ -55,8 +55,7 @@ export class BrightnessAction extends SingletonAction<BrightnessSettings> {
 
     try {
       const brightness = new Brightness(settings.brightnessValue ?? 50);
-      const shortName = settings.selectedLightName?.substring(0, 12);
-      const stopSpinner = this.services.showSpinner(ev.action, shortName);
+      const stopSpinner = this.services.showSpinner(ev.action);
       try {
         await this.services.controlTarget(target, "brightness", brightness);
       } finally {
@@ -96,11 +95,7 @@ export class BrightnessAction extends SingletonAction<BrightnessSettings> {
     }
   }
 
-  private getTitle(settings: BrightnessSettings): string {
-    const name = settings.selectedLightName;
-    if (!name) return "";
-    const short = name.length > 8 ? name.substring(0, 7) + "…" : name;
-    const val = settings.brightnessValue ?? 50;
-    return `${val}% ${short}`;
+  private getTitle(_settings: BrightnessSettings): string {
+    return "";
   }
 }

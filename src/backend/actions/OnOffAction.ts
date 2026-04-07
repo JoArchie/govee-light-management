@@ -67,11 +67,7 @@ export class OnOffAction extends SingletonAction<OnOffSettings> {
         this.powerState.set(contextId, command === "on");
       }
 
-      // Show spinner during API call
-      const name = settings.selectedLightName;
-      const shortName =
-        name && name.length > 12 ? name.substring(0, 12) + "…" : name;
-      const stopSpinner = this.services.showSpinner(ev.action, shortName);
+      const stopSpinner = this.services.showSpinner(ev.action);
 
       try {
         await this.services.controlTarget(target, command);
@@ -117,18 +113,12 @@ export class OnOffAction extends SingletonAction<OnOffSettings> {
     }
   }
 
-  private getTitle(settings: OnOffSettings, contextId: string): string {
-    const name = settings.selectedLightName;
-    if (!name) return "";
-
-    const short = name.length > 8 ? name.substring(0, 7) + "…" : name;
-    const op = settings.operation || "toggle";
-
+  private getTitle(_settings: OnOffSettings, contextId: string): string {
+    const op = _settings.operation || "toggle";
     if (op === "toggle") {
       const isOn = this.powerState.get(contextId) ?? false;
-      return `${isOn ? "●" : "○"} ${short}`;
+      return isOn ? "●" : "○";
     }
-
-    return short;
+    return "";
   }
 }

@@ -120,15 +120,13 @@ export class BrightnessDialAction extends SingletonAction<BrightnessDialSettings
 
   private async updateDisplay(
     action: any,
-    settings: BrightnessDialSettings,
+    _settings: BrightnessDialSettings,
   ): Promise<void> {
     const ctx = action.id || "default";
     const brightness = this.brightnessMap.get(ctx) ?? 50;
     const isOn = this.powerMap.get(ctx) ?? true;
-    const name = settings.selectedLightName || "";
-    const short = name.length > 8 ? name.substring(0, 7) + "…" : name;
 
-    await action.setTitle(isOn ? `${brightness}% ${short}` : `○ ${short}`);
+    await action.setTitle(isOn ? `${brightness}%` : "○");
     await action.setFeedback({
       value: isOn ? brightness : 0,
       indicator: { value: isOn ? brightness : 0, opacity: isOn ? 1 : 0.3 },

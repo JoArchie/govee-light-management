@@ -121,16 +121,14 @@ export class ColorTempDialAction extends SingletonAction<ColorTempDialSettings> 
 
   private async updateDisplay(
     action: any,
-    settings: ColorTempDialSettings,
+    _settings: ColorTempDialSettings,
   ): Promise<void> {
     const ctx = action.id || "default";
     const temp = this.tempMap.get(ctx) ?? 50;
     const isOn = this.powerMap.get(ctx) ?? true;
     const kelvin = Math.round(2000 + (temp / 100) * 7000);
-    const name = settings.selectedLightName || "";
-    const short = name.length > 8 ? name.substring(0, 7) + "…" : name;
 
-    await action.setTitle(isOn ? `${kelvin}K ${short}` : `○ ${short}`);
+    await action.setTitle(isOn ? `${kelvin}K` : "○");
     await action.setFeedback({
       value: isOn ? temp : 0,
       indicator: { value: isOn ? temp : 0, opacity: isOn ? 1 : 0.3 },

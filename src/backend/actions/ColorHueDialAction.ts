@@ -117,15 +117,13 @@ export class ColorHueDialAction extends SingletonAction<ColorHueDialSettings> {
 
   private async updateDisplay(
     action: any,
-    settings: ColorHueDialSettings,
+    _settings: ColorHueDialSettings,
   ): Promise<void> {
     const ctx = action.id || "default";
     const hue = this.hueMap.get(ctx) ?? 0;
     const isOn = this.powerMap.get(ctx) ?? true;
-    const name = settings.selectedLightName || "";
-    const short = name.length > 8 ? name.substring(0, 7) + "…" : name;
 
-    await action.setTitle(isOn ? `${hue}° ${short}` : `○ ${short}`);
+    await action.setTitle(isOn ? `${hue}°` : "○");
     await action.setFeedback({
       value: Math.round((hue / 360) * 100),
       indicator: {

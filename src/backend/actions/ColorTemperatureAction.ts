@@ -58,8 +58,7 @@ export class ColorTemperatureAction extends SingletonAction<ColorTemperatureSett
       const kelvin = Math.round(2000 + (tempPercent / 100) * 7000);
       const colorTemp = new ColorTemperature(kelvin);
 
-      const shortName = settings.selectedLightName?.substring(0, 12);
-      const stopSpinner = this.services.showSpinner(ev.action, shortName);
+      const stopSpinner = this.services.showSpinner(ev.action);
       try {
         await this.services.controlTarget(
           target,
@@ -103,12 +102,7 @@ export class ColorTemperatureAction extends SingletonAction<ColorTemperatureSett
     }
   }
 
-  private getTitle(settings: ColorTemperatureSettings): string {
-    const name = settings.selectedLightName;
-    if (!name) return "";
-    const short = name.length > 8 ? name.substring(0, 7) + "…" : name;
-    const val = settings.colorTempValue ?? 50;
-    const kelvin = Math.round(2000 + (val / 100) * 7000);
-    return `${kelvin}K ${short}`;
+  private getTitle(_settings: ColorTemperatureSettings): string {
+    return "";
   }
 }
