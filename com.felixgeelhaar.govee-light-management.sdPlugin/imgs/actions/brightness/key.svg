@@ -8,9 +8,6 @@
 <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
 </filter></defs><rect x="14" y="14" width="260" height="260" rx="40" fill="#0B0E1A"/>
 <rect x="14" y="14" width="260" height="260" rx="40" fill="none" stroke="url(#g)" stroke-width="5" filter="url(#glow)"/><g fill="none" stroke="url(#g)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
-<circle cx="144" cy="144" r="114"/>
-<line x1="68" y1="144" x2="220" y2="144"/>
-</g>
-<circle cx="184" cy="144" r="16" fill="url(#g)"/>
-<circle cx="184" cy="144" r="16" fill="none" stroke="#0B0E1A" stroke-width="3"/>
-<circle cx="144" cy="30" r="10" fill="url(#g)"/></svg>
+<circle cx="144" cy="144" r="48"/>
+<line x1="220.0" y1="144.0" x2="248.0" y2="144.0"/><line x1="197.7" y1="197.7" x2="217.5" y2="217.5"/><line x1="144.0" y1="220.0" x2="144.0" y2="248.0"/><line x1="90.3" y1="197.7" x2="70.5" y2="217.5"/><line x1="68.0" y1="144.0" x2="40.0" y2="144.0"/><line x1="90.3" y1="90.3" x2="70.5" y2="70.5"/><line x1="144.0" y1="68.0" x2="144.0" y2="40.0"/><line x1="197.7" y1="90.3" x2="217.5" y2="70.5"/>
+</g></svg>

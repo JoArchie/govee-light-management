@@ -1,12 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 56 56">
-  <!-- Light bulb with rays - white on transparent -->
-  <path d="M28 10 C19 10 12 17 12 26 C12 31.5 15 36 19 39 L19 43 C19 44.5 20.5 46 22 46 L34 46 C35.5 46 37 44.5 37 43 L37 39 C41 36 44 31.5 44 26 C44 17 37 10 28 10Z"
-    fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/>
-  <line x1="23" y1="43" x2="33" y2="43" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
-  <!-- Rays -->
-  <line x1="28" y1="2" x2="28" y2="5" stroke="#fff" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
-  <line x1="46" y1="14" x2="43.5" y2="16" stroke="#fff" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
-  <line x1="10" y1="14" x2="12.5" y2="16" stroke="#fff" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
-  <line x1="50" y1="28" x2="47" y2="28" stroke="#fff" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
-  <line x1="6" y1="28" x2="9" y2="28" stroke="#fff" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>Stream Deck Category Icon</title>
+  <g stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Bulb outline -->
+    <path d="M24 7
+             C16.82 7 11 12.82 11 20
+             C11 24.55 13.33 28.16 16.2 31
+             C18.27 33.05 19.5 35.09 19.5 37.5
+             H28.5
+             C28.5 35.09 29.73 33.05 31.8 31
+             C34.67 28.16 37 24.55 37 20
+             C37 12.82 31.18 7 24 7Z"/>
+    <!-- Power symbol stem -->
+    <path d="M24 12V21"/>
+    <!-- Base -->
+    <path d="M19 37.5H29"/>
+    <path d="M20 41H28"/>
+  </g>
 </svg>

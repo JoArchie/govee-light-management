@@ -1,0 +1,35 @@
+{
+  "id": "layouts/color-hue.json",
+  "items": [
+    {
+      "key": "label",
+      "type": "text",
+      "rect": [16, 10, 168, 18],
+      "alignment": "center",
+      "color": "#9CA3AF",
+      "font": { "size": 12, "weight": 500 },
+      "value": "Color"
+    },
+    {
+      "key": "value",
+      "type": "text",
+      "rect": [16, 28, 168, 36],
+      "alignment": "center",
+      "color": "#FFFFFF",
+      "font": { "size": 28, "weight": 700 },
+      "value": "0°"
+    },
+    {
+      "key": "bar",
+      "type": "gbar",
+      "rect": [16, 74, 168, 14],
+      "subtype": 2,
+      "border_w": 0,
+      "bar_h": 14,
+      "bar_bg_c": "0:#FF0000,0.17:#FFFF00,0.33:#00FF00,0.5:#00FFFF,0.67:#0000FF,0.83:#FF00FF,1:#FF0000",
+      "bar_fill_c": "#FFFFFF",
+      "range": { "min": 0, "max": 100 },
+      "value": 0
+    }
+  ]
+}

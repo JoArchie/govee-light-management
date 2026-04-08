@@ -3,6 +3,7 @@
   "Version": "2.0.0.0",
   "Author": "Felix Geelhaar",
   "URL": "https://github.com/felixgeelhaar/govee-light-management",
+  "SupportURL": "https://github.com/felixgeelhaar/govee-light-management/issues",
   "Actions": [
     {
       "Name": "On / Off",
@@ -21,13 +22,13 @@
     {
       "Name": "Brightness",
       "UUID": "com.felixgeelhaar.govee-light-management.brightness",
-      "Icon": "imgs/actions/brightness-dial/icon",
+      "Icon": "imgs/actions/brightness/icon",
       "Tooltip": "Set the brightness of a light or group",
       "PropertyInspectorPath": "ui/brightness.html",
       "Controllers": ["Keypad"],
       "States": [
         {
-          "Image": "imgs/actions/brightness-dial/key",
+          "Image": "imgs/actions/brightness/key",
           "TitleAlignment": "bottom"
         }
       ]
@@ -35,13 +36,13 @@
     {
       "Name": "Color",
       "UUID": "com.felixgeelhaar.govee-light-management.color",
-      "Icon": "imgs/actions/colorhue-dial/icon",
+      "Icon": "imgs/actions/color/icon",
       "Tooltip": "Set the color of a light or group",
       "PropertyInspectorPath": "ui/color.html",
       "Controllers": ["Keypad"],
       "States": [
         {
-          "Image": "imgs/actions/colorhue-dial/key",
+          "Image": "imgs/actions/color/key",
           "TitleAlignment": "bottom"
         }
       ]
@@ -49,13 +50,27 @@
     {
       "Name": "Color Temperature",
       "UUID": "com.felixgeelhaar.govee-light-management.colortemp",
-      "Icon": "imgs/actions/colortemp-dial/icon",
+      "Icon": "imgs/actions/colortemp/icon",
       "Tooltip": "Set the color temperature of a light or group",
       "PropertyInspectorPath": "ui/color-temperature.html",
       "Controllers": ["Keypad"],
       "States": [
         {
-          "Image": "imgs/actions/colortemp-dial/key",
+          "Image": "imgs/actions/colortemp/key",
+          "TitleAlignment": "bottom"
+        }
+      ]
+    },
+    {
+      "Name": "Segment Color",
+      "UUID": "com.felixgeelhaar.govee-light-management.segment-color",
+      "Icon": "imgs/actions/segment-color/icon",
+      "Tooltip": "Apply a rainbow, gradient, or solid color across all segments of an RGB IC light",
+      "PropertyInspectorPath": "ui/segment-color.html",
+      "Controllers": ["Keypad"],
+      "States": [
+        {
+          "Image": "imgs/actions/segment-color/key",
           "TitleAlignment": "bottom"
         }
       ]
@@ -75,7 +90,7 @@
           "Push": "Toggle power",
           "Touch": "N/A"
         },
-        "layout": "$B1"
+        "layout": "layouts/brightness.json"
       },
       "States": [
         {
@@ -98,7 +113,7 @@
           "Push": "Toggle power",
           "Touch": "N/A"
         },
-        "layout": "$B1"
+        "layout": "layouts/color-hue.json"
       },
       "States": [
         {
@@ -121,11 +136,34 @@
           "Push": "Toggle power",
           "Touch": "N/A"
         },
-        "layout": "$B1"
+        "layout": "layouts/color-temp.json"
       },
       "States": [
         {
           "Image": "imgs/actions/colortemp-dial/icon"
+        }
+      ]
+    },
+    {
+      "Name": "Segment Color Dial",
+      "UUID": "com.felixgeelhaar.govee-light-management.segment-color-dial",
+      "Icon": "imgs/actions/segment-color-dial/icon",
+      "Tooltip": "Control a single segment color with Stream Deck+ dial",
+      "PropertyInspectorPath": "ui/segment-color-dial.html",
+      "Controllers": ["Encoder"],
+      "Encoder": {
+        "Icon": "imgs/actions/segment-color-dial/icon",
+        "background": "imgs/actions/segment-color-dial/background",
+        "TriggerDescription": {
+          "Rotate": "Change segment hue",
+          "Push": "Apply color to segment",
+          "Touch": "Apply color to segment"
+        },
+        "layout": "layouts/segment.json"
+      },
+      "States": [
+        {
+          "Image": "imgs/actions/segment-color-dial/icon"
         }
       ]
     }
@@ -135,9 +173,9 @@
   "CodePath": "bin/plugin.js",
   "Description": "Control your Govee smart lights from Stream Deck",
   "Icon": "imgs/plugin/marketplace",
-  "SDKVersion": 2,
+  "SDKVersion": 3,
   "Software": {
-    "MinimumVersion": "6.5"
+    "MinimumVersion": "6.9"
   },
   "OS": [
     {

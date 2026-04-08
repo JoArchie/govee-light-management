@@ -128,10 +128,10 @@ export class ColorTempDialAction extends SingletonAction<ColorTempDialSettings> 
     const isOn = this.powerMap.get(ctx) ?? true;
     const kelvin = Math.round(2000 + (temp / 100) * 7000);
 
-    await action.setTitle(isOn ? `${kelvin}K` : "○");
     await action.setFeedback({
-      value: isOn ? temp : 0,
-      indicator: { value: isOn ? temp : 0, opacity: isOn ? 1 : 0.3 },
+      label: "Temperature",
+      value: isOn ? `${kelvin}K` : "Off",
+      bar: { value: isOn ? temp : 0 },
     });
   }
 }

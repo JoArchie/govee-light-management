@@ -9,6 +9,7 @@ import { ILightRepository } from "../../domain/repositories/ILightRepository";
 import { Light, LightState } from "../../domain/entities";
 import { Scene } from "../../domain/value-objects/Scene";
 import { SegmentColor } from "../../domain/value-objects/SegmentColor";
+import { SegmentColorMapper } from "../mappers/SegmentColorMapper";
 import { MusicModeConfig } from "../../domain/value-objects/MusicModeConfig";
 import streamDeck from "@elgato/streamdeck";
 
@@ -363,10 +364,26 @@ export class GoveeLightRepository implements ILightRepository {
     light: Light,
     segments: SegmentColor[],
   ): Promise<void> {
-    // TODO: Implement when @felixgeelhaar/govee-api-client v3.1.0+ adds setSegmentColors method
-    throw new Error(
-      `Segment color control not yet supported by govee-api-client. Attempted to set ${segments.length} segments.`,
-    );
+    if (segments.length === 0) {
+      throw new Error("At least one segment color must be provided");
+    }
+    try {
+      const apiSegments = SegmentColorMapper.toApiSegmentColors(segments);
+      await this.client.setSegmentColors(
+        light.deviceId,
+        light.model,
+        apiSegments,
+      );
+    } catch (error) {
+      if (this.isValidationError(error)) {
+        streamDeck.logger?.warn(
+          "Segment colors set (ignored validation error)",
+          error,
+        );
+        return;
+      }
+      throw error;
+    }
   }
 
   async setMusicMode(light: Light, config: MusicModeConfig): Promise<void> {

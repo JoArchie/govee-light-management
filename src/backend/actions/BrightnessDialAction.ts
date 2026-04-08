@@ -126,10 +126,10 @@ export class BrightnessDialAction extends SingletonAction<BrightnessDialSettings
     const brightness = this.brightnessMap.get(ctx) ?? 50;
     const isOn = this.powerMap.get(ctx) ?? true;
 
-    await action.setTitle(isOn ? `${brightness}%` : "○");
     await action.setFeedback({
-      value: isOn ? brightness : 0,
-      indicator: { value: isOn ? brightness : 0, opacity: isOn ? 1 : 0.3 },
+      label: "Brightness",
+      value: isOn ? `${brightness}%` : "Off",
+      bar: { value: isOn ? brightness : 0 },
     });
   }
 }

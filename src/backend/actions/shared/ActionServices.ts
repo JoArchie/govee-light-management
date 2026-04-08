@@ -23,6 +23,7 @@ import {
 import { globalSettingsService } from "../../services/GlobalSettingsService";
 import { StreamDeckLightGroupRepository } from "../../infrastructure/repositories/StreamDeckLightGroupRepository";
 import { LightGroupService } from "../../domain/services/LightGroupService";
+import { SegmentColor } from "../../domain/value-objects/SegmentColor";
 
 export interface DeviceTarget {
   type: "light" | "group";
@@ -429,5 +430,18 @@ export class ActionServices {
     } else if (target.type === "group" && target.group) {
       await this.lightControlService.controlGroup(target.group, command, value);
     }
+  }
+
+  /**
+   * Apply per-segment colors to a single light (RGB IC lights only).
+   */
+  async setSegmentColors(
+    light: Light,
+    segments: SegmentColor[],
+  ): Promise<void> {
+    if (!this.lightRepository) {
+      throw new Error("Light repository not initialized");
+    }
+    await this.lightRepository.setSegmentColors(light, segments);
   }
 }

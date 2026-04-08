@@ -11,35 +11,37 @@ import {
 import type { JsonValue } from "@elgato/utils";
 import { ColorRgb } from "@felixgeelhaar/govee-api-client";
 import { ActionServices, type BaseSettings } from "./shared/ActionServices";
+import { SegmentColor } from "../domain/value-objects/SegmentColor";
 
-type ColorHueDialSettings = BaseSettings & {
+type SegmentColorDialSettings = BaseSettings & {
+  segmentIndex?: number;
   stepSize?: number;
   saturation?: number;
 };
 
-@action({ UUID: "com.felixgeelhaar.govee-light-management.colorhue-dial" })
-export class ColorHueDialAction extends SingletonAction<ColorHueDialSettings> {
+@action({
+  UUID: "com.felixgeelhaar.govee-light-management.segment-color-dial",
+})
+export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSettings> {
   private services = new ActionServices();
   private hueMap = new Map<string, number>();
-  private powerMap = new Map<string, boolean>();
 
   override async onWillAppear(
-    ev: WillAppearEvent<ColorHueDialSettings>,
+    ev: WillAppearEvent<SegmentColorDialSettings>,
   ): Promise<void> {
     const ctx = ev.action.id;
     if (!this.hueMap.has(ctx)) this.hueMap.set(ctx, 0);
-    if (!this.powerMap.has(ctx)) this.powerMap.set(ctx, true);
     await this.updateDisplay(ev.action, ev.payload.settings);
   }
 
   override async onDidReceiveSettings(
-    ev: DidReceiveSettingsEvent<ColorHueDialSettings>,
+    ev: DidReceiveSettingsEvent<SegmentColorDialSettings>,
   ): Promise<void> {
     await this.updateDisplay(ev.action, ev.payload.settings);
   }
 
   override async onDialRotate(
-    ev: DialRotateEvent<ColorHueDialSettings>,
+    ev: DialRotateEvent<SegmentColorDialSettings>,
   ): Promise<void> {
     const { settings } = ev.payload;
     const ctx = ev.action.id;
@@ -49,34 +51,30 @@ export class ColorHueDialAction extends SingletonAction<ColorHueDialSettings> {
     this.hueMap.set(ctx, next);
 
     await this.updateDisplay(ev.action, settings);
-
-    const apiKey = await this.services.getApiKey(settings);
-    if (!apiKey || !settings.selectedDeviceId) return;
-    await this.services.ensureServices(apiKey);
-    const target = await this.services.resolveTarget(settings);
-    if (!target) return;
-
-    const color = this.hsvToRgb(next, settings.saturation ?? 100, 100);
-    await this.services.controlTargetThrottled(ctx, target, "color", color);
+    await this.applyToSegment(ev.action, settings, next);
   }
 
   override async onDialDown(
-    ev: DialDownEvent<ColorHueDialSettings>,
+    ev: DialDownEvent<SegmentColorDialSettings>,
   ): Promise<void> {
-    await this.togglePower(ev.action, ev.payload.settings);
+    const ctx = ev.action.id;
+    const hue = this.hueMap.get(ctx) ?? 0;
+    await this.applyToSegment(ev.action, ev.payload.settings, hue);
   }
 
   override async onTouchTap(
-    ev: TouchTapEvent<ColorHueDialSettings>,
+    ev: TouchTapEvent<SegmentColorDialSettings>,
   ): Promise<void> {
-    await this.togglePower(ev.action, ev.payload.settings);
+    const ctx = ev.action.id;
+    const hue = this.hueMap.get(ctx) ?? 0;
+    await this.applyToSegment(ev.action, ev.payload.settings, hue);
   }
 
-  private async togglePower(
+  private async applyToSegment(
     action: any,
-    settings: ColorHueDialSettings,
+    settings: SegmentColorDialSettings,
+    hue: number,
   ): Promise<void> {
-    const ctx = action.id;
     const apiKey = await this.services.getApiKey(settings);
     if (!apiKey || !settings.selectedDeviceId) {
       await action.showAlert();
@@ -84,48 +82,44 @@ export class ColorHueDialAction extends SingletonAction<ColorHueDialSettings> {
     }
     await this.services.ensureServices(apiKey);
     const target = await this.services.resolveTarget(settings);
-    if (!target) {
+    if (!target || target.type !== "light" || !target.light) {
       await action.showAlert();
       return;
     }
 
-    const isOn = this.powerMap.get(ctx) ?? true;
-    this.powerMap.set(ctx, !isOn);
-    await this.services.controlTarget(target, isOn ? "off" : "on");
-    await this.updateDisplay(action, settings);
+    const color = this.hsvToRgb(hue, settings.saturation ?? 100, 100);
+    const segmentIndex = settings.segmentIndex ?? 0;
+    try {
+      await this.services.setSegmentColors(target.light, [
+        SegmentColor.create(segmentIndex, color),
+      ]);
+    } catch {
+      await action.showAlert();
+    }
   }
 
   override async onSendToPlugin(
-    ev: SendToPluginEvent<JsonValue, ColorHueDialSettings>,
+    ev: SendToPluginEvent<JsonValue, SegmentColorDialSettings>,
   ): Promise<void> {
     if (!(ev.payload instanceof Object) || !("event" in ev.payload)) return;
     switch (ev.payload.event) {
       case "getDevices":
         await this.services.handleGetDevices();
         break;
-      case "getGroups":
-        await this.services.handleGetGroups();
-        break;
-      case "saveGroup":
-        await this.services.handleSaveGroup(ev.payload);
-        break;
-      case "deleteGroup":
-        await this.services.handleDeleteGroup(ev.payload);
-        break;
     }
   }
 
   private async updateDisplay(
     action: any,
-    _settings: ColorHueDialSettings,
+    settings: SegmentColorDialSettings,
   ): Promise<void> {
     const ctx = action.id || "default";
     const hue = this.hueMap.get(ctx) ?? 0;
-    const isOn = this.powerMap.get(ctx) ?? true;
+    const segmentIndex = settings.segmentIndex ?? 0;
 
     await action.setFeedback({
-      label: "Color",
-      value: isOn ? `${hue}°` : "Off",
+      label: `Segment ${segmentIndex}`,
+      value: `${hue}°`,
       bar: { value: Math.round((hue / 360) * 100) },
     });
   }
