@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Gallery 4 — Setup</title><link rel="stylesheet" href="./shared.css">
+<style>
+  .wrap {
+    width: 1920px; height: 1080px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 0 120px;
+  }
+  .head { text-align: center; margin-bottom: 90px; }
+  .eyebrow { margin-bottom: 24px; }
+  h1 {
+    font-size: 78px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    margin-bottom: 24px;
+  }
+  .sub {
+    font-size: 24px;
+    color: var(--muted);
+  }
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 50px;
+    width: 100%;
+    max-width: 1500px;
+  }
+  .step {
+    background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 56px 48px;
+    position: relative;
+    min-height: 340px;
+  }
+  .step .num {
+    font-size: 140px;
+    font-weight: 900;
+    line-height: 1;
+    background: var(--grad);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+    opacity: 0.35;
+    position: absolute;
+    top: 30px; right: 40px;
+  }
+  .step h3 {
+    font-size: 34px;
+    font-weight: 800;
+    margin-bottom: 18px;
+    margin-top: 60px;
+    letter-spacing: -0.01em;
+  }
+  .step p {
+    font-size: 20px;
+    color: var(--muted);
+    line-height: 1.55;
+  }
+</style></head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <span class="eyebrow">How it works</span>
+    <h1>Set up in under <span class="grad-text">one minute</span></h1>
+    <p class="sub">No accounts. No servers. No configuration files.</p>
+  </div>
+  <div class="steps">
+    <div class="step">
+      <div class="num">01</div>
+      <h3>Install</h3>
+      <p>Download the plugin from the Elgato Marketplace. It appears instantly in your Stream Deck app.</p>
+    </div>
+    <div class="step">
+      <div class="num">02</div>
+      <h3>Get your API key</h3>
+      <p>Request a free Govee developer API key from the Govee app. It arrives by email in seconds.</p>
+    </div>
+    <div class="step">
+      <div class="num">03</div>
+      <h3>Drag and go</h3>
+      <p>Drag an action onto a button, paste the key once, pick a light. You're controlling your lights.</p>
+    </div>
+  </div>
+</div>
+<div class="brand-footer">
+  <img src="./assets/light.svg" alt="">
+  Govee Light Management
+</div>
+</body></html>

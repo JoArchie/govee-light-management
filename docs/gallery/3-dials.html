@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Gallery 3 — Dials</title><link rel="stylesheet" href="./shared.css">
+<style>
+  .wrap {
+    width: 1920px; height: 1080px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 0 120px;
+  }
+  .head { text-align: center; margin-bottom: 80px; }
+  .eyebrow { margin-bottom: 24px; }
+  h1 {
+    font-size: 78px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    margin-bottom: 24px;
+  }
+  .sub {
+    font-size: 24px;
+    color: var(--muted);
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  .dials {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 40px;
+    width: 100%;
+    max-width: 1500px;
+  }
+  .dial {
+    background: linear-gradient(180deg, #121634, #0B0E22);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 36px 32px;
+    display: flex; flex-direction: column; align-items: center;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03) inset;
+  }
+  .dial-icon {
+    width: 140px; height: 140px;
+    margin-bottom: 24px;
+    filter: drop-shadow(0 12px 40px rgba(168,85,247,0.35));
+  }
+  .dial-panel {
+    width: 100%;
+    background: #070A1A;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 22px;
+    margin-bottom: 18px;
+  }
+  .dial-label {
+    font-size: 12px;
+    color: var(--dim);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .dial-value {
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--text);
+    margin-bottom: 14px;
+    letter-spacing: -0.01em;
+  }
+  .dial-bar {
+    height: 8px;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.08);
+    position: relative;
+    overflow: hidden;
+  }
+  .dial-bar::before {
+    content: "";
+    position: absolute; left: 0; top: 0; bottom: 0;
+    width: var(--v, 75%);
+    background: var(--grad);
+    border-radius: 4px;
+  }
+  .rainbow::before {
+    width: 100%;
+    background: linear-gradient(90deg, #ff3030, #ffcc30, #30d060, #30a0ff, #6030ff, #d63bff);
+  }
+  .warmcool::before {
+    width: 100%;
+    background: linear-gradient(90deg, #FFB347, #FFE4A3, #A8D8EA, #4A7FA8);
+  }
+  .indicator {
+    position: absolute;
+    top: 50%; transform: translateY(-50%);
+    width: 14px; height: 14px; border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 12px rgba(255,255,255,0.7);
+  }
+  .dial-name {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+    margin-top: 8px;
+  }
+</style></head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <span class="eyebrow">Stream Deck +</span>
+    <h1>Tactile <span class="grad-text">dial control</span></h1>
+    <p class="sub">Custom touchscreen layouts with branded gradient bars. Four encoder actions, one perfect workflow.</p>
+  </div>
+  <div class="dials">
+    <div class="dial">
+      <img class="dial-icon" src="./assets/brightness-dial.svg" alt="">
+      <div class="dial-panel">
+        <div class="dial-label">Brightness</div>
+        <div class="dial-value">75%</div>
+        <div class="dial-bar" style="--v:75%"></div>
+      </div>
+      <div class="dial-name">Brightness</div>
+    </div>
+    <div class="dial">
+      <img class="dial-icon" src="./assets/colorhue-dial.svg" alt="">
+      <div class="dial-panel">
+        <div class="dial-label">Color</div>
+        <div class="dial-value">210°</div>
+        <div class="dial-bar rainbow">
+          <div class="indicator" style="left:58%"></div>
+        </div>
+      </div>
+      <div class="dial-name">Color Hue</div>
+    </div>
+    <div class="dial">
+      <img class="dial-icon" src="./assets/colortemp-dial.svg" alt="">
+      <div class="dial-panel">
+        <div class="dial-label">Temperature</div>
+        <div class="dial-value">4500K</div>
+        <div class="dial-bar warmcool">
+          <div class="indicator" style="left:36%"></div>
+        </div>
+      </div>
+      <div class="dial-name">Color Temp</div>
+    </div>
+    <div class="dial">
+      <img class="dial-icon" src="./assets/segment-color-dial.svg" alt="">
+      <div class="dial-panel">
+        <div class="dial-label">Segment 3</div>
+        <div class="dial-value">120°</div>
+        <div class="dial-bar rainbow">
+          <div class="indicator" style="left:33%"></div>
+        </div>
+      </div>
+      <div class="dial-name">Segments</div>
+    </div>
+  </div>
+</div>
+<div class="brand-footer">
+  <img src="./assets/light.svg" alt="">
+  Govee Light Management
+</div>
+</body></html>
