@@ -39,3 +39,9 @@ Thumbs.db
 .cache/
 *storybook.log
 storybook-static
+
+# Stream Deck packed plugin artifact
+*.streamDeckPlugin
+
+# Local Claude Code settings
+.claude/settings.local.json
