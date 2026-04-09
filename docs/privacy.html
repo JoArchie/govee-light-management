@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy — Govee Light Management</title>
+<style>
+  :root {
+    --bg: #0B0E1A;
+    --bg-2: #13172B;
+    --text: #E5E7EB;
+    --muted: #9CA3AF;
+    --accent: #A855F7;
+    --accent-3: #22D3EE;
+    --border: #1F2937;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    min-height: 100vh;
+  }
+  .container { max-width: 760px; margin: 0 auto; padding: 60px 24px; }
+  h1 {
+    font-size: 2.5rem;
+    margin: 0 0 8px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-3));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-weight: 800;
+  }
+  .meta { color: var(--muted); margin: 0 0 40px; font-size: 0.9rem; }
+  h2 {
+    font-size: 1.4rem;
+    margin: 40px 0 12px;
+    color: var(--accent-3);
+    font-weight: 700;
+  }
+  p, li { color: var(--text); }
+  ul { padding-left: 24px; }
+  ul li { margin-bottom: 8px; }
+  strong { color: #fff; }
+  a { color: var(--accent-3); }
+  code {
+    background: var(--bg-2);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    color: var(--accent-3);
+  }
+  .back {
+    display: inline-block;
+    margin-bottom: 24px;
+    color: var(--muted);
+    text-decoration: none;
+  }
+  .back:hover { color: var(--accent-3); }
+  footer {
+    margin-top: 60px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <a class="back" href="./index.html">&larr; Back to home</a>
+  <h1>Privacy Policy</h1>
+  <p class="meta">Last updated: 2026-04-09</p>
+
+  <p>
+    <strong>Govee Light Management</strong> ("the plugin") is a Stream Deck plugin developed by Felix Geelhaar.
+    This privacy policy explains what information the plugin handles and how.
+  </p>
+
+  <h2>Summary</h2>
+  <p>
+    The plugin does not collect, transmit, or store any personal data on third-party servers.
+    It communicates only with the official Govee API, using a credential that you provide and that
+    is stored locally on your device.
+  </p>
+
+  <h2>Information the plugin handles</h2>
+  <ul>
+    <li>
+      <strong>Govee API key.</strong> You generate this yourself at
+      <a href="https://developer.govee.com">developer.govee.com</a> and enter it into the plugin's
+      Property Inspector. The key is stored in Stream Deck's encrypted settings on your local machine.
+      It is never transmitted anywhere except directly to Govee's official API endpoints
+      (<code>openapi.api.govee.com</code>) to send light-control commands.
+    </li>
+    <li>
+      <strong>Device information.</strong> Device IDs, names, and model numbers returned by the Govee API
+      are cached in memory for short periods to improve responsiveness. This information is never
+      sent to any server other than Govee's API.
+    </li>
+    <li>
+      <strong>Light configuration.</strong> Action-specific settings (selected device, brightness presets,
+      colors, etc.) are stored in Stream Deck's local settings storage and never leave your device.
+    </li>
+    <li>
+      <strong>Diagnostic metrics.</strong> The plugin keeps in-memory telemetry (request counts, latency)
+      used only by the local diagnostics panel. Nothing is transmitted off-device.
+    </li>
+  </ul>
+
+  <h2>What the plugin does NOT do</h2>
+  <ul>
+    <li>It does not collect personal information, names, emails, or location data.</li>
+    <li>It does not use analytics, tracking, crash reporters, or telemetry services.</li>
+    <li>It does not contact any server other than the official Govee API.</li>
+    <li>It does not share or sell any data to third parties.</li>
+    <li>It does not use cookies or tracking technologies.</li>
+  </ul>
+
+  <h2>Third-party services</h2>
+  <p>
+    The plugin communicates with the <a href="https://developer.govee.com">Govee Developer API</a>
+    to control your lights. Govee's own privacy policy governs how they handle requests made to
+    their API. Please review it at <a href="https://www.govee.com/privacy-policy">govee.com/privacy-policy</a>.
+  </p>
+
+  <h2>Data retention and deletion</h2>
+  <p>
+    All data handled by the plugin (API key, device settings, diagnostics) lives only on your local
+    device. To delete it, uninstall the plugin from Stream Deck or remove the action from your button
+    layout. You can also revoke your Govee API key at any time in the Govee app.
+  </p>
+
+  <h2>Children's privacy</h2>
+  <p>
+    The plugin is not directed at children under 13 and does not knowingly collect any data from them.
+  </p>
+
+  <h2>Changes to this policy</h2>
+  <p>
+    If this policy changes, the updated version will be published at this URL along with a new
+    "Last updated" date. Material changes will also be noted in the plugin's GitHub release notes.
+  </p>
+
+  <h2>Contact</h2>
+  <p>
+    Questions or concerns? Open an issue at
+    <a href="https://github.com/felixgeelhaar/govee-light-management/issues">github.com/felixgeelhaar/govee-light-management/issues</a>.
+  </p>
+
+  <footer>
+    Govee Light Management is open source under the MIT license and is not affiliated with,
+    endorsed by, or sponsored by Govee or Elgato.
+  </footer>
+</div>
+</body>
+</html>

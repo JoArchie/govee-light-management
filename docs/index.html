@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Govee Light Management — Stream Deck Plugin</title>
+<meta name="description" content="Control your Govee smart lights directly from your Stream Deck. Supports keypad actions and Stream Deck+ dials for brightness, color, color temperature, and segment control.">
+<style>
+  :root {
+    --bg: #0B0E1A;
+    --bg-2: #13172B;
+    --text: #E5E7EB;
+    --muted: #9CA3AF;
+    --accent: #A855F7;
+    --accent-2: #6366F1;
+    --accent-3: #22D3EE;
+    --border: #1F2937;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+  .container { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+  header {
+    padding: 80px 0 60px;
+    background: radial-gradient(ellipse at top, rgba(168,85,247,0.15), transparent 60%);
+    text-align: center;
+  }
+  h1 {
+    font-size: 3rem;
+    margin: 0 0 16px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2), var(--accent-3));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+  .tagline {
+    font-size: 1.25rem;
+    color: var(--muted);
+    margin: 0 0 32px;
+  }
+  .cta {
+    display: inline-flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .btn {
+    display: inline-block;
+    padding: 12px 24px;
+    border-radius: 10px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 1rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .btn-primary {
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    color: white;
+    box-shadow: 0 4px 20px rgba(168,85,247,0.3);
+  }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 28px rgba(168,85,247,0.5); }
+  .btn-secondary {
+    background: var(--bg-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { border-color: var(--accent); }
+  section { padding: 60px 0; border-top: 1px solid var(--border); }
+  h2 {
+    font-size: 2rem;
+    margin: 0 0 24px;
+    color: var(--text);
+    font-weight: 700;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 20px;
+  }
+  .card {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+    transition: border-color 0.2s;
+  }
+  .card:hover { border-color: var(--accent); }
+  .card h3 {
+    margin: 0 0 8px;
+    color: var(--accent-3);
+    font-size: 1.1rem;
+  }
+  .card p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+  ol { color: var(--muted); padding-left: 24px; }
+  ol li { margin-bottom: 8px; }
+  ol li strong { color: var(--text); }
+  code {
+    background: var(--bg-2);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    color: var(--accent-3);
+  }
+  a { color: var(--accent-3); }
+  footer {
+    padding: 40px 0 60px;
+    border-top: 1px solid var(--border);
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+  footer a { margin: 0 12px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="container">
+    <h1>Govee Light Management</h1>
+    <p class="tagline">Control your Govee smart lights directly from your Stream Deck.</p>
+    <div class="cta">
+      <a class="btn btn-primary" href="https://marketplace.elgato.com/">Get on Marketplace</a>
+      <a class="btn btn-secondary" href="https://github.com/felixgeelhaar/govee-light-management">View on GitHub</a>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="container">
+    <h2>Features</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>On / Off</h3>
+        <p>Toggle individual lights or entire groups instantly with a single tap.</p>
+      </div>
+      <div class="card">
+        <h3>Brightness</h3>
+        <p>Set precise brightness levels from a keypad button or adjust smoothly with a Stream Deck+ dial.</p>
+      </div>
+      <div class="card">
+        <h3>Color</h3>
+        <p>Pick any color from the full spectrum. Dial rotation scrubs through hues with live feedback.</p>
+      </div>
+      <div class="card">
+        <h3>Color Temperature</h3>
+        <p>Shift between warm and cool white (2000K to 9000K) to match any mood.</p>
+      </div>
+      <div class="card">
+        <h3>Segment Control</h3>
+        <p>For RGB IC lights: apply rainbow, gradient, or solid presets across all segments, or tune individual segments.</p>
+      </div>
+      <div class="card">
+        <h3>Stream Deck+ Dials</h3>
+        <p>Tactile dial controls with custom gradient touchscreen feedback. Rotate to adjust, press to toggle.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="container">
+    <h2>Setup</h2>
+    <ol>
+      <li><strong>Install</strong> the plugin from the Elgato Marketplace.</li>
+      <li><strong>Get a Govee API key</strong> at <a href="https://developer.govee.com">developer.govee.com</a>.</li>
+      <li><strong>Add an action</strong> to your Stream Deck and paste the API key in the Property Inspector.</li>
+      <li><strong>Select a light</strong> from the dropdown and you're done.</li>
+    </ol>
+    <p style="color: var(--muted);">Your API key is stored securely in Stream Deck's encrypted settings and never leaves your machine except to communicate with the official Govee API.</p>
+  </div>
+</section>
+
+<section>
+  <div class="container">
+    <h2>Requirements</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>Stream Deck</h3>
+        <p>Stream Deck software 6.9 or later. Any Stream Deck hardware; Stream Deck+ recommended for dial actions.</p>
+      </div>
+      <div class="card">
+        <h3>Operating System</h3>
+        <p>macOS 12 or later, or Windows 10 or later.</p>
+      </div>
+      <div class="card">
+        <h3>Govee Account</h3>
+        <p>A free Govee developer API key and at least one supported Govee smart light.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <p>
+      <a href="./privacy.html">Privacy Policy</a>
+      <a href="https://github.com/felixgeelhaar/govee-light-management">Source Code</a>
+      <a href="https://github.com/felixgeelhaar/govee-light-management/issues">Support</a>
+    </p>
+    <p>&copy; Felix Geelhaar &middot; Open source under the MIT license</p>
+  </div>
+</footer>
+</body>
+</html>
