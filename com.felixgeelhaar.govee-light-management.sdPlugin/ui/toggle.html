@@ -11,15 +11,13 @@
 <body>
 	<div id="settings" class="hidden">
 		<sdpi-item label="Device">
-			<sdpi-select setting="selectedDeviceId" placeholder="" datasource="getDevices" show-refresh
-				label-setting="selectedLightName"></sdpi-select>
+			<sdpi-select id="deviceSelect" setting="selectedDeviceId" placeholder="" datasource="getDevices"
+				show-refresh label-setting="selectedLightName"></sdpi-select>
 		</sdpi-item>
 
 		<sdpi-item label="Feature">
-			<sdpi-select setting="feature" default="nightlight">
-				<option value="nightlight">Nightlight</option>
-				<option value="gradient">Gradient</option>
-			</sdpi-select>
+			<sdpi-select id="featureSelect" setting="selectedFeature" datasource="getToggleFeatures"
+				show-refresh placeholder="Select a device first"></sdpi-select>
 		</sdpi-item>
 
 		<sdpi-item label="Action">
@@ -48,5 +46,19 @@
 			</ol>
 		</sdpi-item>
 	</div>
+
+	<script>
+		document.addEventListener("DOMContentLoaded", () => {
+			const deviceSelect = document.getElementById("deviceSelect");
+			const featureSelect = document.getElementById("featureSelect");
+
+			// When device changes, refresh the feature list
+			deviceSelect.addEventListener("valuechange", () => {
+				if (featureSelect && featureSelect.refresh) {
+					featureSelect.refresh();
+				}
+			});
+		});
+	</script>
 </body>
 </html>

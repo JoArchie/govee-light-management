@@ -11,10 +11,8 @@ import {
 import type { JsonValue } from "@elgato/utils";
 import { ActionServices, type BaseSettings } from "./shared/ActionServices";
 
-type ToggleFeature = "nightlight" | "gradient";
-
 type ToggleSettings = BaseSettings & {
-  feature?: ToggleFeature;
+  selectedFeature?: string; // JSON: { name, instance }
   operation?: "toggle" | "on" | "off";
 };
 
@@ -58,7 +56,16 @@ export class ToggleAction extends SingletonAction<ToggleSettings> {
       return;
     }
 
-    const feature = settings.feature ?? "nightlight";
+    if (!settings.selectedFeature) {
+      streamDeck.logger.warn("Toggle action: no feature selected");
+      await ev.action.showAlert();
+      return;
+    }
+
+    const parsed = JSON.parse(settings.selectedFeature) as {
+      name: string;
+      instance: string;
+    };
     const operation = settings.operation ?? "toggle";
 
     let enabled: boolean;
@@ -71,7 +78,11 @@ export class ToggleAction extends SingletonAction<ToggleSettings> {
     try {
       const stopSpinner = this.services.showSpinner(ev.action);
       try {
-        await this.services.toggleFeature(target.light, feature, enabled);
+        await this.services.toggleFeatureRaw(
+          target.light,
+          parsed.instance,
+          enabled,
+        );
       } finally {
         stopSpinner();
       }
@@ -79,8 +90,7 @@ export class ToggleAction extends SingletonAction<ToggleSettings> {
       await ev.action.setTitle(this.getTitle(settings, ctx));
       await ev.action.showOk();
     } catch (error) {
-      streamDeck.logger.error(`Failed to toggle ${feature}:`, error);
-      // Revert state on failure
+      streamDeck.logger.error(`Failed to toggle ${parsed.name}:`, error);
       if (operation === "toggle") {
         this.featureState.set(ctx, !enabled);
       }
@@ -97,14 +107,66 @@ export class ToggleAction extends SingletonAction<ToggleSettings> {
       case "getDevices":
         await this.services.handleGetDevices();
         break;
+      case "getToggleFeatures": {
+        const settings = await ev.action.getSettings();
+        await this.handleGetToggleFeatures(settings);
+        break;
+      }
+    }
+  }
+
+  private async handleGetToggleFeatures(
+    settings: ToggleSettings,
+  ): Promise<void> {
+    const deviceId = settings.selectedDeviceId;
+    if (!deviceId) {
+      await streamDeck.ui.sendToPropertyInspector({
+        event: "getToggleFeatures",
+        items: [],
+      });
+      return;
+    }
+
+    try {
+      const apiKey = await this.services.getApiKey(settings);
+      if (!apiKey) {
+        await streamDeck.ui.sendToPropertyInspector({
+          event: "getToggleFeatures",
+          items: [],
+        });
+        return;
+      }
+
+      await this.services.ensureServices(apiKey);
+      const features = await this.services.getToggleFeatures(deviceId);
+      await streamDeck.ui.sendToPropertyInspector({
+        event: "getToggleFeatures",
+        items: features.map((f) => ({
+          label: f.name,
+          value: JSON.stringify({ name: f.name, instance: f.instance }),
+        })),
+      });
+    } catch (error) {
+      streamDeck.logger.error("Failed to fetch toggle features:", error);
+      await streamDeck.ui.sendToPropertyInspector({
+        event: "getToggleFeatures",
+        items: [],
+      });
     }
   }
 
   private getTitle(settings: ToggleSettings, contextId: string): string {
-    const feature = settings.feature ?? "nightlight";
-    const operation = settings.operation ?? "toggle";
-    const label = feature === "nightlight" ? "Night" : "Grad";
+    let label = "Toggle";
+    if (settings.selectedFeature) {
+      try {
+        const parsed = JSON.parse(settings.selectedFeature);
+        label = parsed.name || "Toggle";
+      } catch {
+        /* ignore */
+      }
+    }
 
+    const operation = settings.operation ?? "toggle";
     if (operation === "toggle") {
       const isOn = this.featureState.get(contextId) ?? false;
       return `${label}\n${isOn ? "●" : "○"}`;

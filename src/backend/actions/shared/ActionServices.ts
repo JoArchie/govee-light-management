@@ -484,6 +484,17 @@ export class ActionServices {
     }
   }
 
+  async toggleFeatureRaw(
+    light: Light,
+    instance: string,
+    enabled: boolean,
+  ): Promise<void> {
+    if (!this.lightRepository) {
+      throw new Error("Light repository not initialized");
+    }
+    await this.lightRepository.toggleRaw(light, instance, enabled);
+  }
+
   async applyMusicModeRaw(light: Light, musicMode: MusicMode): Promise<void> {
     if (!this.lightRepository) {
       throw new Error("Light repository not initialized");
@@ -498,5 +509,14 @@ export class ActionServices {
       throw new Error("Light repository not initialized");
     }
     return this.lightRepository.getMusicModes(deviceId);
+  }
+
+  async getToggleFeatures(
+    deviceId: string,
+  ): Promise<Array<{ name: string; instance: string }>> {
+    if (!this.lightRepository) {
+      throw new Error("Light repository not initialized");
+    }
+    return this.lightRepository.getToggleFeatures(deviceId);
   }
 }

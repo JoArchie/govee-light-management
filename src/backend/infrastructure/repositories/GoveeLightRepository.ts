@@ -632,6 +632,95 @@ export class GoveeLightRepository implements ILightRepository {
     }
   }
 
+  async toggleRaw(
+    light: Light,
+    instance: string,
+    enabled: boolean,
+  ): Promise<void> {
+    try {
+      const command = {
+        name: instance,
+        value: enabled ? 1 : 0,
+        toObject: () => ({ name: instance, value: enabled ? 1 : 0 }),
+      };
+      await this.client.sendCommand(
+        light.deviceId,
+        light.model,
+        command as any,
+      );
+    } catch (error) {
+      if (this.isValidationError(error)) {
+        streamDeck.logger.warn(
+          `Toggle ${instance} sent but response validation failed for ${light.name}`,
+        );
+        return;
+      }
+      streamDeck.logger.error(
+        `Failed to toggle ${instance} for ${light.name}:`,
+        error,
+      );
+      throw new Error(
+        `Failed to toggle ${instance}: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  async getToggleFeatures(
+    selectedDeviceId: string,
+  ): Promise<Array<{ name: string; instance: string }>> {
+    try {
+      const cleanId = selectedDeviceId.startsWith("light:")
+        ? selectedDeviceId.substring(6)
+        : selectedDeviceId;
+      const [deviceId, model] = cleanId.split("|");
+      if (!deviceId || !model || !this.apiKey) return [];
+
+      const response = await fetch(
+        "https://openapi.api.govee.com/router/api/v1/user/devices",
+        {
+          headers: {
+            "Content-Type": "application/json",
+            "Govee-API-Key": this.apiKey,
+          },
+        },
+      );
+
+      if (!response.ok) return [];
+      const data = (await response.json()) as {
+        data: Array<{
+          device: string;
+          sku: string;
+          capabilities: Array<{
+            type: string;
+            instance: string;
+          }>;
+        }>;
+      };
+
+      const device = data.data?.find(
+        (d) => d.device === deviceId && d.sku === model,
+      );
+      if (!device) return [];
+
+      const TOGGLE_LABELS: Record<string, string> = {
+        nightlightToggle: "Nightlight",
+        gradientToggle: "Gradient",
+        dreamViewToggle: "DreamView",
+        sceneStageToggle: "Scene Stage",
+      };
+
+      return device.capabilities
+        .filter((cap) => cap.type.includes("toggle"))
+        .map((cap) => ({
+          name: TOGGLE_LABELS[cap.instance] ?? cap.instance,
+          instance: cap.instance,
+        }));
+    } catch (error) {
+      streamDeck.logger.error("Failed to get toggle features:", error);
+      return [];
+    }
+  }
+
   /**
    * Map Govee device to domain Light entity
    */
