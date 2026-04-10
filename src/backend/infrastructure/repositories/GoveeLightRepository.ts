@@ -19,7 +19,6 @@ import streamDeck from "@elgato/streamdeck";
 
 export class GoveeLightRepository implements ILightRepository {
   private client: GoveeClient;
-  private apiKey: string;
 
   /**
    * Check if an error is a Zod ValidationError from the client library.
@@ -35,7 +34,6 @@ export class GoveeLightRepository implements ILightRepository {
   }
 
   constructor(apiKey: string, enableRetries = true) {
-    this.apiKey = apiKey;
     this.client = new GoveeClient({
       apiKey,
       enableRetries,
@@ -529,24 +527,7 @@ export class GoveeLightRepository implements ILightRepository {
 
   async setMusicModeRaw(light: Light, musicMode: MusicMode): Promise<void> {
     try {
-      // Workaround: API client sends { modeId, sensitivity } but the Govee API
-      // expects { musicMode, sensitivity } as the field name.
-      const value: Record<string, number> = {
-        musicMode: musicMode.modeId,
-      };
-      if (musicMode.sensitivity !== undefined) {
-        value.sensitivity = musicMode.sensitivity;
-      }
-      const command = {
-        name: "musicMode" as const,
-        value,
-        toObject: () => ({ name: "musicMode", value }),
-      };
-      await this.client.sendCommand(
-        light.deviceId,
-        light.model,
-        command as any,
-      );
+      await this.client.setMusicMode(light.deviceId, light.model, musicMode);
     } catch (error) {
       if (this.isValidationError(error)) {
         streamDeck.logger.warn(
@@ -574,54 +555,25 @@ export class GoveeLightRepository implements ILightRepository {
       const [deviceId, model] = cleanId.split("|");
       if (!deviceId || !model) return [];
 
-      // Query the raw API for device capabilities since the client's
-      // GoveeDevice type strips the nested fields structure.
-      const apiKey = this.apiKey;
-      if (!apiKey) return [];
-      const response = await fetch(
-        "https://openapi.api.govee.com/router/api/v1/user/devices",
-        {
-          headers: {
-            "Content-Type": "application/json",
-            "Govee-API-Key": apiKey,
-          },
-        },
-      );
-
-      if (!response.ok) return [];
-      const data = (await response.json()) as {
-        data: Array<{
-          device: string;
-          sku: string;
-          capabilities: Array<{
-            type: string;
-            instance: string;
-            parameters: {
-              dataType: string;
-              fields?: Array<{
-                fieldName: string;
-                options?: Array<{ name: string; value: number }>;
-              }>;
-            };
-          }>;
-        }>;
-      };
-
-      const device = data.data?.find(
-        (d) => d.device === deviceId && d.sku === model,
+      const devices = await this.client.getControllableDevices();
+      const device = devices.find(
+        (d) => d.deviceId === deviceId && d.model === model,
       );
       if (!device) return [];
 
       for (const cap of device.capabilities) {
-        if (cap.instance === "musicMode" && cap.parameters?.fields) {
-          const modeField = cap.parameters.fields.find(
-            (f) => f.fieldName === "musicMode",
-          );
-          if (modeField?.options) {
-            return modeField.options.map((o) => ({
-              name: o.name,
-              value: o.value,
-            }));
+        if (cap.instance === "musicMode") {
+          const params = cap.parameters as any;
+          if (params?.fields) {
+            const modeField = params.fields.find(
+              (f: any) => f.fieldName === "musicMode",
+            );
+            if (modeField?.options) {
+              return modeField.options.map((o: any) => ({
+                name: String(o.name),
+                value: Number(o.value),
+              }));
+            }
           }
         }
       }
@@ -673,32 +625,11 @@ export class GoveeLightRepository implements ILightRepository {
         ? selectedDeviceId.substring(6)
         : selectedDeviceId;
       const [deviceId, model] = cleanId.split("|");
-      if (!deviceId || !model || !this.apiKey) return [];
+      if (!deviceId || !model) return [];
 
-      const response = await fetch(
-        "https://openapi.api.govee.com/router/api/v1/user/devices",
-        {
-          headers: {
-            "Content-Type": "application/json",
-            "Govee-API-Key": this.apiKey,
-          },
-        },
-      );
-
-      if (!response.ok) return [];
-      const data = (await response.json()) as {
-        data: Array<{
-          device: string;
-          sku: string;
-          capabilities: Array<{
-            type: string;
-            instance: string;
-          }>;
-        }>;
-      };
-
-      const device = data.data?.find(
-        (d) => d.device === deviceId && d.sku === model,
+      const devices = await this.client.getControllableDevices();
+      const device = devices.find(
+        (d) => d.deviceId === deviceId && d.model === model,
       );
       if (!device) return [];
 
