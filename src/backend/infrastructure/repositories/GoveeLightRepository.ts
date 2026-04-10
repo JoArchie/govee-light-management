@@ -636,7 +636,7 @@ export class GoveeLightRepository implements ILightRepository {
       const TOGGLE_LABELS: Record<string, string> = {
         nightlightToggle: "Nightlight",
         gradientToggle: "Gradient",
-        dreamViewToggle: "DreamView",
+        dreamViewToggle: "DreamView (requires equipment)",
         sceneStageToggle: "Scene Stage",
       };
 
