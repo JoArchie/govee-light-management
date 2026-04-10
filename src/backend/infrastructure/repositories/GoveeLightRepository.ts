@@ -4,12 +4,15 @@ import {
   ColorTemperature,
   Brightness,
   GoveeDevice,
+  LightScene,
+  SegmentColor as ApiSegmentColor,
 } from "@felixgeelhaar/govee-api-client";
 import { ILightRepository } from "../../domain/repositories/ILightRepository";
 import { Light, LightState } from "../../domain/entities";
 import { Scene } from "../../domain/value-objects/Scene";
 import { SegmentColor } from "../../domain/value-objects/SegmentColor";
-import { SegmentColorMapper } from "../mappers/SegmentColorMapper";
+import { SceneMapper } from "../mappers/SceneMapper";
+import { MusicModeMapper } from "../mappers/MusicModeMapper";
 import { MusicModeConfig } from "../../domain/value-objects/MusicModeConfig";
 import streamDeck from "@elgato/streamdeck";
 
@@ -118,6 +121,12 @@ export class GoveeLightRepository implements ILightRepository {
 
   async setBrightness(light: Light, brightness: Brightness): Promise<void> {
     try {
+      // Govee API requires brightness 1-100; treat 0 as "turn off"
+      if (brightness.level === 0) {
+        await this.client.turnOff(light.deviceId, light.model);
+        light.updateState({ isOn: false, brightness });
+        return;
+      }
       await this.client.setBrightness(light.deviceId, light.model, brightness);
       light.updateState({ brightness });
     } catch (error) {
@@ -354,10 +363,64 @@ export class GoveeLightRepository implements ILightRepository {
   }
 
   async applyScene(light: Light, scene: Scene): Promise<void> {
-    // TODO: Implement when @felixgeelhaar/govee-api-client v3.1.0+ adds applyScene method
-    throw new Error(
-      `Scene control not yet supported by govee-api-client. Scene: ${scene.name} (${scene.type})`,
-    );
+    try {
+      const apiScene = SceneMapper.toApiLightScene(scene);
+      await this.client.setLightScene(light.deviceId, light.model, apiScene);
+    } catch (error) {
+      if (this.isValidationError(error)) {
+        streamDeck.logger.warn(
+          `Scene command sent but response validation failed for ${light.name}`,
+        );
+        return;
+      }
+      streamDeck.logger.error(
+        `Failed to apply scene for light ${light.name}:`,
+        error,
+      );
+      throw new Error(
+        `Failed to apply scene: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  async setLightScene(light: Light, scene: LightScene): Promise<void> {
+    try {
+      await this.client.setLightScene(light.deviceId, light.model, scene);
+    } catch (error) {
+      if (this.isValidationError(error)) {
+        streamDeck.logger.warn(
+          `Scene command sent but response validation failed for ${light.name}`,
+        );
+        return;
+      }
+      streamDeck.logger.error(
+        `Failed to set light scene for ${light.name}:`,
+        error,
+      );
+      throw new Error(
+        `Failed to set light scene: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  async getDynamicScenes(light: Light): Promise<LightScene[]> {
+    try {
+      return await this.client.getDynamicScenes(light.deviceId, light.model);
+    } catch (error) {
+      if (this.isValidationError(error)) {
+        streamDeck.logger.warn(
+          `Dynamic scenes fetch validation failed for ${light.name}`,
+        );
+        return [];
+      }
+      streamDeck.logger.error(
+        `Failed to get dynamic scenes for ${light.name}:`,
+        error,
+      );
+      throw new Error(
+        `Failed to get dynamic scenes: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
   }
 
   async setSegmentColors(
@@ -368,12 +431,22 @@ export class GoveeLightRepository implements ILightRepository {
       throw new Error("At least one segment color must be provided");
     }
     try {
-      const apiSegments = SegmentColorMapper.toApiSegmentColors(segments);
-      await this.client.setSegmentColors(
-        light.deviceId,
-        light.model,
-        apiSegments,
-      );
+      // Govee API accepts one color per segmentedColorRgb call.
+      // Group segments by color and send one call per unique color.
+      const colorGroups = new Map<string, ApiSegmentColor[]>();
+      for (const seg of segments) {
+        const key = `${seg.color.r},${seg.color.g},${seg.color.b}`;
+        const group = colorGroups.get(key) ?? [];
+        group.push(new ApiSegmentColor(seg.segmentIndex, seg.color));
+        colorGroups.set(key, group);
+      }
+      for (const apiSegments of colorGroups.values()) {
+        await this.client.setSegmentColors(
+          light.deviceId,
+          light.model,
+          apiSegments,
+        );
+      }
     } catch (error) {
       if (this.isValidationError(error)) {
         streamDeck.logger?.warn(
@@ -387,24 +460,68 @@ export class GoveeLightRepository implements ILightRepository {
   }
 
   async setMusicMode(light: Light, config: MusicModeConfig): Promise<void> {
-    // TODO: Implement when @felixgeelhaar/govee-api-client v3.1.0+ adds setMusicMode method
-    throw new Error(
-      `Music mode not yet supported by govee-api-client. Mode: ${config.mode} (sensitivity: ${config.sensitivity}%)`,
-    );
+    try {
+      const apiMode = MusicModeMapper.toApiMusicMode(config);
+      await this.client.setMusicMode(light.deviceId, light.model, apiMode);
+    } catch (error) {
+      if (this.isValidationError(error)) {
+        streamDeck.logger.warn(
+          `Music mode command sent but response validation failed for ${light.name}`,
+        );
+        return;
+      }
+      streamDeck.logger.error(
+        `Failed to set music mode for ${light.name}:`,
+        error,
+      );
+      throw new Error(
+        `Failed to set music mode: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
   }
 
   async toggleNightlight(light: Light, enabled: boolean): Promise<void> {
-    // TODO: Implement when @felixgeelhaar/govee-api-client v3.1.0+ adds toggleNightlight method
-    throw new Error(
-      `Nightlight toggle not yet supported by govee-api-client. Attempted to ${enabled ? "enable" : "disable"}.`,
-    );
+    try {
+      await this.client.setNightlightToggle(
+        light.deviceId,
+        light.model,
+        enabled,
+      );
+    } catch (error) {
+      if (this.isValidationError(error)) {
+        streamDeck.logger.warn(
+          `Nightlight toggle sent but response validation failed for ${light.name}`,
+        );
+        return;
+      }
+      streamDeck.logger.error(
+        `Failed to toggle nightlight for ${light.name}:`,
+        error,
+      );
+      throw new Error(
+        `Failed to toggle nightlight: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
   }
 
   async toggleGradient(light: Light, enabled: boolean): Promise<void> {
-    // TODO: Implement when @felixgeelhaar/govee-api-client v3.1.0+ adds toggleGradient method
-    throw new Error(
-      `Gradient toggle not yet supported by govee-api-client. Attempted to ${enabled ? "enable" : "disable"}.`,
-    );
+    try {
+      await this.client.setGradientToggle(light.deviceId, light.model, enabled);
+    } catch (error) {
+      if (this.isValidationError(error)) {
+        streamDeck.logger.warn(
+          `Gradient toggle sent but response validation failed for ${light.name}`,
+        );
+        return;
+      }
+      streamDeck.logger.error(
+        `Failed to toggle gradient for ${light.name}:`,
+        error,
+      );
+      throw new Error(
+        `Failed to toggle gradient: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
   }
 
   /**

@@ -99,4 +99,19 @@ export interface ILightRepository {
    * Toggle gradient effect
    */
   toggleGradient(light: Light, enabled: boolean): Promise<void>;
+
+  /**
+   * Get available dynamic scenes for a specific device
+   */
+  getDynamicScenes(
+    light: Light,
+  ): Promise<import("@felixgeelhaar/govee-api-client").LightScene[]>;
+
+  /**
+   * Apply a dynamic LightScene directly (bypasses domain Scene mapper)
+   */
+  setLightScene(
+    light: Light,
+    scene: import("@felixgeelhaar/govee-api-client").LightScene,
+  ): Promise<void>;
 }

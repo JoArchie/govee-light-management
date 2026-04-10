@@ -3,38 +3,44 @@ import {
   KeyDownEvent,
   SingletonAction,
   WillAppearEvent,
+  WillDisappearEvent,
   type DidReceiveSettingsEvent,
   type SendToPluginEvent,
   streamDeck,
 } from "@elgato/streamdeck";
 import type { JsonValue } from "@elgato/utils";
-import { Brightness } from "@felixgeelhaar/govee-api-client";
 import { ActionServices, type BaseSettings } from "./shared/ActionServices";
-import { telemetryService } from "../services/TelemetryService";
+import {
+  MusicModeConfig,
+  type MusicModeType,
+} from "../domain/value-objects/MusicModeConfig";
 
-type BrightnessSettings = BaseSettings & {
-  brightnessValue?: number;
+type MusicModeSettings = BaseSettings & {
+  mode?: MusicModeType;
+  sensitivity?: number;
 };
 
-@action({ UUID: "com.felixgeelhaar.govee-light-management.brightness" })
-export class BrightnessAction extends SingletonAction<BrightnessSettings> {
+@action({ UUID: "com.felixgeelhaar.govee-light-management.music-mode" })
+export class MusicModeAction extends SingletonAction<MusicModeSettings> {
   private services = new ActionServices();
 
   override async onWillAppear(
-    ev: WillAppearEvent<BrightnessSettings>,
+    ev: WillAppearEvent<MusicModeSettings>,
   ): Promise<void> {
     await ev.action.setTitle(this.getTitle(ev.payload.settings));
+  }
+
+  override onWillDisappear(_ev: WillDisappearEvent<MusicModeSettings>): void {
+    // No state to clean up
   }
 
   override async onDidReceiveSettings(
-    ev: DidReceiveSettingsEvent<BrightnessSettings>,
+    ev: DidReceiveSettingsEvent<MusicModeSettings>,
   ): Promise<void> {
     await ev.action.setTitle(this.getTitle(ev.payload.settings));
   }
 
-  override async onKeyDown(
-    ev: KeyDownEvent<BrightnessSettings>,
-  ): Promise<void> {
+  override async onKeyDown(ev: KeyDownEvent<MusicModeSettings>): Promise<void> {
     const { settings } = ev.payload;
 
     const apiKey = await this.services.getApiKey(settings);
@@ -45,38 +51,32 @@ export class BrightnessAction extends SingletonAction<BrightnessSettings> {
 
     await this.services.ensureServices(apiKey);
     const target = await this.services.resolveTarget(settings);
-
-    if (!target) {
+    if (!target || target.type !== "light" || !target.light) {
       await ev.action.showAlert();
       return;
     }
 
-    const started = Date.now();
-
     try {
-      const brightness = new Brightness(settings.brightnessValue ?? 50);
+      const config = MusicModeConfig.create(
+        settings.sensitivity ?? 50,
+        settings.mode ?? "rhythm",
+        true,
+      );
       const stopSpinner = this.services.showSpinner(ev.action);
       try {
-        await this.services.controlTarget(target, "brightness", brightness);
+        await this.services.applyMusicMode(target.light, config);
       } finally {
         stopSpinner();
       }
-      await ev.action.setTitle(this.getTitle(settings));
       await ev.action.showOk();
-
-      telemetryService.recordCommand({
-        command: `${target.type}.brightness`,
-        durationMs: Date.now() - started,
-        success: true,
-      });
     } catch (error) {
-      streamDeck.logger.error("Failed to set brightness:", error);
+      streamDeck.logger.error("Failed to set music mode:", error);
       await ev.action.showAlert();
     }
   }
 
   override async onSendToPlugin(
-    ev: SendToPluginEvent<JsonValue, BrightnessSettings>,
+    ev: SendToPluginEvent<JsonValue, MusicModeSettings>,
   ): Promise<void> {
     if (!(ev.payload instanceof Object) || !("event" in ev.payload)) return;
 
@@ -84,19 +84,11 @@ export class BrightnessAction extends SingletonAction<BrightnessSettings> {
       case "getDevices":
         await this.services.handleGetDevices();
         break;
-      case "getGroups":
-        await this.services.handleGetGroups();
-        break;
-      case "saveGroup":
-        await this.services.handleSaveGroup(ev.payload);
-        break;
-      case "deleteGroup":
-        await this.services.handleDeleteGroup(ev.payload);
-        break;
     }
   }
 
-  private getTitle(_settings: BrightnessSettings): string {
-    return "";
+  private getTitle(settings: MusicModeSettings): string {
+    const mode = settings.mode ?? "rhythm";
+    return mode.charAt(0).toUpperCase() + mode.slice(1);
   }
 }

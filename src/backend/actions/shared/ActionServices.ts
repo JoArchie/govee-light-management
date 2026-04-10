@@ -13,7 +13,9 @@ import {
   Brightness,
   ColorRgb,
   ColorTemperature,
+  LightScene,
 } from "@felixgeelhaar/govee-api-client";
+import { MusicModeConfig } from "../../domain/value-objects/MusicModeConfig";
 import { DeviceService } from "../../domain/services/DeviceService";
 import {
   TransportOrchestrator,
@@ -443,5 +445,41 @@ export class ActionServices {
       throw new Error("Light repository not initialized");
     }
     await this.lightRepository.setSegmentColors(light, segments);
+  }
+
+  async getDynamicScenes(light: Light): Promise<LightScene[]> {
+    if (!this.lightRepository) {
+      throw new Error("Light repository not initialized");
+    }
+    return this.lightRepository.getDynamicScenes(light);
+  }
+
+  async applyDynamicScene(light: Light, scene: LightScene): Promise<void> {
+    if (!this.lightRepository) {
+      throw new Error("Light repository not initialized");
+    }
+    await this.lightRepository.setLightScene(light, scene);
+  }
+
+  async applyMusicMode(light: Light, config: MusicModeConfig): Promise<void> {
+    if (!this.lightRepository) {
+      throw new Error("Light repository not initialized");
+    }
+    await this.lightRepository.setMusicMode(light, config);
+  }
+
+  async toggleFeature(
+    light: Light,
+    feature: "nightlight" | "gradient",
+    enabled: boolean,
+  ): Promise<void> {
+    if (!this.lightRepository) {
+      throw new Error("Light repository not initialized");
+    }
+    if (feature === "nightlight") {
+      await this.lightRepository.toggleNightlight(light, enabled);
+    } else {
+      await this.lightRepository.toggleGradient(light, enabled);
+    }
   }
 }

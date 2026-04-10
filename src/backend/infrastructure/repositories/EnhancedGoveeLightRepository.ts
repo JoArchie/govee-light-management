@@ -513,6 +513,46 @@ export class EnhancedGoveeLightRepository implements ILightRepository {
     );
   }
 
+  async getDynamicScenes(
+    light: Light,
+  ): Promise<import("@felixgeelhaar/govee-api-client").LightScene[]> {
+    return ErrorBoundaries.wrapDeviceControl(
+      async () => {
+        const deviceCircuitBreaker = this.getDeviceCircuitBreaker(
+          light.deviceId,
+        );
+        return deviceCircuitBreaker.execute(async () => {
+          return this.client.getDynamicScenes(light.deviceId, light.model);
+        });
+      },
+      light.deviceId,
+      light.name,
+      "Get Dynamic Scenes",
+    );
+  }
+
+  async setLightScene(
+    light: Light,
+    scene: import("@felixgeelhaar/govee-api-client").LightScene,
+  ): Promise<void> {
+    return ErrorBoundaries.wrapDeviceControl(
+      async () => {
+        const deviceCircuitBreaker = this.getDeviceCircuitBreaker(
+          light.deviceId,
+        );
+        return deviceCircuitBreaker.execute(async () => {
+          await this.client.setLightScene(light.deviceId, light.model, scene);
+          streamDeck.logger.info(
+            `Light ${light.name} scene set to ${scene.name}`,
+          );
+        });
+      },
+      light.deviceId,
+      light.name,
+      "Set Light Scene",
+    );
+  }
+
   /**
    * Get or create circuit breaker for a specific device
    */

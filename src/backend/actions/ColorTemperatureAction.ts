@@ -69,6 +69,7 @@ export class ColorTemperatureAction extends SingletonAction<ColorTemperatureSett
         stopSpinner();
       }
       await ev.action.setTitle(this.getTitle(settings));
+      await ev.action.showOk();
 
       telemetryService.recordCommand({
         command: `${target.type}.colorTemperature`,

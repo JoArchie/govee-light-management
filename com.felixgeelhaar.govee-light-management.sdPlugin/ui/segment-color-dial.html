@@ -7,6 +7,7 @@
 	<script src="./js/ws-bridge.js"></script>
 	<script src="./js/sdpi-components.js"></script>
 	<script src="./js/setup.js"></script>
+	<script src="./js/range-value.js"></script>
 </head>
 <body>
 	<div id="settings" class="hidden">
@@ -16,21 +17,21 @@
 		</sdpi-item>
 
 		<sdpi-item label="Segment">
-			<sdpi-range setting="segmentIndex" default="0" min="0" max="14" step="1" showlabels>
-				<span slot="min">0</span>
-				<span slot="max">14</span>
+			<sdpi-range setting="segmentIndex" default="0" min="0" max="14" step="1" showlabels data-suffix="">
+				<span slot="min">1st</span>
+				<span slot="max">15th</span>
 			</sdpi-range>
 		</sdpi-item>
 
 		<sdpi-item label="Saturation">
-			<sdpi-range setting="saturation" default="100" min="0" max="100" step="1" showlabels>
+			<sdpi-range setting="saturation" default="100" min="0" max="100" step="1" showlabels data-suffix="%">
 				<span slot="min">Grey</span>
 				<span slot="max">Vivid</span>
 			</sdpi-range>
 		</sdpi-item>
 
 		<sdpi-item label="Step Size">
-			<sdpi-range setting="stepSize" default="15" min="1" max="90" step="1" showlabels>
+			<sdpi-range setting="stepSize" default="15" min="1" max="90" step="1" showlabels data-suffix="°">
 				<span slot="min">Fine</span>
 				<span slot="max">Coarse</span>
 			</sdpi-range>

@@ -2,12 +2,11 @@
 <html>
 <head lang="en-gb">
 	<meta charset="utf-8">
-	<title>Govee Light Management | Brightness</title>
+	<title>Govee Light Management | Feature Toggle</title>
 	<link rel="stylesheet" href="./css/main.css" />
 	<script src="./js/ws-bridge.js"></script>
 	<script src="./js/sdpi-components.js"></script>
 	<script src="./js/setup.js"></script>
-	<script src="./js/range-value.js"></script>
 </head>
 <body>
 	<div id="settings" class="hidden">
@@ -16,14 +15,20 @@
 				label-setting="selectedLightName"></sdpi-select>
 		</sdpi-item>
 
-		<sdpi-item label="Brightness">
-			<sdpi-range setting="brightnessValue" default="50" min="0" max="100" step="1" showlabels data-suffix="%">
-				<span slot="min">Off</span>
-				<span slot="max">Max</span>
-			</sdpi-range>
+		<sdpi-item label="Feature">
+			<sdpi-select setting="feature" default="nightlight">
+				<option value="nightlight">Nightlight</option>
+				<option value="gradient">Gradient</option>
+			</sdpi-select>
 		</sdpi-item>
 
-		<div id="groupManager"></div>
+		<sdpi-item label="Action">
+			<sdpi-select setting="operation" default="toggle">
+				<option value="toggle">Toggle On/Off</option>
+				<option value="on">Turn On</option>
+				<option value="off">Turn Off</option>
+			</sdpi-select>
+		</sdpi-item>
 	</div>
 
 	<div id="setup" class="hidden">

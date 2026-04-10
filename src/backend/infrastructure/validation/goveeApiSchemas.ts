@@ -61,7 +61,7 @@ const ControlModeSchema = z.enum([
 const BaseActionSettingsSchema = z.object({
   apiKey: z.string().optional(),
   controlMode: ControlModeSchema.optional(),
-  brightnessValue: z.number().min(1).max(100).optional(),
+  brightnessValue: z.number().min(0).max(100).optional(),
   colorValue: z
     .string()
     .regex(/^#[0-9A-Fa-f]{6}$/, "Must be a valid hex color (e.g., #FF0000)")

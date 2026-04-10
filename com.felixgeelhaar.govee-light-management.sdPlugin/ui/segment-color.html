@@ -7,6 +7,7 @@
 	<script src="./js/ws-bridge.js"></script>
 	<script src="./js/sdpi-components.js"></script>
 	<script src="./js/setup.js"></script>
+	<script src="./js/range-value.js"></script>
 </head>
 <body>
 	<div id="settings" class="hidden">
@@ -16,36 +17,43 @@
 		</sdpi-item>
 
 		<sdpi-item label="Preset">
-			<sdpi-select setting="preset" default="rainbow">
+			<sdpi-select id="presetSelect" setting="preset" default="rainbow">
 				<option value="rainbow">Rainbow</option>
 				<option value="solid">Solid Color</option>
 				<option value="gradient">Hue Gradient</option>
 			</sdpi-select>
 		</sdpi-item>
 
-		<sdpi-item label="Segments">
-			<sdpi-range setting="segmentCount" default="15" min="1" max="15" step="1" showlabels>
-				<span slot="min">1</span>
-				<span slot="max">15</span>
+		<sdpi-item label="From Segment">
+			<sdpi-range setting="segmentStart" default="0" min="0" max="14" step="1" showlabels data-suffix="">
+				<span slot="min">1st</span>
+				<span slot="max">15th</span>
 			</sdpi-range>
 		</sdpi-item>
 
-		<sdpi-item label="Solid Hue">
-			<sdpi-range setting="hue" default="0" min="0" max="359" step="1" showlabels>
+		<sdpi-item label="To Segment">
+			<sdpi-range setting="segmentEnd" default="14" min="0" max="14" step="1" showlabels data-suffix="">
+				<span slot="min">1st</span>
+				<span slot="max">15th</span>
+			</sdpi-range>
+		</sdpi-item>
+
+		<sdpi-item id="solidItem" label="Hue" style="display:none">
+			<sdpi-range setting="hue" default="0" min="0" max="359" step="1" showlabels data-suffix="°">
 				<span slot="min">0°</span>
 				<span slot="max">359°</span>
 			</sdpi-range>
 		</sdpi-item>
 
-		<sdpi-item label="Gradient Start">
-			<sdpi-range setting="hueStart" default="0" min="0" max="359" step="1" showlabels>
+		<sdpi-item id="gradStartItem" label="Start Hue" style="display:none">
+			<sdpi-range setting="hueStart" default="0" min="0" max="359" step="1" showlabels data-suffix="°">
 				<span slot="min">0°</span>
 				<span slot="max">359°</span>
 			</sdpi-range>
 		</sdpi-item>
 
-		<sdpi-item label="Gradient End">
-			<sdpi-range setting="hueEnd" default="300" min="0" max="359" step="1" showlabels>
+		<sdpi-item id="gradEndItem" label="End Hue" style="display:none">
+			<sdpi-range setting="hueEnd" default="300" min="0" max="359" step="1" showlabels data-suffix="°">
 				<span slot="min">0°</span>
 				<span slot="max">359°</span>
 			</sdpi-range>
@@ -69,5 +77,41 @@
 			</ol>
 		</sdpi-item>
 	</div>
+
+	<script>
+		document.addEventListener("DOMContentLoaded", () => {
+			const solidItem = document.getElementById("solidItem");
+			const gradStartItem = document.getElementById("gradStartItem");
+			const gradEndItem = document.getElementById("gradEndItem");
+			const presetSelect = document.getElementById("presetSelect");
+
+			function updateVisibility(preset) {
+				solidItem.style.display = preset === "solid" ? "" : "none";
+				gradStartItem.style.display = preset === "gradient" ? "" : "none";
+				gradEndItem.style.display = preset === "gradient" ? "" : "none";
+			}
+
+			// SDPI components dispatch "valuechange" on the web component
+			presetSelect.addEventListener("valuechange", () => {
+				updateVisibility(presetSelect.value || "rainbow");
+			});
+
+			// Also try standard events as fallback
+			presetSelect.addEventListener("change", () => {
+				updateVisibility(presetSelect.value || "rainbow");
+			});
+
+			// Poll to catch initial value from saved settings
+			let attempts = 0;
+			const poll = setInterval(() => {
+				const val = presetSelect.value;
+				if (val && val !== "") {
+					updateVisibility(val);
+					clearInterval(poll);
+				}
+				if (++attempts > 30) clearInterval(poll);
+			}, 100);
+		});
+	</script>
 </body>
 </html>

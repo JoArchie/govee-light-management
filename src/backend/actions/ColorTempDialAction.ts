@@ -5,8 +5,10 @@ import {
   TouchTapEvent,
   SingletonAction,
   WillAppearEvent,
+  WillDisappearEvent,
   type DidReceiveSettingsEvent,
   type SendToPluginEvent,
+  streamDeck,
 } from "@elgato/streamdeck";
 import type { JsonValue } from "@elgato/utils";
 import { ColorTemperature } from "@felixgeelhaar/govee-api-client";
@@ -31,6 +33,14 @@ export class ColorTempDialAction extends SingletonAction<ColorTempDialSettings> 
     await this.updateDisplay(ev.action, ev.payload.settings);
   }
 
+  override async onWillDisappear(
+    ev: WillDisappearEvent<ColorTempDialSettings>,
+  ): Promise<void> {
+    const ctx = ev.action.id;
+    this.tempMap.delete(ctx);
+    this.powerMap.delete(ctx);
+  }
+
   override async onDidReceiveSettings(
     ev: DidReceiveSettingsEvent<ColorTempDialSettings>,
   ): Promise<void> {
@@ -50,18 +60,31 @@ export class ColorTempDialAction extends SingletonAction<ColorTempDialSettings> 
     await this.updateDisplay(ev.action, settings);
 
     const apiKey = await this.services.getApiKey(settings);
-    if (!apiKey || !settings.selectedDeviceId) return;
+    if (!apiKey || !settings.selectedDeviceId) {
+      await ev.action.showAlert();
+      return;
+    }
     await this.services.ensureServices(apiKey);
     const target = await this.services.resolveTarget(settings);
-    if (!target) return;
+    if (!target) {
+      await ev.action.showAlert();
+      return;
+    }
 
-    const kelvin = Math.round(2000 + (next / 100) * 7000);
-    await this.services.controlTargetThrottled(
-      ctx,
-      target,
-      "colorTemperature",
-      new ColorTemperature(kelvin),
-    );
+    try {
+      const kelvin = Math.round(2000 + (next / 100) * 7000);
+      await this.services.controlTargetThrottled(
+        ctx,
+        target,
+        "colorTemperature",
+        new ColorTemperature(kelvin),
+      );
+    } catch (error) {
+      streamDeck.logger.error(
+        "Failed to set color temperature via dial:",
+        error,
+      );
+    }
   }
 
   override async onDialDown(
@@ -93,10 +116,16 @@ export class ColorTempDialAction extends SingletonAction<ColorTempDialSettings> 
       return;
     }
 
-    const isOn = this.powerMap.get(ctx) ?? true;
-    this.powerMap.set(ctx, !isOn);
-    await this.services.controlTarget(target, isOn ? "off" : "on");
-    await this.updateDisplay(action, settings);
+    try {
+      const isOn = this.powerMap.get(ctx) ?? true;
+      this.powerMap.set(ctx, !isOn);
+      await this.services.controlTarget(target, isOn ? "off" : "on");
+      await this.updateDisplay(action, settings);
+    } catch {
+      const isOn = this.powerMap.get(ctx) ?? true;
+      this.powerMap.set(ctx, !isOn);
+      await action.showAlert();
+    }
   }
 
   override async onSendToPlugin(

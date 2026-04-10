@@ -3,6 +3,7 @@ import {
   KeyDownEvent,
   SingletonAction,
   WillAppearEvent,
+  WillDisappearEvent,
   type DidReceiveSettingsEvent,
   type SendToPluginEvent,
 } from "@elgato/streamdeck";
@@ -24,8 +25,30 @@ export class OnOffAction extends SingletonAction<OnOffSettings> {
     ev: WillAppearEvent<OnOffSettings>,
   ): Promise<void> {
     const contextId = ev.action.id;
-    if (!this.powerState.has(contextId)) this.powerState.set(contextId, false);
-    await ev.action.setTitle(this.getTitle(ev.payload.settings, contextId));
+    const settings = ev.payload.settings;
+
+    // Try to sync power state from device
+    if (!this.powerState.has(contextId)) {
+      this.powerState.set(contextId, false);
+      const apiKey = await this.services.getApiKey(settings);
+      if (apiKey && settings.selectedDeviceId) {
+        try {
+          await this.services.ensureServices(apiKey);
+          const target = await this.services.resolveTarget(settings);
+          if (target?.type === "light" && target.light) {
+            this.powerState.set(contextId, target.light.state.isOn);
+          }
+        } catch {
+          // Best effort - keep default
+        }
+      }
+    }
+
+    await ev.action.setTitle(this.getTitle(settings, contextId));
+  }
+
+  override onWillDisappear(ev: WillDisappearEvent<OnOffSettings>): void {
+    this.powerState.delete(ev.action.id);
   }
 
   override async onDidReceiveSettings(
@@ -77,6 +100,7 @@ export class OnOffAction extends SingletonAction<OnOffSettings> {
 
       // Update title to reflect new state
       await ev.action.setTitle(this.getTitle(settings, contextId));
+      await ev.action.showOk();
 
       telemetryService.recordCommand({
         command: `${target.type}.${operation}`,

@@ -21,8 +21,8 @@ interface LightGroupStorage {
 }
 
 export class StreamDeckLightGroupRepository implements ILightGroupRepository {
-  private static readonly STORAGE_KEY = "lightGroups";
-  private static readonly STORAGE_VERSION = "1.0";
+  private static readonly STORAGE_KEY = "govee_v1_lightGroups";
+  private static readonly STORAGE_VERSION = "1.1";
 
   /**
    * Get all saved light groups from Stream Deck settings

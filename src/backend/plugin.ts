@@ -9,6 +9,9 @@ import { ColorTempDialAction } from "./actions/ColorTempDialAction";
 import { ColorHueDialAction } from "./actions/ColorHueDialAction";
 import { SegmentColorAction } from "./actions/SegmentColorAction";
 import { SegmentColorDialAction } from "./actions/SegmentColorDialAction";
+import { SceneAction } from "./actions/SceneAction";
+import { MusicModeAction } from "./actions/MusicModeAction";
+import { ToggleAction } from "./actions/ToggleAction";
 
 streamDeck.logger.setLevel("info");
 
@@ -18,6 +21,9 @@ streamDeck.actions.registerAction(new BrightnessAction());
 streamDeck.actions.registerAction(new ColorAction());
 streamDeck.actions.registerAction(new ColorTemperatureAction());
 streamDeck.actions.registerAction(new SegmentColorAction());
+streamDeck.actions.registerAction(new SceneAction());
+streamDeck.actions.registerAction(new MusicModeAction());
+streamDeck.actions.registerAction(new ToggleAction());
 
 // Encoder actions (Stream Deck+)
 streamDeck.actions.registerAction(new BrightnessDialAction());

@@ -1,6 +1,6 @@
 {
   "Name": "Govee Light Management",
-  "Version": "2.0.1.0",
+  "Version": "2.1.0.0",
   "Author": "Felix Geelhaar",
   "URL": "https://github.com/felixgeelhaar/govee-light-management",
   "SupportURL": "https://github.com/felixgeelhaar/govee-light-management/issues",
@@ -71,6 +71,48 @@
       "States": [
         {
           "Image": "imgs/actions/segment-color/key",
+          "TitleAlignment": "bottom"
+        }
+      ]
+    },
+    {
+      "Name": "Scene",
+      "UUID": "com.felixgeelhaar.govee-light-management.scene",
+      "Icon": "imgs/actions/scene/icon",
+      "Tooltip": "Apply a dynamic scene to a Govee light",
+      "PropertyInspectorPath": "ui/scene.html",
+      "Controllers": ["Keypad"],
+      "States": [
+        {
+          "Image": "imgs/actions/scene/key",
+          "TitleAlignment": "bottom"
+        }
+      ]
+    },
+    {
+      "Name": "Music Mode",
+      "UUID": "com.felixgeelhaar.govee-light-management.music-mode",
+      "Icon": "imgs/actions/music-mode/icon",
+      "Tooltip": "Activate music-reactive lighting mode",
+      "PropertyInspectorPath": "ui/music-mode.html",
+      "Controllers": ["Keypad"],
+      "States": [
+        {
+          "Image": "imgs/actions/music-mode/key",
+          "TitleAlignment": "bottom"
+        }
+      ]
+    },
+    {
+      "Name": "Feature Toggle",
+      "UUID": "com.felixgeelhaar.govee-light-management.toggle",
+      "Icon": "imgs/actions/toggle/icon",
+      "Tooltip": "Toggle nightlight or gradient features",
+      "PropertyInspectorPath": "ui/toggle.html",
+      "Controllers": ["Keypad"],
+      "States": [
+        {
+          "Image": "imgs/actions/toggle/key",
           "TitleAlignment": "bottom"
         }
       ]

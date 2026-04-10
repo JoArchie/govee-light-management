@@ -5,12 +5,14 @@ import {
   TouchTapEvent,
   SingletonAction,
   WillAppearEvent,
+  WillDisappearEvent,
   type DidReceiveSettingsEvent,
   type SendToPluginEvent,
+  streamDeck,
 } from "@elgato/streamdeck";
 import type { JsonValue } from "@elgato/utils";
-import { ColorRgb } from "@felixgeelhaar/govee-api-client";
 import { ActionServices, type BaseSettings } from "./shared/ActionServices";
+import { hsvToRgb } from "./shared/color-utils";
 import { SegmentColor } from "../domain/value-objects/SegmentColor";
 
 type SegmentColorDialSettings = BaseSettings & {
@@ -25,6 +27,7 @@ type SegmentColorDialSettings = BaseSettings & {
 export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSettings> {
   private services = new ActionServices();
   private hueMap = new Map<string, number>();
+  private dialTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   override async onWillAppear(
     ev: WillAppearEvent<SegmentColorDialSettings>,
@@ -32,6 +35,16 @@ export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSett
     const ctx = ev.action.id;
     if (!this.hueMap.has(ctx)) this.hueMap.set(ctx, 0);
     await this.updateDisplay(ev.action, ev.payload.settings);
+  }
+
+  override async onWillDisappear(
+    ev: WillDisappearEvent<SegmentColorDialSettings>,
+  ): Promise<void> {
+    const ctx = ev.action.id;
+    this.hueMap.delete(ctx);
+    const timer = this.dialTimers.get(ctx);
+    if (timer) clearTimeout(timer);
+    this.dialTimers.delete(ctx);
   }
 
   override async onDidReceiveSettings(
@@ -51,7 +64,17 @@ export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSett
     this.hueMap.set(ctx, next);
 
     await this.updateDisplay(ev.action, settings);
-    await this.applyToSegment(ev.action, settings, next);
+
+    // Throttle API calls during rapid dial rotation
+    const existingTimer = this.dialTimers.get(ctx);
+    if (existingTimer) clearTimeout(existingTimer);
+    this.dialTimers.set(
+      ctx,
+      setTimeout(() => {
+        this.dialTimers.delete(ctx);
+        this.applyToSegment(ev.action, settings, next);
+      }, 200),
+    );
   }
 
   override async onDialDown(
@@ -77,23 +100,30 @@ export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSett
   ): Promise<void> {
     const apiKey = await this.services.getApiKey(settings);
     if (!apiKey || !settings.selectedDeviceId) {
+      streamDeck.logger.warn(
+        `Segment color: missing apiKey=${!!apiKey} deviceId=${settings.selectedDeviceId}`,
+      );
       await action.showAlert();
       return;
     }
     await this.services.ensureServices(apiKey);
     const target = await this.services.resolveTarget(settings);
     if (!target || target.type !== "light" || !target.light) {
+      streamDeck.logger.warn(
+        `Segment color: could not resolve target for device ${settings.selectedDeviceId}`,
+      );
       await action.showAlert();
       return;
     }
 
-    const color = this.hsvToRgb(hue, settings.saturation ?? 100, 100);
+    const color = hsvToRgb(hue, settings.saturation ?? 100, 100);
     const segmentIndex = settings.segmentIndex ?? 0;
     try {
       await this.services.setSegmentColors(target.light, [
         SegmentColor.create(segmentIndex, color),
       ]);
-    } catch {
+    } catch (error) {
+      streamDeck.logger.error("Failed to set segment colors:", error);
       await action.showAlert();
     }
   }
@@ -122,40 +152,5 @@ export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSett
       value: `${hue}°`,
       bar: { value: Math.round((hue / 360) * 100) },
     });
-  }
-
-  private hsvToRgb(h: number, s: number, v: number): ColorRgb {
-    const sn = s / 100,
-      vn = v / 100;
-    const c = vn * sn;
-    const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
-    const m = vn - c;
-    let r = 0,
-      g = 0,
-      b = 0;
-    if (h < 60) {
-      r = c;
-      g = x;
-    } else if (h < 120) {
-      r = x;
-      g = c;
-    } else if (h < 180) {
-      g = c;
-      b = x;
-    } else if (h < 240) {
-      g = x;
-      b = c;
-    } else if (h < 300) {
-      r = x;
-      b = c;
-    } else {
-      r = c;
-      b = x;
-    }
-    return new ColorRgb(
-      Math.round((r + m) * 255),
-      Math.round((g + m) * 255),
-      Math.round((b + m) * 255),
-    );
   }
 }

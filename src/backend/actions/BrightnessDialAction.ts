@@ -5,8 +5,10 @@ import {
   TouchTapEvent,
   SingletonAction,
   WillAppearEvent,
+  WillDisappearEvent,
   type DidReceiveSettingsEvent,
   type SendToPluginEvent,
+  streamDeck,
 } from "@elgato/streamdeck";
 import type { JsonValue } from "@elgato/utils";
 import { Brightness } from "@felixgeelhaar/govee-api-client";
@@ -31,6 +33,14 @@ export class BrightnessDialAction extends SingletonAction<BrightnessDialSettings
     await this.updateDisplay(ev.action, ev.payload.settings);
   }
 
+  override async onWillDisappear(
+    ev: WillDisappearEvent<BrightnessDialSettings>,
+  ): Promise<void> {
+    const ctx = ev.action.id;
+    this.brightnessMap.delete(ctx);
+    this.powerMap.delete(ctx);
+  }
+
   override async onDidReceiveSettings(
     ev: DidReceiveSettingsEvent<BrightnessDialSettings>,
   ): Promise<void> {
@@ -50,17 +60,27 @@ export class BrightnessDialAction extends SingletonAction<BrightnessDialSettings
     await this.updateDisplay(ev.action, settings);
 
     const apiKey = await this.services.getApiKey(settings);
-    if (!apiKey || !settings.selectedDeviceId) return;
+    if (!apiKey || !settings.selectedDeviceId) {
+      await ev.action.showAlert();
+      return;
+    }
     await this.services.ensureServices(apiKey);
     const target = await this.services.resolveTarget(settings);
-    if (!target) return;
+    if (!target) {
+      await ev.action.showAlert();
+      return;
+    }
 
-    await this.services.controlTargetThrottled(
-      ctx,
-      target,
-      "brightness",
-      new Brightness(next),
-    );
+    try {
+      await this.services.controlTargetThrottled(
+        ctx,
+        target,
+        "brightness",
+        new Brightness(next),
+      );
+    } catch (error) {
+      streamDeck.logger.error("Failed to set brightness via dial:", error);
+    }
   }
 
   override async onDialDown(
@@ -92,10 +112,16 @@ export class BrightnessDialAction extends SingletonAction<BrightnessDialSettings
       return;
     }
 
-    const isOn = this.powerMap.get(ctx) ?? true;
-    this.powerMap.set(ctx, !isOn);
-    await this.services.controlTarget(target, isOn ? "off" : "on");
-    await this.updateDisplay(action, settings);
+    try {
+      const isOn = this.powerMap.get(ctx) ?? true;
+      this.powerMap.set(ctx, !isOn);
+      await this.services.controlTarget(target, isOn ? "off" : "on");
+      await this.updateDisplay(action, settings);
+    } catch {
+      const isOn = this.powerMap.get(ctx) ?? true;
+      this.powerMap.set(ctx, !isOn);
+      await action.showAlert();
+    }
   }
 
   override async onSendToPlugin(

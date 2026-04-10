@@ -60,6 +60,7 @@ export class ColorAction extends SingletonAction<ColorSettings> {
         stopSpinner();
       }
       await ev.action.setTitle(this.getTitle(settings));
+      await ev.action.showOk();
 
       telemetryService.recordCommand({
         command: `${target.type}.color`,
