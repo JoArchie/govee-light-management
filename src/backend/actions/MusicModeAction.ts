@@ -9,14 +9,11 @@ import {
   streamDeck,
 } from "@elgato/streamdeck";
 import type { JsonValue } from "@elgato/utils";
+import { MusicMode } from "@felixgeelhaar/govee-api-client";
 import { ActionServices, type BaseSettings } from "./shared/ActionServices";
-import {
-  MusicModeConfig,
-  type MusicModeType,
-} from "../domain/value-objects/MusicModeConfig";
 
 type MusicModeSettings = BaseSettings & {
-  mode?: MusicModeType;
+  selectedMode?: string; // JSON: { name, modeId }
   sensitivity?: number;
 };
 
@@ -56,15 +53,24 @@ export class MusicModeAction extends SingletonAction<MusicModeSettings> {
       return;
     }
 
+    if (!settings.selectedMode) {
+      streamDeck.logger.warn("Music mode action: no mode selected");
+      await ev.action.showAlert();
+      return;
+    }
+
     try {
-      const config = MusicModeConfig.create(
+      const parsed = JSON.parse(settings.selectedMode) as {
+        name: string;
+        modeId: number;
+      };
+      const musicMode = new MusicMode(
+        parsed.modeId,
         settings.sensitivity ?? 50,
-        settings.mode ?? "rhythm",
-        true,
       );
       const stopSpinner = this.services.showSpinner(ev.action);
       try {
-        await this.services.applyMusicMode(target.light, config);
+        await this.services.applyMusicModeRaw(target.light, musicMode);
       } finally {
         stopSpinner();
       }
@@ -78,17 +84,75 @@ export class MusicModeAction extends SingletonAction<MusicModeSettings> {
   override async onSendToPlugin(
     ev: SendToPluginEvent<JsonValue, MusicModeSettings>,
   ): Promise<void> {
+    streamDeck.logger.info(
+      `MusicMode onSendToPlugin: ${JSON.stringify(ev.payload)}`,
+    );
     if (!(ev.payload instanceof Object) || !("event" in ev.payload)) return;
 
     switch (ev.payload.event) {
       case "getDevices":
         await this.services.handleGetDevices();
         break;
+      case "getMusicModes": {
+        const settings = await ev.action.getSettings();
+        streamDeck.logger.info(
+          `getMusicModes called, deviceId=${settings.selectedDeviceId}`,
+        );
+        await this.handleGetMusicModes(settings);
+        break;
+      }
+    }
+  }
+
+  private async handleGetMusicModes(
+    settings: MusicModeSettings,
+  ): Promise<void> {
+    const deviceId = settings.selectedDeviceId;
+    if (!deviceId) {
+      await streamDeck.ui.sendToPropertyInspector({
+        event: "getMusicModes",
+        items: [],
+      });
+      return;
+    }
+
+    try {
+      const apiKey = await this.services.getApiKey(settings);
+      if (!apiKey) {
+        await streamDeck.ui.sendToPropertyInspector({
+          event: "getMusicModes",
+          items: [],
+        });
+        return;
+      }
+
+      await this.services.ensureServices(apiKey);
+
+      // Query device capabilities for music modes
+      const modes = await this.services.getMusicModes(deviceId);
+      await streamDeck.ui.sendToPropertyInspector({
+        event: "getMusicModes",
+        items: modes.map((m) => ({
+          label: m.name,
+          value: JSON.stringify({ name: m.name, modeId: m.value }),
+        })),
+      });
+    } catch (error) {
+      streamDeck.logger.error("Failed to fetch music modes:", error);
+      await streamDeck.ui.sendToPropertyInspector({
+        event: "getMusicModes",
+        items: [],
+      });
     }
   }
 
   private getTitle(settings: MusicModeSettings): string {
-    const mode = settings.mode ?? "rhythm";
-    return mode.charAt(0).toUpperCase() + mode.slice(1);
+    if (!settings.selectedMode) return "";
+    try {
+      const parsed = JSON.parse(settings.selectedMode);
+      return parsed.name || "";
+    } catch {
+      return "";
+    }
   }
 }

@@ -16,9 +16,8 @@
 		</sdpi-item>
 
 		<sdpi-item label="Scene">
-			<select id="sceneSelect" class="sdpi-item-value">
-				<option value="" disabled selected>Select a device first</option>
-			</select>
+			<sdpi-select id="sceneSelect" setting="selectedScene" datasource="getScenes"
+				show-refresh placeholder="Select a device first"></sdpi-select>
 		</sdpi-item>
 	</div>
 
@@ -44,86 +43,11 @@
 		document.addEventListener("DOMContentLoaded", () => {
 			const deviceSelect = document.getElementById("deviceSelect");
 			const sceneSelect = document.getElementById("sceneSelect");
-			let currentDeviceId = null;
-			let savedSceneId = null;
-			let savedSceneParamId = null;
-			let savedSceneName = null;
 
-			// Load saved scene settings
-			const check = setInterval(() => {
-				if (typeof SDPIComponents === "undefined" || !SDPIComponents.streamDeckClient) return;
-				clearInterval(check);
-
-				SDPIComponents.streamDeckClient.didReceiveSettings.subscribe((msg) => {
-					const s = msg.payload?.settings;
-					if (s) {
-						savedSceneId = s.sceneId;
-						savedSceneParamId = s.sceneParamId;
-						savedSceneName = s.sceneName;
-						// If device is already selected, fetch scenes
-						if (s.selectedDeviceId && s.selectedDeviceId !== currentDeviceId) {
-							currentDeviceId = s.selectedDeviceId;
-							sendToPlugin({ event: "getScenes", deviceId: s.selectedDeviceId });
-						}
-					}
-				});
-			}, 50);
-
-			// When device changes, fetch scenes for that device
+			// When device changes, refresh the scene list
 			deviceSelect.addEventListener("valuechange", () => {
-				const val = deviceSelect.value;
-				if (val && val !== currentDeviceId) {
-					currentDeviceId = val;
-					sceneSelect.innerHTML = '<option value="" disabled selected>Loading scenes...</option>';
-					sendToPlugin({ event: "getScenes", deviceId: val });
-				}
-			});
-
-			// When scene is selected, save to settings
-			sceneSelect.addEventListener("change", () => {
-				const opt = sceneSelect.selectedOptions[0];
-				if (!opt || !opt.dataset.id) return;
-				SDPIComponents.streamDeckClient.setSettings({
-					sceneId: parseInt(opt.dataset.id, 10),
-					sceneParamId: parseInt(opt.dataset.paramid, 10),
-					sceneName: opt.textContent,
-				});
-			});
-
-			// Receive scenes from plugin
-			document.addEventListener("sdpi:message", (evt) => {
-				const p = evt.detail || {};
-				if (p.event !== "scenesReceived") return;
-
-				const scenes = p.scenes || [];
-				sceneSelect.innerHTML = "";
-
-				if (scenes.length === 0) {
-					sceneSelect.innerHTML = '<option value="" disabled selected>No scenes available</option>';
-					return;
-				}
-
-				scenes.forEach((s) => {
-					const opt = document.createElement("option");
-					opt.value = s.id + "|" + s.paramId;
-					opt.textContent = s.name;
-					opt.dataset.id = String(s.id);
-					opt.dataset.paramid = String(s.paramId);
-					// Restore saved selection
-					if (savedSceneId === s.id && savedSceneParamId === s.paramId) {
-						opt.selected = true;
-					}
-					sceneSelect.appendChild(opt);
-				});
-
-				// If no saved selection, show placeholder
-				if (!sceneSelect.value) {
-					const placeholder = document.createElement("option");
-					placeholder.value = "";
-					placeholder.disabled = true;
-					placeholder.selected = true;
-					placeholder.textContent = "Select a scene";
-					sceneSelect.prepend(placeholder);
+				if (sceneSelect && sceneSelect.refresh) {
+					sceneSelect.refresh();
 				}
 			});
 		});

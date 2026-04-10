@@ -13,6 +13,7 @@ import { LightScene } from "@felixgeelhaar/govee-api-client";
 import { ActionServices, type BaseSettings } from "./shared/ActionServices";
 
 type SceneSettings = BaseSettings & {
+  selectedScene?: string;
   sceneId?: number;
   sceneParamId?: number;
   sceneName?: string;
@@ -54,22 +55,19 @@ export class SceneAction extends SingletonAction<SceneSettings> {
       return;
     }
 
-    if (
-      settings.sceneId == null ||
-      settings.sceneParamId == null ||
-      !settings.sceneName
-    ) {
+    if (!settings.selectedScene) {
       streamDeck.logger.warn("Scene action: no scene selected");
       await ev.action.showAlert();
       return;
     }
 
     try {
-      const scene = new LightScene(
-        settings.sceneId,
-        settings.sceneParamId,
-        settings.sceneName,
-      );
+      const parsed = JSON.parse(settings.selectedScene) as {
+        id: number;
+        paramId: number;
+        name: string;
+      };
+      const scene = new LightScene(parsed.id, parsed.paramId, parsed.name);
       const stopSpinner = this.services.showSpinner(ev.action);
       try {
         await this.services.applyDynamicScene(target.light, scene);
@@ -92,80 +90,71 @@ export class SceneAction extends SingletonAction<SceneSettings> {
       case "getDevices":
         await this.services.handleGetDevices();
         break;
-      case "getScenes":
-        await this.handleGetScenes(ev.payload);
+      case "getScenes": {
+        const settings = await ev.action.getSettings();
+        await this.handleGetScenes(settings);
         break;
+      }
     }
   }
 
-  private async handleGetScenes(payload: JsonValue): Promise<void> {
-    const data = payload as { deviceId?: string };
-    if (!data.deviceId) {
+  private async handleGetScenes(settings: SceneSettings): Promise<void> {
+    const deviceId = settings.selectedDeviceId;
+    if (!deviceId) {
       await streamDeck.ui.sendToPropertyInspector({
-        event: "scenesReceived",
-        scenes: [],
+        event: "getScenes",
+        items: [],
       });
       return;
     }
 
     try {
-      const apiKey = await this.services.getApiKey({});
+      const apiKey = await this.services.getApiKey(settings ?? {});
       if (!apiKey) {
         await streamDeck.ui.sendToPropertyInspector({
-          event: "scenesReceived",
-          scenes: [],
+          event: "getScenes",
+          items: [],
         });
         return;
       }
 
       await this.services.ensureServices(apiKey);
-
-      // Parse device ID (format: "light:deviceId|model")
-      const lightId = data.deviceId.startsWith("light:")
-        ? data.deviceId.substring(6)
-        : data.deviceId;
-      const [deviceId, model] = lightId.split("|");
-
-      if (!deviceId || !model) {
-        await streamDeck.ui.sendToPropertyInspector({
-          event: "scenesReceived",
-          scenes: [],
-        });
-        return;
-      }
-
       const target = await this.services.resolveTarget({
-        selectedDeviceId: data.deviceId,
-        selectedModel: model,
+        selectedDeviceId: deviceId,
       });
 
       if (!target || target.type !== "light" || !target.light) {
         await streamDeck.ui.sendToPropertyInspector({
-          event: "scenesReceived",
-          scenes: [],
+          event: "getScenes",
+          items: [],
         });
         return;
       }
 
       const scenes = await this.services.getDynamicScenes(target.light);
       await streamDeck.ui.sendToPropertyInspector({
-        event: "scenesReceived",
-        scenes: scenes.map((s) => ({
-          id: s.id,
-          paramId: s.paramId,
-          name: s.name,
+        event: "getScenes",
+        items: scenes.map((s) => ({
+          label: s.name,
+          value: JSON.stringify({ id: s.id, paramId: s.paramId, name: s.name }),
         })),
       });
     } catch (error) {
       streamDeck.logger.error("Failed to fetch scenes:", error);
       await streamDeck.ui.sendToPropertyInspector({
-        event: "scenesReceived",
-        scenes: [],
+        event: "getScenes",
+        items: [],
       });
     }
   }
 
   private getTitle(settings: SceneSettings): string {
-    return settings.sceneName || "";
+    if (!settings.selectedScene) return "";
+    try {
+      const parsed = JSON.parse(settings.selectedScene);
+      return parsed.name || "";
+    } catch {
+      return "";
+    }
   }
 }

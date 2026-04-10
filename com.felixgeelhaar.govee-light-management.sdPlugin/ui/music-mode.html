@@ -12,17 +12,13 @@
 <body>
 	<div id="settings" class="hidden">
 		<sdpi-item label="Device">
-			<sdpi-select setting="selectedDeviceId" placeholder="" datasource="getDevices" show-refresh
-				label-setting="selectedLightName"></sdpi-select>
+			<sdpi-select id="deviceSelect" setting="selectedDeviceId" placeholder="" datasource="getDevices"
+				show-refresh label-setting="selectedLightName"></sdpi-select>
 		</sdpi-item>
 
 		<sdpi-item label="Mode">
-			<sdpi-select setting="mode" default="rhythm">
-				<option value="rhythm">Rhythm</option>
-				<option value="energic">Energic</option>
-				<option value="spectrum">Spectrum</option>
-				<option value="rolling">Rolling</option>
-			</sdpi-select>
+			<sdpi-select id="modeSelect" setting="selectedMode" datasource="getMusicModes"
+				show-refresh placeholder="Select a device first"></sdpi-select>
 		</sdpi-item>
 
 		<sdpi-item label="Sensitivity">
@@ -50,5 +46,24 @@
 			</ol>
 		</sdpi-item>
 	</div>
+
+	<script>
+		document.addEventListener("DOMContentLoaded", () => {
+			const deviceSelect = document.getElementById("deviceSelect");
+			const modeSelect = document.getElementById("modeSelect");
+
+			// When device changes, request music modes via ws-bridge
+			deviceSelect.addEventListener("valuechange", () => {
+				sendToPlugin({ event: "getMusicModes" });
+			});
+
+			// Listen for music modes response and inject into sdpi-select
+			document.addEventListener("sdpi:message", (evt) => {
+				const p = evt.detail || {};
+				if (p.event !== "getMusicModes") return;
+				// Forward as sendToPropertyInspector so sdpi-select datasource picks it up
+			});
+		});
+	</script>
 </body>
 </html>

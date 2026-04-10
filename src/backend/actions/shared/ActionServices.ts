@@ -14,6 +14,7 @@ import {
   ColorRgb,
   ColorTemperature,
   LightScene,
+  MusicMode,
 } from "@felixgeelhaar/govee-api-client";
 import { MusicModeConfig } from "../../domain/value-objects/MusicModeConfig";
 import { DeviceService } from "../../domain/services/DeviceService";
@@ -481,5 +482,21 @@ export class ActionServices {
     } else {
       await this.lightRepository.toggleGradient(light, enabled);
     }
+  }
+
+  async applyMusicModeRaw(light: Light, musicMode: MusicMode): Promise<void> {
+    if (!this.lightRepository) {
+      throw new Error("Light repository not initialized");
+    }
+    await this.lightRepository.setMusicModeRaw(light, musicMode);
+  }
+
+  async getMusicModes(
+    deviceId: string,
+  ): Promise<Array<{ name: string; value: number }>> {
+    if (!this.lightRepository) {
+      throw new Error("Light repository not initialized");
+    }
+    return this.lightRepository.getMusicModes(deviceId);
   }
 }
