@@ -84,9 +84,6 @@ export class MusicModeAction extends SingletonAction<MusicModeSettings> {
   override async onSendToPlugin(
     ev: SendToPluginEvent<JsonValue, MusicModeSettings>,
   ): Promise<void> {
-    streamDeck.logger.info(
-      `MusicMode onSendToPlugin: ${JSON.stringify(ev.payload)}`,
-    );
     if (!(ev.payload instanceof Object) || !("event" in ev.payload)) return;
 
     switch (ev.payload.event) {
@@ -95,9 +92,6 @@ export class MusicModeAction extends SingletonAction<MusicModeSettings> {
         break;
       case "getMusicModes": {
         const settings = await ev.action.getSettings();
-        streamDeck.logger.info(
-          `getMusicModes called, deviceId=${settings.selectedDeviceId}`,
-        );
         await this.handleGetMusicModes(settings);
         break;
       }

@@ -39,6 +39,7 @@ export class BrightnessDialAction extends SingletonAction<BrightnessDialSettings
     const ctx = ev.action.id;
     this.brightnessMap.delete(ctx);
     this.powerMap.delete(ctx);
+    this.services.cleanupThrottleTimers(ctx);
   }
 
   override async onDidReceiveSettings(
@@ -117,7 +118,8 @@ export class BrightnessDialAction extends SingletonAction<BrightnessDialSettings
       this.powerMap.set(ctx, !isOn);
       await this.services.controlTarget(target, isOn ? "off" : "on");
       await this.updateDisplay(action, settings);
-    } catch {
+    } catch (error) {
+      streamDeck.logger.error("Failed to toggle power:", error);
       const isOn = this.powerMap.get(ctx) ?? true;
       this.powerMap.set(ctx, !isOn);
       await action.showAlert();

@@ -62,10 +62,6 @@ export class ToggleAction extends SingletonAction<ToggleSettings> {
       return;
     }
 
-    const parsed = JSON.parse(settings.selectedFeature) as {
-      name: string;
-      instance: string;
-    };
     const operation = settings.operation ?? "toggle";
 
     let enabled: boolean;
@@ -76,6 +72,10 @@ export class ToggleAction extends SingletonAction<ToggleSettings> {
     }
 
     try {
+      const parsed = JSON.parse(settings.selectedFeature) as {
+        name: string;
+        instance: string;
+      };
       const stopSpinner = this.services.showSpinner(ev.action);
       try {
         await this.services.toggleFeatureRaw(
@@ -90,7 +90,7 @@ export class ToggleAction extends SingletonAction<ToggleSettings> {
       await ev.action.setTitle(this.getTitle(settings, ctx));
       await ev.action.showOk();
     } catch (error) {
-      streamDeck.logger.error(`Failed to toggle ${parsed.name}:`, error);
+      streamDeck.logger.error("Failed to toggle feature:", error);
       if (operation === "toggle") {
         this.featureState.set(ctx, !enabled);
       }

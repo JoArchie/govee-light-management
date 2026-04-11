@@ -6,6 +6,7 @@ import {
   WillDisappearEvent,
   type DidReceiveSettingsEvent,
   type SendToPluginEvent,
+  streamDeck,
 } from "@elgato/streamdeck";
 import type { JsonValue } from "@elgato/utils";
 import { ActionServices, type BaseSettings } from "./shared/ActionServices";
@@ -107,7 +108,8 @@ export class OnOffAction extends SingletonAction<OnOffSettings> {
         durationMs: Date.now() - started,
         success: true,
       });
-    } catch {
+    } catch (error) {
+      streamDeck.logger.error("Failed to toggle power:", error);
       // Revert power state on failure
       const currentlyOn = this.powerState.get(contextId) ?? false;
       this.powerState.set(contextId, !currentlyOn);

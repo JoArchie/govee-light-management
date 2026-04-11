@@ -16,7 +16,7 @@ import {
   LightScene,
   MusicMode,
 } from "@felixgeelhaar/govee-api-client";
-import { MusicModeConfig } from "../../domain/value-objects/MusicModeConfig";
+
 import { DeviceService } from "../../domain/services/DeviceService";
 import {
   TransportOrchestrator,
@@ -44,29 +44,48 @@ export interface BaseSettings {
 
 /**
  * Manages shared services for light/group actions.
+ * Uses static shared state so all action instances share a single
+ * GoveeLightRepository and rate limiter.
  */
 export class ActionServices {
-  lightRepository?: GoveeLightRepository;
-  lightControlService?: LightControlService;
-  groupRepository?: StreamDeckLightGroupRepository;
-  groupService?: LightGroupService;
-  transportOrchestrator?: TransportOrchestrator;
-  deviceService?: DeviceService;
-  private currentApiKey?: string;
+  private static _shared: {
+    lightRepository?: GoveeLightRepository;
+    lightControlService?: LightControlService;
+    groupRepository?: StreamDeckLightGroupRepository;
+    groupService?: LightGroupService;
+    transportOrchestrator?: TransportOrchestrator;
+    deviceService?: DeviceService;
+    currentApiKey?: string;
+  } = {};
+
+  get lightRepository() {
+    return ActionServices._shared.lightRepository;
+  }
+  get lightControlService() {
+    return ActionServices._shared.lightControlService;
+  }
+  get groupService() {
+    return ActionServices._shared.groupService;
+  }
+  get deviceService() {
+    return ActionServices._shared.deviceService;
+  }
 
   async ensureServices(apiKey?: string): Promise<void> {
-    if (!this.groupRepository) {
-      this.groupRepository = new StreamDeckLightGroupRepository();
+    const s = ActionServices._shared;
+
+    if (!s.groupRepository) {
+      s.groupRepository = new StreamDeckLightGroupRepository();
     }
 
-    if (apiKey && apiKey !== this.currentApiKey) {
-      this.lightRepository = new GoveeLightRepository(apiKey, true);
-      this.lightControlService = new LightControlService(this.lightRepository);
-      this.groupService = new LightGroupService(
-        this.groupRepository,
-        this.lightRepository,
+    if (apiKey && apiKey !== s.currentApiKey) {
+      s.lightRepository = new GoveeLightRepository(apiKey, true);
+      s.lightControlService = new LightControlService(s.lightRepository);
+      s.groupService = new LightGroupService(
+        s.groupRepository,
+        s.lightRepository,
       );
-      this.currentApiKey = apiKey;
+      s.currentApiKey = apiKey;
 
       try {
         await globalSettingsService.setApiKey(apiKey);
@@ -75,26 +94,26 @@ export class ActionServices {
       }
     }
 
-    if (this.lightRepository && !this.lightControlService) {
-      this.lightControlService = new LightControlService(this.lightRepository);
+    if (s.lightRepository && !s.lightControlService) {
+      s.lightControlService = new LightControlService(s.lightRepository);
     }
 
-    if (this.groupRepository && this.lightRepository && !this.groupService) {
-      this.groupService = new LightGroupService(
-        this.groupRepository,
-        this.lightRepository,
+    if (s.groupRepository && s.lightRepository && !s.groupService) {
+      s.groupService = new LightGroupService(
+        s.groupRepository,
+        s.lightRepository,
       );
     }
 
-    if (!this.transportOrchestrator) {
+    if (!s.transportOrchestrator) {
       const cloudTransport = new CloudTransport();
-      this.transportOrchestrator = new TransportOrchestrator({
+      s.transportOrchestrator = new TransportOrchestrator({
         [TransportKind.Cloud]: cloudTransport,
       });
     }
 
-    if (this.transportOrchestrator && !this.deviceService) {
-      this.deviceService = new DeviceService(this.transportOrchestrator, {
+    if (s.transportOrchestrator && !s.deviceService) {
+      s.deviceService = new DeviceService(s.transportOrchestrator, {
         logger: streamDeck.logger,
       });
     }
@@ -195,7 +214,8 @@ export class ActionServices {
         event: "groupsReceived",
         groups: groups.map((g) => ({ id: g.id, name: g.name, size: g.size })),
       });
-    } catch {
+    } catch (error) {
+      streamDeck.logger.error("Failed to fetch groups:", error);
       await streamDeck.ui.sendToPropertyInspector({
         event: "groupsReceived",
         groups: [],
@@ -314,7 +334,8 @@ export class ActionServices {
           size: savedGroup.size,
         },
       });
-    } catch {
+    } catch (error) {
+      streamDeck.logger.error("Failed to save group:", error);
       await streamDeck.ui.sendToPropertyInspector({
         event: "groupSaved",
         success: false,
@@ -346,7 +367,8 @@ export class ActionServices {
         event: "groupDeleted",
         success: true,
       });
-    } catch {
+    } catch (error) {
+      streamDeck.logger.error("Failed to delete group:", error);
       await streamDeck.ui.sendToPropertyInspector({
         event: "groupDeleted",
         success: false,
@@ -392,6 +414,16 @@ export class ActionServices {
           );
       }, delayMs),
     );
+  }
+
+  /**
+   * Clean up throttle timers for a specific context (call from onWillDisappear).
+   */
+  cleanupThrottleTimers(contextId: string): void {
+    const timer = this.dialTimers.get(contextId);
+    if (timer) clearTimeout(timer);
+    this.dialTimers.delete(contextId);
+    this.dialPending.delete(contextId);
   }
 
   /**
@@ -460,28 +492,6 @@ export class ActionServices {
       throw new Error("Light repository not initialized");
     }
     await this.lightRepository.setLightScene(light, scene);
-  }
-
-  async applyMusicMode(light: Light, config: MusicModeConfig): Promise<void> {
-    if (!this.lightRepository) {
-      throw new Error("Light repository not initialized");
-    }
-    await this.lightRepository.setMusicMode(light, config);
-  }
-
-  async toggleFeature(
-    light: Light,
-    feature: "nightlight" | "gradient",
-    enabled: boolean,
-  ): Promise<void> {
-    if (!this.lightRepository) {
-      throw new Error("Light repository not initialized");
-    }
-    if (feature === "nightlight") {
-      await this.lightRepository.toggleNightlight(light, enabled);
-    } else {
-      await this.lightRepository.toggleGradient(light, enabled);
-    }
   }
 
   async toggleFeatureRaw(
