@@ -9,7 +9,11 @@ import {
   streamDeck,
 } from "@elgato/streamdeck";
 import type { JsonValue } from "@elgato/utils";
-import { ActionServices, type BaseSettings } from "./shared/ActionServices";
+import {
+  ActionServices,
+  sendToPI,
+  type BaseSettings,
+} from "./shared/ActionServices";
 
 type ToggleSettings = BaseSettings & {
   selectedFeature?: string; // JSON: { name, instance }
@@ -105,53 +109,48 @@ export class ToggleAction extends SingletonAction<ToggleSettings> {
 
     switch (ev.payload.event) {
       case "getDevices":
-        await this.services.handleGetDevices();
+        await this.services.handleGetDevices(ev.action.id);
         break;
       case "getGroups":
-        await this.services.handleGetGroups();
+        await this.services.handleGetGroups(ev.action.id);
         break;
       case "saveGroup":
-        await this.services.handleSaveGroup(ev.payload);
+        await this.services.handleSaveGroup(ev.action.id, ev.payload);
         break;
       case "deleteGroup":
-        await this.services.handleDeleteGroup(ev.payload);
+        await this.services.handleDeleteGroup(ev.action.id, ev.payload);
         break;
       case "refreshState":
         await this.services.handleRefreshState();
         break;
       case "getToggleFeatures": {
         const settings = await ev.action.getSettings();
-        await this.handleGetToggleFeatures(settings);
+        await this.handleGetToggleFeatures(ev.action.id, settings);
         break;
       }
     }
   }
 
   private async handleGetToggleFeatures(
+    actionId: string,
     settings: ToggleSettings,
   ): Promise<void> {
     const deviceId = settings.selectedDeviceId;
     if (!deviceId) {
-      await streamDeck.ui.sendToPropertyInspector({
-        event: "getToggleFeatures",
-        items: [],
-      });
+      await sendToPI(actionId, { event: "getToggleFeatures", items: [] });
       return;
     }
 
     try {
       const apiKey = await this.services.getApiKey(settings);
       if (!apiKey) {
-        await streamDeck.ui.sendToPropertyInspector({
-          event: "getToggleFeatures",
-          items: [],
-        });
+        await sendToPI(actionId, { event: "getToggleFeatures", items: [] });
         return;
       }
 
       await this.services.ensureServices(apiKey);
       const features = await this.services.getToggleFeatures(deviceId);
-      await streamDeck.ui.sendToPropertyInspector({
+      await sendToPI(actionId, {
         event: "getToggleFeatures",
         items: features.map((f) => ({
           label: f.name,
@@ -160,10 +159,7 @@ export class ToggleAction extends SingletonAction<ToggleSettings> {
       });
     } catch (error) {
       streamDeck.logger.error("Failed to fetch toggle features:", error);
-      await streamDeck.ui.sendToPropertyInspector({
-        event: "getToggleFeatures",
-        items: [],
-      });
+      await sendToPI(actionId, { event: "getToggleFeatures", items: [] });
     }
   }
 

@@ -4,6 +4,10 @@
  * the getDevices datasource that returns both lights and groups.
  */
 import { streamDeck } from "@elgato/streamdeck";
+// Internal SDK connection singleton — used to send sendToPropertyInspector
+// messages to a specific action context (the global streamDeck.ui.sendToPropertyInspector
+// tracks a single #action which can be stale or undefined during async operations).
+import { connection } from "@elgato/streamdeck/dist/plugin/connection.js";
 import type { JsonValue } from "@elgato/utils";
 import { GoveeLightRepository } from "../../infrastructure/repositories/GoveeLightRepository";
 import { LightControlService } from "../../domain/services/LightControlService";
@@ -28,6 +32,59 @@ import { globalSettingsService } from "../../services/GlobalSettingsService";
 import { StreamDeckLightGroupRepository } from "../../infrastructure/repositories/StreamDeckLightGroupRepository";
 import { LightGroupService } from "../../domain/services/LightGroupService";
 import { SegmentColor } from "../../domain/value-objects/SegmentColor";
+
+/** Default timeout for API calls in PI handlers (10 seconds) */
+const PI_HANDLER_TIMEOUT_MS = 10_000;
+
+/**
+ * Send a payload to the Property Inspector for a specific action context.
+ * Uses the SDK's internal connection to bypass the global ui.#action tracking,
+ * which can silently drop messages when #action is undefined or stale.
+ */
+async function sendToPI(
+  actionId: string,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await connection.send({
+      event: "sendToPropertyInspector",
+      context: actionId,
+      payload,
+    });
+  } catch (error) {
+    streamDeck.logger.error(
+      `Failed to send to PI (context: ${actionId}):`,
+      error,
+    );
+  }
+}
+
+/**
+ * Race a promise against a timeout. Returns the promise result or rejects on timeout.
+ */
+function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  label: string,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`${label} timed out after ${ms}ms`)),
+      ms,
+    );
+    promise
+      .then((val) => {
+        clearTimeout(timer);
+        resolve(val);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
+
+export { sendToPI };
 
 export interface DeviceTarget {
   type: "light" | "group";
@@ -230,11 +287,11 @@ export class ActionServices {
   /**
    * Handle getGroups - returns group list for group manager UI
    */
-  async handleGetGroups(): Promise<void> {
+  async handleGetGroups(actionId: string): Promise<void> {
     try {
       const apiKey = await globalSettingsService.getApiKey();
       if (!apiKey) {
-        await streamDeck.ui.sendToPropertyInspector({
+        await sendToPI(actionId, {
           event: "groupsReceived",
           groups: [],
         });
@@ -242,20 +299,20 @@ export class ActionServices {
       }
       await this.ensureServices(apiKey);
       if (!this.groupService) {
-        await streamDeck.ui.sendToPropertyInspector({
+        await sendToPI(actionId, {
           event: "groupsReceived",
           groups: [],
         });
         return;
       }
       const groups = await this.groupService.getAllGroups();
-      await streamDeck.ui.sendToPropertyInspector({
+      await sendToPI(actionId, {
         event: "groupsReceived",
         groups: groups.map((g) => ({ id: g.id, name: g.name, size: g.size })),
       });
     } catch (error) {
       streamDeck.logger.error("Failed to fetch groups:", error);
-      await streamDeck.ui.sendToPropertyInspector({
+      await sendToPI(actionId, {
         event: "groupsReceived",
         groups: [],
       });
@@ -263,13 +320,19 @@ export class ActionServices {
   }
 
   /**
-   * Handle getDevices SDPI datasource - returns both lights and groups
+   * Handle getDevices SDPI datasource - returns both lights and groups.
+   * Uses a timeout to prevent hanging forever if the API is unreachable.
    */
-  async handleGetDevices(): Promise<void> {
+  async handleGetDevices(actionId: string): Promise<void> {
+    streamDeck.logger.info(`handleGetDevices called (context: ${actionId})`);
+
     try {
       const apiKey = await globalSettingsService.getApiKey();
       if (!apiKey) {
-        await streamDeck.ui.sendToPropertyInspector({
+        streamDeck.logger.warn(
+          "handleGetDevices: no API key in global settings",
+        );
+        await sendToPI(actionId, {
           event: "getDevices",
           items: [],
         });
@@ -283,20 +346,35 @@ export class ActionServices {
         children?: Array<{ label: string; value: string }>;
       }> = [];
 
-      // Add lights
+      // Add lights (with timeout to prevent hanging)
       if (this.deviceService) {
-        const lights = await this.deviceService.discover(true);
-        const lightItems = lights.map((light) => ({
-          label: `${light.label ?? light.name} (${light.model})`,
-          value: `light:${light.deviceId}|${light.model}`,
-        }));
+        try {
+          const lights = await withTimeout(
+            this.deviceService.discover(true),
+            PI_HANDLER_TIMEOUT_MS,
+            "Device discovery",
+          );
+          const lightItems = lights.map((light) => ({
+            label: `${light.label ?? light.name} (${light.model})`,
+            value: `light:${light.deviceId}|${light.model}`,
+          }));
 
-        if (lightItems.length > 0) {
-          items.push({
-            label: "Lights",
-            value: "",
-            children: lightItems,
-          });
+          if (lightItems.length > 0) {
+            items.push({
+              label: "Lights",
+              value: "",
+              children: lightItems,
+            });
+          }
+          streamDeck.logger.info(
+            `handleGetDevices: found ${lightItems.length} lights`,
+          );
+        } catch (discoverError) {
+          streamDeck.logger.error(
+            "handleGetDevices: device discovery failed:",
+            discoverError,
+          );
+          // Continue to still return groups even if light discovery fails
         }
       }
 
@@ -317,13 +395,16 @@ export class ActionServices {
         }
       }
 
-      await streamDeck.ui.sendToPropertyInspector({
+      streamDeck.logger.info(
+        `handleGetDevices: sending ${items.length} item groups to PI`,
+      );
+      await sendToPI(actionId, {
         event: "getDevices",
         items,
       });
     } catch (error) {
       streamDeck.logger.error("Failed to fetch devices:", error);
-      await streamDeck.ui.sendToPropertyInspector({
+      await sendToPI(actionId, {
         event: "getDevices",
         items: [],
       });
@@ -333,12 +414,12 @@ export class ActionServices {
   /**
    * Handle saveGroup from PI
    */
-  async handleSaveGroup(payload: JsonValue): Promise<void> {
+  async handleSaveGroup(actionId: string, payload: JsonValue): Promise<void> {
     const data = payload as { group?: { name: string; lightIds: string[] } };
     const group = data.group;
 
     if (!group?.name || !group?.lightIds) {
-      await streamDeck.ui.sendToPropertyInspector({
+      await sendToPI(actionId, {
         event: "groupSaved",
         success: false,
         error: "Invalid group data",
@@ -364,7 +445,7 @@ export class ActionServices {
         lightIds,
       );
 
-      await streamDeck.ui.sendToPropertyInspector({
+      await sendToPI(actionId, {
         event: "groupSaved",
         success: true,
         group: {
@@ -375,7 +456,7 @@ export class ActionServices {
       });
     } catch (error) {
       streamDeck.logger.error("Failed to save group:", error);
-      await streamDeck.ui.sendToPropertyInspector({
+      await sendToPI(actionId, {
         event: "groupSaved",
         success: false,
         error: "Failed to save group",
@@ -400,7 +481,7 @@ export class ActionServices {
   /**
    * Handle deleteGroup from PI
    */
-  async handleDeleteGroup(payload: JsonValue): Promise<void> {
+  async handleDeleteGroup(actionId: string, payload: JsonValue): Promise<void> {
     const data = payload as { groupId?: string };
     if (!data.groupId) return;
 
@@ -416,13 +497,13 @@ export class ActionServices {
         : data.groupId;
       await this.groupService.deleteGroup(groupId);
 
-      await streamDeck.ui.sendToPropertyInspector({
+      await sendToPI(actionId, {
         event: "groupDeleted",
         success: true,
       });
     } catch (error) {
       streamDeck.logger.error("Failed to delete group:", error);
-      await streamDeck.ui.sendToPropertyInspector({
+      await sendToPI(actionId, {
         event: "groupDeleted",
         success: false,
         error: "Failed to delete group",

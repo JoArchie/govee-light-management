@@ -10,7 +10,11 @@ import {
 } from "@elgato/streamdeck";
 import type { JsonValue } from "@elgato/utils";
 import { LightScene } from "@felixgeelhaar/govee-api-client";
-import { ActionServices, type BaseSettings } from "./shared/ActionServices";
+import {
+  ActionServices,
+  sendToPI,
+  type BaseSettings,
+} from "./shared/ActionServices";
 
 type SceneSettings = BaseSettings & {
   selectedScene?: string;
@@ -88,45 +92,42 @@ export class SceneAction extends SingletonAction<SceneSettings> {
 
     switch (ev.payload.event) {
       case "getDevices":
-        await this.services.handleGetDevices();
+        await this.services.handleGetDevices(ev.action.id);
         break;
       case "getGroups":
-        await this.services.handleGetGroups();
+        await this.services.handleGetGroups(ev.action.id);
         break;
       case "saveGroup":
-        await this.services.handleSaveGroup(ev.payload);
+        await this.services.handleSaveGroup(ev.action.id, ev.payload);
         break;
       case "deleteGroup":
-        await this.services.handleDeleteGroup(ev.payload);
+        await this.services.handleDeleteGroup(ev.action.id, ev.payload);
         break;
       case "refreshState":
         await this.services.handleRefreshState();
         break;
       case "getScenes": {
         const settings = await ev.action.getSettings();
-        await this.handleGetScenes(settings);
+        await this.handleGetScenes(ev.action.id, settings);
         break;
       }
     }
   }
 
-  private async handleGetScenes(settings: SceneSettings): Promise<void> {
+  private async handleGetScenes(
+    actionId: string,
+    settings: SceneSettings,
+  ): Promise<void> {
     const deviceId = settings.selectedDeviceId;
     if (!deviceId) {
-      await streamDeck.ui.sendToPropertyInspector({
-        event: "getScenes",
-        items: [],
-      });
+      await sendToPI(actionId, { event: "getScenes", items: [] });
       return;
     }
 
     try {
       const apiKey = await this.services.getApiKey(settings ?? {});
       if (!apiKey) {
-        await streamDeck.ui.sendToPropertyInspector({
-          event: "getScenes",
-          items: [],
-        });
+        await sendToPI(actionId, { event: "getScenes", items: [] });
         return;
       }
 
@@ -136,15 +137,12 @@ export class SceneAction extends SingletonAction<SceneSettings> {
       });
 
       if (!target || target.type !== "light" || !target.light) {
-        await streamDeck.ui.sendToPropertyInspector({
-          event: "getScenes",
-          items: [],
-        });
+        await sendToPI(actionId, { event: "getScenes", items: [] });
         return;
       }
 
       const scenes = await this.services.getDynamicScenes(target.light);
-      await streamDeck.ui.sendToPropertyInspector({
+      await sendToPI(actionId, {
         event: "getScenes",
         items: scenes.map((s) => ({
           label: s.name,
@@ -153,10 +151,7 @@ export class SceneAction extends SingletonAction<SceneSettings> {
       });
     } catch (error) {
       streamDeck.logger.error("Failed to fetch scenes:", error);
-      await streamDeck.ui.sendToPropertyInspector({
-        event: "getScenes",
-        items: [],
-      });
+      await sendToPI(actionId, { event: "getScenes", items: [] });
     }
   }
 

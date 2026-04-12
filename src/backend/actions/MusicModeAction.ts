@@ -10,7 +10,11 @@ import {
 } from "@elgato/streamdeck";
 import type { JsonValue } from "@elgato/utils";
 import { MusicMode } from "@felixgeelhaar/govee-api-client";
-import { ActionServices, type BaseSettings } from "./shared/ActionServices";
+import {
+  ActionServices,
+  sendToPI,
+  type BaseSettings,
+} from "./shared/ActionServices";
 
 type MusicModeSettings = BaseSettings & {
   selectedMode?: string; // JSON: { name, modeId }
@@ -88,47 +92,42 @@ export class MusicModeAction extends SingletonAction<MusicModeSettings> {
 
     switch (ev.payload.event) {
       case "getDevices":
-        await this.services.handleGetDevices();
+        await this.services.handleGetDevices(ev.action.id);
         break;
       case "getGroups":
-        await this.services.handleGetGroups();
+        await this.services.handleGetGroups(ev.action.id);
         break;
       case "saveGroup":
-        await this.services.handleSaveGroup(ev.payload);
+        await this.services.handleSaveGroup(ev.action.id, ev.payload);
         break;
       case "deleteGroup":
-        await this.services.handleDeleteGroup(ev.payload);
+        await this.services.handleDeleteGroup(ev.action.id, ev.payload);
         break;
       case "refreshState":
         await this.services.handleRefreshState();
         break;
       case "getMusicModes": {
         const settings = await ev.action.getSettings();
-        await this.handleGetMusicModes(settings);
+        await this.handleGetMusicModes(ev.action.id, settings);
         break;
       }
     }
   }
 
   private async handleGetMusicModes(
+    actionId: string,
     settings: MusicModeSettings,
   ): Promise<void> {
     const deviceId = settings.selectedDeviceId;
     if (!deviceId) {
-      await streamDeck.ui.sendToPropertyInspector({
-        event: "getMusicModes",
-        items: [],
-      });
+      await sendToPI(actionId, { event: "getMusicModes", items: [] });
       return;
     }
 
     try {
       const apiKey = await this.services.getApiKey(settings);
       if (!apiKey) {
-        await streamDeck.ui.sendToPropertyInspector({
-          event: "getMusicModes",
-          items: [],
-        });
+        await sendToPI(actionId, { event: "getMusicModes", items: [] });
         return;
       }
 
@@ -136,7 +135,7 @@ export class MusicModeAction extends SingletonAction<MusicModeSettings> {
 
       // Query device capabilities for music modes
       const modes = await this.services.getMusicModes(deviceId);
-      await streamDeck.ui.sendToPropertyInspector({
+      await sendToPI(actionId, {
         event: "getMusicModes",
         items: modes.map((m) => ({
           label: m.name,
@@ -145,10 +144,7 @@ export class MusicModeAction extends SingletonAction<MusicModeSettings> {
       });
     } catch (error) {
       streamDeck.logger.error("Failed to fetch music modes:", error);
-      await streamDeck.ui.sendToPropertyInspector({
-        event: "getMusicModes",
-        items: [],
-      });
+      await sendToPI(actionId, { event: "getMusicModes", items: [] });
     }
   }
 
