@@ -1,69 +1,89 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head lang="en-gb">
-	<meta charset="utf-8">
-	<title>Govee Light Management | Music Mode</title>
-	<link rel="stylesheet" href="./css/main.css" />
-	<script src="./js/ws-bridge.js"></script>
-	<script src="./js/sdpi-components.js"></script>
-	<script src="./js/setup.js"></script>
-	<script src="./js/range-value.js"></script>
-</head>
-<body>
-	<div id="settings" class="hidden">
-		<sdpi-item label="Device">
-			<sdpi-select id="deviceSelect" setting="selectedDeviceId" placeholder="" datasource="getDevices"
-				show-refresh label-setting="selectedLightName"></sdpi-select>
-		</sdpi-item>
+  <head lang="en-gb">
+    <meta charset="utf-8" />
+    <title>Govee Light Management | Music Mode</title>
+    <link rel="stylesheet" href="./css/main.css" />
+    <script src="./js/ws-bridge.js"></script>
+    <script src="./js/sdpi-components.js"></script>
+    <script src="./js/setup.js"></script>
+    <script src="./js/range-value.js"></script>
+  </head>
+  <body>
+    <div id="settings" class="hidden">
+      <sdpi-item label="Device">
+        <sdpi-select
+          id="deviceSelect"
+          setting="selectedDeviceId"
+          placeholder=""
+          datasource="getDevices"
+          show-refresh
+          label-setting="selectedLightName"
+        ></sdpi-select>
+      </sdpi-item>
 
-		<sdpi-item label="Mode">
-			<sdpi-select id="modeSelect" setting="selectedMode" datasource="getMusicModes"
-				show-refresh placeholder="Select a device first"></sdpi-select>
-		</sdpi-item>
+      <sdpi-item label="Mode">
+        <sdpi-select
+          id="modeSelect"
+          setting="selectedMode"
+          datasource="getMusicModes"
+          show-refresh
+          placeholder="Select a device first"
+        ></sdpi-select>
+      </sdpi-item>
 
-		<sdpi-item label="Sensitivity">
-			<sdpi-range setting="sensitivity" default="50" min="0" max="100" step="5" showlabels data-suffix="%">
-				<span slot="min">Low</span>
-				<span slot="max">High</span>
-			</sdpi-range>
-		</sdpi-item>
-	</div>
+      <sdpi-item label="Sensitivity">
+        <sdpi-range
+          setting="sensitivity"
+          default="50"
+          min="0"
+          max="100"
+          step="5"
+          showlabels
+          data-suffix="%"
+        >
+          <span slot="min">Low</span>
+          <span slot="max">High</span>
+        </sdpi-range>
+      </sdpi-item>
+    </div>
 
-	<div id="setup" class="hidden">
-		<sdpi-item label="API Key">
-			<sdpi-password id="apiKey" global setting="unverifiedApiKey"
-				placeholder="API key from Govee"></sdpi-password>
-		</sdpi-item>
-		<sdpi-item>
-			<sdpi-button id="connect">Connect</sdpi-button>
-			<div id="errorMessage" class="hidden">Failed to connect, please try again.</div>
-		</sdpi-item>
-		<sdpi-item label="Guide" class="guide">
-			<ol>
-				<li>Open the Govee app</li>
-				<li>Go to settings</li>
-				<li>Select "Apply for API Key"</li>
-			</ol>
-		</sdpi-item>
-	</div>
+    <div id="setup" class="hidden">
+      <sdpi-item label="API Key">
+        <sdpi-password
+          id="apiKey"
+          global
+          setting="unverifiedApiKey"
+          placeholder="API key from Govee"
+        ></sdpi-password>
+      </sdpi-item>
+      <sdpi-item>
+        <sdpi-button id="connect">Connect</sdpi-button>
+        <div id="errorMessage" class="hidden">
+          Failed to connect, please try again.
+        </div>
+      </sdpi-item>
+      <sdpi-item label="Guide" class="guide">
+        <ol>
+          <li>Open the Govee app</li>
+          <li>Go to settings</li>
+          <li>Select "Apply for API Key"</li>
+        </ol>
+      </sdpi-item>
+    </div>
 
-	<script>
-		document.addEventListener("DOMContentLoaded", () => {
-			const deviceSelect = document.getElementById("deviceSelect");
-			const modeSelect = document.getElementById("modeSelect");
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        const deviceSelect = document.getElementById("deviceSelect");
+        const modeSelect = document.getElementById("modeSelect");
 
-			// When device changes, request music modes via ws-bridge
-			deviceSelect.addEventListener("valuechange", () => {
-				sendToPlugin({ event: "getMusicModes" });
-			});
-
-			// Listen for music modes response and inject into sdpi-select
-			document.addEventListener("sdpi:message", (evt) => {
-				const p = evt.detail || {};
-				if (p.event !== "getMusicModes") return;
-				// Forward as sendToPropertyInspector so sdpi-select datasource picks it up
-			});
-		});
-	</script>
-</body>
+        // When device changes, refresh the music modes list
+        deviceSelect.addEventListener("valuechange", () => {
+          if (modeSelect && modeSelect.refresh) {
+            modeSelect.refresh();
+          }
+        });
+      });
+    </script>
+  </body>
 </html>
