@@ -24,8 +24,9 @@ const MAX_KELVIN = 9000;
 const DEFAULT_KELVIN = 4500;
 const DEFAULT_STEP_KELVIN = 100;
 
-/** Default bar_fill_c from layouts/color-temp.json (white indicator on gbar) */
-const DEFAULT_BAR_FILL = "#FFFFFF";
+/** Default bar colors from layouts/color-temp.json (gbar) */
+const DEFAULT_BAR_FILL = "#FFFFFF"; // white indicator
+const DEFAULT_BAR_BG = "0:#FFB347,1:#A8D8EA"; // warm→cool gradient
 
 @action({ UUID: "com.felixgeelhaar.govee-light-management.colortemp-dial" })
 export class ColorTempDialAction extends SingletonAction<ColorTempDialSettings> {
@@ -91,7 +92,11 @@ export class ColorTempDialAction extends SingletonAction<ColorTempDialSettings> 
         );
       },
       undefined,
-      { action: ev.action, restoreColor: DEFAULT_BAR_FILL },
+      {
+        action: ev.action,
+        restoreFillColor: DEFAULT_BAR_FILL,
+        restoreBgColor: DEFAULT_BAR_BG,
+      },
     );
   }
 

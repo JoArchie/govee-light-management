@@ -18,8 +18,9 @@ type BrightnessDialSettings = BaseSettings & {
   stepSize?: number;
 };
 
-/** Default bar_fill_c from layouts/brightness.json (purple→blue gradient) */
-const DEFAULT_BAR_FILL = "0:#7B2CBF,1:#3A86FF";
+/** Default bar colors from layouts/brightness.json */
+const DEFAULT_BAR_FILL = "0:#7B2CBF,1:#3A86FF"; // purple→blue gradient
+const DEFAULT_BAR_BG = "#1F2937"; // dark gray
 
 @action({ UUID: "com.felixgeelhaar.govee-light-management.brightness-dial" })
 export class BrightnessDialAction extends SingletonAction<BrightnessDialSettings> {
@@ -81,7 +82,11 @@ export class BrightnessDialAction extends SingletonAction<BrightnessDialSettings
         );
       },
       undefined,
-      { action: ev.action, restoreColor: DEFAULT_BAR_FILL },
+      {
+        action: ev.action,
+        restoreFillColor: DEFAULT_BAR_FILL,
+        restoreBgColor: DEFAULT_BAR_BG,
+      },
     );
   }
 

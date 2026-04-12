@@ -536,8 +536,10 @@ export class ActionServices {
       /** The Stream Deck action object (has setFeedback) */
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       action: any;
-      /** The bar_fill_c value to restore after the flash (layout default) */
-      restoreColor: string;
+      /** Layout default for bar_fill_c (e.g. gradient string or "#FFFFFF") */
+      restoreFillColor: string;
+      /** Layout default for bar_bg_c (e.g. "#1F2937" or gradient string) */
+      restoreBgColor: string;
     },
   ): void {
     const delay = delayMs ?? 500;
@@ -552,7 +554,7 @@ export class ActionServices {
         this.dialTimers.delete(contextId);
 
         if (flash) {
-          // Show blue "sending" flash
+          // Show blue "sending" flash on entire bar
           await this.flashDialBar(flash.action, FLASH_SENDING);
         }
 
@@ -560,24 +562,28 @@ export class ActionServices {
           await callback();
 
           if (flash) {
-            // Show green "success" flash, then restore
+            // Show green "success" flash, then restore layout defaults
             await this.flashDialBar(flash.action, FLASH_SUCCESS);
             setTimeout(() => {
-              this.flashDialBar(flash.action, flash.restoreColor).catch(
-                () => {},
-              );
+              this.restoreDialBar(
+                flash.action,
+                flash.restoreFillColor,
+                flash.restoreBgColor,
+              ).catch(() => {});
             }, FLASH_RESULT_MS);
           }
         } catch (e) {
           streamDeck.logger.error("Deferred dial action failed:", e);
 
           if (flash) {
-            // Show red "error" flash, then restore
+            // Show red "error" flash, then restore layout defaults
             await this.flashDialBar(flash.action, FLASH_ERROR);
             setTimeout(() => {
-              this.flashDialBar(flash.action, flash.restoreColor).catch(
-                () => {},
-              );
+              this.restoreDialBar(
+                flash.action,
+                flash.restoreFillColor,
+                flash.restoreBgColor,
+              ).catch(() => {});
             }, FLASH_RESULT_MS);
           }
         }
@@ -586,13 +592,33 @@ export class ActionServices {
   }
 
   /**
-   * Set the bar fill color on a dial action's feedback display.
-   * Used internally by deferDialAction for flash feedback.
+   * Flash both bar_fill_c and bar_bg_c to a solid color.
+   * This makes the flash visible on both regular `bar` and `gbar` layouts.
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async flashDialBar(action: any, color: string): Promise<void> {
     try {
-      await action.setFeedback({ bar: { bar_fill_c: color } });
+      await action.setFeedback({
+        bar: { bar_fill_c: color, bar_bg_c: color },
+      });
+    } catch {
+      // Ignore – action may have disappeared
+    }
+  }
+
+  /**
+   * Restore bar_fill_c and bar_bg_c to their layout defaults after a flash.
+   */
+
+  private async restoreDialBar(
+    action: any,
+    fillColor: string,
+    bgColor: string,
+  ): Promise<void> {
+    try {
+      await action.setFeedback({
+        bar: { bar_fill_c: fillColor, bar_bg_c: bgColor },
+      });
     } catch {
       // Ignore – action may have disappeared
     }
