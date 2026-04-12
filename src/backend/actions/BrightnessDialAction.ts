@@ -18,6 +18,9 @@ type BrightnessDialSettings = BaseSettings & {
   stepSize?: number;
 };
 
+/** Default bar_fill_c from layouts/brightness.json (purple→blue gradient) */
+const DEFAULT_BAR_FILL = "0:#7B2CBF,1:#3A86FF";
+
 @action({ UUID: "com.felixgeelhaar.govee-light-management.brightness-dial" })
 export class BrightnessDialAction extends SingletonAction<BrightnessDialSettings> {
   private services = new ActionServices();
@@ -39,7 +42,7 @@ export class BrightnessDialAction extends SingletonAction<BrightnessDialSettings
     const ctx = ev.action.id;
     this.brightnessMap.delete(ctx);
     this.powerMap.delete(ctx);
-    this.services.cleanupThrottleTimers(ctx);
+    this.services.cleanupDialTimers(ctx);
   }
 
   override async onDidReceiveSettings(
@@ -58,30 +61,28 @@ export class BrightnessDialAction extends SingletonAction<BrightnessDialSettings
     const next = Math.max(0, Math.min(100, current + ev.payload.ticks * step));
     this.brightnessMap.set(ctx, next);
 
+    // Update display instantly — defer all API work until dial stops
     await this.updateDisplay(ev.action, settings);
 
-    const apiKey = await this.services.getApiKey(settings);
-    if (!apiKey || !settings.selectedDeviceId) {
-      await ev.action.showAlert();
-      return;
-    }
-    await this.services.ensureServices(apiKey);
-    const target = await this.services.resolveTarget(settings);
-    if (!target) {
-      await ev.action.showAlert();
-      return;
-    }
-
-    try {
-      await this.services.controlTargetThrottled(
-        ctx,
-        target,
-        "brightness",
-        new Brightness(next),
-      );
-    } catch (error) {
-      streamDeck.logger.error("Failed to set brightness via dial:", error);
-    }
+    this.services.deferDialAction(
+      ctx,
+      async () => {
+        const apiKey = await this.services.getApiKey(settings);
+        if (!apiKey || !settings.selectedDeviceId) return;
+        await this.services.ensureServices(apiKey);
+        const target = await this.services.resolveTarget(settings);
+        if (!target) return;
+        // Read latest accumulated value at execution time
+        const finalValue = this.brightnessMap.get(ctx) ?? next;
+        await this.services.controlTarget(
+          target,
+          "brightness",
+          new Brightness(finalValue),
+        );
+      },
+      undefined,
+      { action: ev.action, restoreColor: DEFAULT_BAR_FILL },
+    );
   }
 
   override async onDialDown(

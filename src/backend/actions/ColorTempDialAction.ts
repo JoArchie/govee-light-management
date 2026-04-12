@@ -18,9 +18,19 @@ type ColorTempDialSettings = BaseSettings & {
   stepSize?: number;
 };
 
+/** Color temperature range in Kelvin */
+const MIN_KELVIN = 2000;
+const MAX_KELVIN = 9000;
+const DEFAULT_KELVIN = 4500;
+const DEFAULT_STEP_KELVIN = 100;
+
+/** Default bar_fill_c from layouts/color-temp.json (white indicator on gbar) */
+const DEFAULT_BAR_FILL = "#FFFFFF";
+
 @action({ UUID: "com.felixgeelhaar.govee-light-management.colortemp-dial" })
 export class ColorTempDialAction extends SingletonAction<ColorTempDialSettings> {
   private services = new ActionServices();
+  /** Stores current color temperature in Kelvin (2000-9000) */
   private tempMap = new Map<string, number>();
   private powerMap = new Map<string, boolean>();
 
@@ -28,7 +38,7 @@ export class ColorTempDialAction extends SingletonAction<ColorTempDialSettings> 
     ev: WillAppearEvent<ColorTempDialSettings>,
   ): Promise<void> {
     const ctx = ev.action.id;
-    if (!this.tempMap.has(ctx)) this.tempMap.set(ctx, 50);
+    if (!this.tempMap.has(ctx)) this.tempMap.set(ctx, DEFAULT_KELVIN);
     if (!this.powerMap.has(ctx)) this.powerMap.set(ctx, true);
     await this.updateDisplay(ev.action, ev.payload.settings);
   }
@@ -39,7 +49,7 @@ export class ColorTempDialAction extends SingletonAction<ColorTempDialSettings> 
     const ctx = ev.action.id;
     this.tempMap.delete(ctx);
     this.powerMap.delete(ctx);
-    this.services.cleanupThrottleTimers(ctx);
+    this.services.cleanupDialTimers(ctx);
   }
 
   override async onDidReceiveSettings(
@@ -53,39 +63,36 @@ export class ColorTempDialAction extends SingletonAction<ColorTempDialSettings> 
   ): Promise<void> {
     const { settings } = ev.payload;
     const ctx = ev.action.id;
-    const step = settings.stepSize || 5;
-    const current = this.tempMap.get(ctx) ?? 50;
-    const next = Math.max(0, Math.min(100, current + ev.payload.ticks * step));
+    const step = settings.stepSize || DEFAULT_STEP_KELVIN;
+    const current = this.tempMap.get(ctx) ?? DEFAULT_KELVIN;
+    const next = Math.max(
+      MIN_KELVIN,
+      Math.min(MAX_KELVIN, current + ev.payload.ticks * step),
+    );
     this.tempMap.set(ctx, next);
 
+    // Update display instantly — defer all API work until dial stops
     await this.updateDisplay(ev.action, settings);
 
-    const apiKey = await this.services.getApiKey(settings);
-    if (!apiKey || !settings.selectedDeviceId) {
-      await ev.action.showAlert();
-      return;
-    }
-    await this.services.ensureServices(apiKey);
-    const target = await this.services.resolveTarget(settings);
-    if (!target) {
-      await ev.action.showAlert();
-      return;
-    }
-
-    try {
-      const kelvin = Math.round(2000 + (next / 100) * 7000);
-      await this.services.controlTargetThrottled(
-        ctx,
-        target,
-        "colorTemperature",
-        new ColorTemperature(kelvin),
-      );
-    } catch (error) {
-      streamDeck.logger.error(
-        "Failed to set color temperature via dial:",
-        error,
-      );
-    }
+    this.services.deferDialAction(
+      ctx,
+      async () => {
+        const apiKey = await this.services.getApiKey(settings);
+        if (!apiKey || !settings.selectedDeviceId) return;
+        await this.services.ensureServices(apiKey);
+        const target = await this.services.resolveTarget(settings);
+        if (!target) return;
+        // Read latest accumulated value at execution time
+        const finalKelvin = this.tempMap.get(ctx) ?? next;
+        await this.services.controlTarget(
+          target,
+          "colorTemperature",
+          new ColorTemperature(finalKelvin),
+        );
+      },
+      undefined,
+      { action: ev.action, restoreColor: DEFAULT_BAR_FILL },
+    );
   }
 
   override async onDialDown(
@@ -158,14 +165,17 @@ export class ColorTempDialAction extends SingletonAction<ColorTempDialSettings> 
     _settings: ColorTempDialSettings,
   ): Promise<void> {
     const ctx = action.id || "default";
-    const temp = this.tempMap.get(ctx) ?? 50;
+    const kelvin = this.tempMap.get(ctx) ?? DEFAULT_KELVIN;
     const isOn = this.powerMap.get(ctx) ?? true;
-    const kelvin = Math.round(2000 + (temp / 100) * 7000);
+    // Normalize to 0-100 for the feedback bar
+    const barValue = Math.round(
+      ((kelvin - MIN_KELVIN) / (MAX_KELVIN - MIN_KELVIN)) * 100,
+    );
 
     await action.setFeedback({
       label: "Temperature",
       value: isOn ? `${kelvin}K` : "Off",
-      bar: { value: isOn ? temp : 0 },
+      bar: { value: isOn ? barValue : 0 },
     });
   }
 }

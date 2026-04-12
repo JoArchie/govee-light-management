@@ -16,11 +16,7 @@ export default defineConfig({
 
     rollupOptions: {
       // External dependencies that should not be bundled
-      // Use a function to match all @elgato/streamdeck subpath imports
-      external: (id) =>
-        id === "node:events" ||
-        id === "@elgato/streamdeck" ||
-        id.startsWith("@elgato/streamdeck/"),
+      external: ["node:events", "@elgato/streamdeck"],
 
       output: {
         // Ensure ESM format with proper file extension

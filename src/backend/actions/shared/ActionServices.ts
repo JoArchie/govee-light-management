@@ -4,10 +4,6 @@
  * the getDevices datasource that returns both lights and groups.
  */
 import { streamDeck } from "@elgato/streamdeck";
-// Internal SDK connection singleton — used to send sendToPropertyInspector
-// messages to a specific action context (the global streamDeck.ui.sendToPropertyInspector
-// tracks a single #action which can be stale or undefined during async operations).
-import { connection } from "@elgato/streamdeck/dist/plugin/connection.js";
 import type { JsonValue } from "@elgato/utils";
 import { GoveeLightRepository } from "../../infrastructure/repositories/GoveeLightRepository";
 import { LightControlService } from "../../domain/services/LightControlService";
@@ -36,24 +32,27 @@ import { SegmentColor } from "../../domain/value-objects/SegmentColor";
 /** Default timeout for API calls in PI handlers (10 seconds) */
 const PI_HANDLER_TIMEOUT_MS = 10_000;
 
+/** Flash colors for dial bar feedback */
+const FLASH_SENDING = "#3366FF"; // blue – command in flight
+const FLASH_SUCCESS = "#22CC66"; // green – command succeeded
+const FLASH_ERROR = "#FF3333"; // red – command failed
+const FLASH_RESULT_MS = 400; // how long success/error flash stays visible
+
 /**
- * Send a payload to the Property Inspector for a specific action context.
- * Uses the SDK's internal connection to bypass the global ui.#action tracking,
- * which can silently drop messages when #action is undefined or stale.
+ * Send a payload to the Property Inspector for the currently visible action.
+ * Uses the public SDK API (streamDeck.ui.sendToPropertyInspector) which tracks
+ * the active PI internally. The actionId parameter is accepted for logging
+ * but the SDK routes to whichever PI is currently open.
  */
 async function sendToPI(
-  actionId: string,
+  _actionId: string,
   payload: Record<string, unknown>,
 ): Promise<void> {
   try {
-    await connection.send({
-      event: "sendToPropertyInspector",
-      context: actionId,
-      payload,
-    });
+    await streamDeck.ui.sendToPropertyInspector(payload as JsonValue);
   } catch (error) {
     streamDeck.logger.error(
-      `Failed to send to PI (context: ${actionId}):`,
+      `Failed to send to PI (context: ${_actionId}):`,
       error,
     );
   }
@@ -512,52 +511,100 @@ export class ActionServices {
   }
 
   /**
-   * Throttled control for dial actions.
-   * Accumulates rapid changes and only sends the final value after a delay.
+   * Deferred dial action execution with optional visual flash feedback.
+   * Accumulates rapid dial changes and only executes the callback once the
+   * user stops rotating (after `delayMs` of inactivity). Each new call
+   * replaces the previous pending callback, so only the latest value is sent.
+   *
+   * The callback should contain ALL API work (ensureServices, resolveTarget,
+   * controlTarget) so that no API calls happen during active dial rotation.
+   *
+   * When `flash` is provided the bar briefly flashes:
+   *   blue  → while the API call is in-flight
+   *   green → on success (auto-restores after 400 ms)
+   *   red   → on error   (auto-restores after 400 ms)
+   *
    * Key = action context ID to support multiple dials independently.
    */
   private dialTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  private dialPending = new Map<string, () => Promise<void>>();
 
-  async controlTargetThrottled(
+  deferDialAction(
     contextId: string,
-    target: DeviceTarget,
-    command: "on" | "off" | "brightness" | "color" | "colorTemperature",
-    value?: Brightness | ColorRgb | ColorTemperature,
-    delayMs = 200,
-  ): Promise<void> {
-    // Cancel any pending send for this context
+    callback: () => Promise<void>,
+    delayMs?: number,
+    flash?: {
+      /** The Stream Deck action object (has setFeedback) */
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      action: any;
+      /** The bar_fill_c value to restore after the flash (layout default) */
+      restoreColor: string;
+    },
+  ): void {
+    const delay = delayMs ?? 500;
+
+    // Cancel any pending execution for this context
     const existingTimer = this.dialTimers.get(contextId);
     if (existingTimer) clearTimeout(existingTimer);
 
-    // Queue the latest value
-    const sendFn = async () => {
-      this.dialTimers.delete(contextId);
-      this.dialPending.delete(contextId);
-      await this.controlTarget(target, command, value);
-    };
-
-    this.dialPending.set(contextId, sendFn);
     this.dialTimers.set(
       contextId,
-      setTimeout(() => {
-        const fn = this.dialPending.get(contextId);
-        if (fn)
-          fn().catch((e) =>
-            streamDeck.logger.error("Throttled control failed:", e),
-          );
-      }, delayMs),
+      setTimeout(async () => {
+        this.dialTimers.delete(contextId);
+
+        if (flash) {
+          // Show blue "sending" flash
+          await this.flashDialBar(flash.action, FLASH_SENDING);
+        }
+
+        try {
+          await callback();
+
+          if (flash) {
+            // Show green "success" flash, then restore
+            await this.flashDialBar(flash.action, FLASH_SUCCESS);
+            setTimeout(() => {
+              this.flashDialBar(flash.action, flash.restoreColor).catch(
+                () => {},
+              );
+            }, FLASH_RESULT_MS);
+          }
+        } catch (e) {
+          streamDeck.logger.error("Deferred dial action failed:", e);
+
+          if (flash) {
+            // Show red "error" flash, then restore
+            await this.flashDialBar(flash.action, FLASH_ERROR);
+            setTimeout(() => {
+              this.flashDialBar(flash.action, flash.restoreColor).catch(
+                () => {},
+              );
+            }, FLASH_RESULT_MS);
+          }
+        }
+      }, delay),
     );
   }
 
   /**
-   * Clean up throttle timers for a specific context (call from onWillDisappear).
+   * Set the bar fill color on a dial action's feedback display.
+   * Used internally by deferDialAction for flash feedback.
    */
-  cleanupThrottleTimers(contextId: string): void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private async flashDialBar(action: any, color: string): Promise<void> {
+    try {
+      await action.setFeedback({ bar: { bar_fill_c: color } });
+    } catch {
+      // Ignore – action may have disappeared
+    }
+  }
+
+  /**
+   * Clean up deferred dial timers for a specific context (call from onWillDisappear).
+   */
+  cleanupDialTimers(contextId: string): void {
     const timer = this.dialTimers.get(contextId);
     if (timer) clearTimeout(timer);
     this.dialTimers.delete(contextId);
-    this.dialPending.delete(contextId);
   }
 
   /**

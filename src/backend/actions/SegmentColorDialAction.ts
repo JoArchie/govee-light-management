@@ -21,13 +21,15 @@ type SegmentColorDialSettings = BaseSettings & {
   saturation?: number;
 };
 
+/** Default bar_fill_c from layouts/segment.json (white indicator on rainbow gbar) */
+const DEFAULT_BAR_FILL = "#FFFFFF";
+
 @action({
   UUID: "com.felixgeelhaar.govee-light-management.segment-color-dial",
 })
 export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSettings> {
   private services = new ActionServices();
   private hueMap = new Map<string, number>();
-  private dialTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   override async onWillAppear(
     ev: WillAppearEvent<SegmentColorDialSettings>,
@@ -42,9 +44,7 @@ export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSett
   ): Promise<void> {
     const ctx = ev.action.id;
     this.hueMap.delete(ctx);
-    const timer = this.dialTimers.get(ctx);
-    if (timer) clearTimeout(timer);
-    this.dialTimers.delete(ctx);
+    this.services.cleanupDialTimers(ctx);
   }
 
   override async onDidReceiveSettings(
@@ -63,17 +63,18 @@ export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSett
     const next = (((current + ev.payload.ticks * step) % 360) + 360) % 360;
     this.hueMap.set(ctx, next);
 
+    // Update display instantly — defer all API work until dial stops
     await this.updateDisplay(ev.action, settings);
 
-    // Throttle API calls during rapid dial rotation
-    const existingTimer = this.dialTimers.get(ctx);
-    if (existingTimer) clearTimeout(existingTimer);
-    this.dialTimers.set(
+    this.services.deferDialAction(
       ctx,
-      setTimeout(() => {
-        this.dialTimers.delete(ctx);
-        this.applyToSegment(ev.action, settings, next);
-      }, 200),
+      async () => {
+        // Read latest accumulated value at execution time
+        const finalHue = this.hueMap.get(ctx) ?? next;
+        await this.applyToSegment(ev.action, settings, finalHue);
+      },
+      undefined,
+      { action: ev.action, restoreColor: DEFAULT_BAR_FILL },
     );
   }
 
@@ -82,7 +83,12 @@ export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSett
   ): Promise<void> {
     const ctx = ev.action.id;
     const hue = this.hueMap.get(ctx) ?? 0;
-    await this.applyToSegment(ev.action, ev.payload.settings, hue);
+    try {
+      await this.applyToSegment(ev.action, ev.payload.settings, hue);
+    } catch (error) {
+      streamDeck.logger.error("Failed to apply segment color:", error);
+      await ev.action.showAlert();
+    }
   }
 
   override async onTouchTap(
@@ -90,7 +96,12 @@ export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSett
   ): Promise<void> {
     const ctx = ev.action.id;
     const hue = this.hueMap.get(ctx) ?? 0;
-    await this.applyToSegment(ev.action, ev.payload.settings, hue);
+    try {
+      await this.applyToSegment(ev.action, ev.payload.settings, hue);
+    } catch (error) {
+      streamDeck.logger.error("Failed to apply segment color:", error);
+      await ev.action.showAlert();
+    }
   }
 
   private async applyToSegment(
@@ -103,8 +114,7 @@ export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSett
       streamDeck.logger.warn(
         `Segment color: missing apiKey=${!!apiKey} deviceId=${settings.selectedDeviceId}`,
       );
-      await action.showAlert();
-      return;
+      throw new Error("Missing API key or device ID");
     }
     await this.services.ensureServices(apiKey);
     const target = await this.services.resolveTarget(settings);
@@ -112,20 +122,14 @@ export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSett
       streamDeck.logger.warn(
         `Segment color: could not resolve target for device ${settings.selectedDeviceId}`,
       );
-      await action.showAlert();
-      return;
+      throw new Error("Could not resolve target device");
     }
 
     const color = hsvToRgb(hue, settings.saturation ?? 100, 100);
     const segmentIndex = settings.segmentIndex ?? 0;
-    try {
-      await this.services.setSegmentColors(target.light, [
-        SegmentColor.create(segmentIndex, color),
-      ]);
-    } catch (error) {
-      streamDeck.logger.error("Failed to set segment colors:", error);
-      await action.showAlert();
-    }
+    await this.services.setSegmentColors(target.light, [
+      SegmentColor.create(segmentIndex, color),
+    ]);
   }
 
   override async onSendToPlugin(

@@ -19,6 +19,9 @@ type ColorHueDialSettings = BaseSettings & {
   saturation?: number;
 };
 
+/** Default bar_fill_c from layouts/color-hue.json (white indicator on rainbow gbar) */
+const DEFAULT_BAR_FILL = "#FFFFFF";
+
 @action({ UUID: "com.felixgeelhaar.govee-light-management.colorhue-dial" })
 export class ColorHueDialAction extends SingletonAction<ColorHueDialSettings> {
   private services = new ActionServices();
@@ -40,7 +43,7 @@ export class ColorHueDialAction extends SingletonAction<ColorHueDialSettings> {
     const ctx = ev.action.id;
     this.hueMap.delete(ctx);
     this.powerMap.delete(ctx);
-    this.services.cleanupThrottleTimers(ctx);
+    this.services.cleanupDialTimers(ctx);
   }
 
   override async onDidReceiveSettings(
@@ -59,26 +62,25 @@ export class ColorHueDialAction extends SingletonAction<ColorHueDialSettings> {
     const next = (((current + ev.payload.ticks * step) % 360) + 360) % 360;
     this.hueMap.set(ctx, next);
 
+    // Update display instantly — defer all API work until dial stops
     await this.updateDisplay(ev.action, settings);
 
-    const apiKey = await this.services.getApiKey(settings);
-    if (!apiKey || !settings.selectedDeviceId) {
-      await ev.action.showAlert();
-      return;
-    }
-    await this.services.ensureServices(apiKey);
-    const target = await this.services.resolveTarget(settings);
-    if (!target) {
-      await ev.action.showAlert();
-      return;
-    }
-
-    try {
-      const color = hsvToRgb(next, settings.saturation ?? 100, 100);
-      await this.services.controlTargetThrottled(ctx, target, "color", color);
-    } catch (error) {
-      streamDeck.logger.error("Failed to set color hue:", error);
-    }
+    this.services.deferDialAction(
+      ctx,
+      async () => {
+        const apiKey = await this.services.getApiKey(settings);
+        if (!apiKey || !settings.selectedDeviceId) return;
+        await this.services.ensureServices(apiKey);
+        const target = await this.services.resolveTarget(settings);
+        if (!target) return;
+        // Read latest accumulated value at execution time
+        const finalHue = this.hueMap.get(ctx) ?? next;
+        const color = hsvToRgb(finalHue, settings.saturation ?? 100, 100);
+        await this.services.controlTarget(target, "color", color);
+      },
+      undefined,
+      { action: ev.action, restoreColor: DEFAULT_BAR_FILL },
+    );
   }
 
   override async onDialDown(
