@@ -7,8 +7,9 @@ import { streamDeck } from "@elgato/streamdeck";
 import type { JsonValue } from "@elgato/utils";
 import { GoveeLightRepository } from "../../infrastructure/repositories/GoveeLightRepository";
 import { LightControlService } from "../../domain/services/LightControlService";
-import { Light } from "../../domain/entities/Light";
+import { Light, LightCapabilities } from "../../domain/entities/Light";
 import { LightGroup } from "../../domain/entities/LightGroup";
+import type { LightState } from "../../domain/value-objects/LightState";
 import {
   Brightness,
   ColorRgb,
@@ -160,9 +161,13 @@ export class ActionServices {
   }
 
   /**
-   * Resolve the target to a Light or LightGroup instance
+   * Resolve the target to a Light or LightGroup instance.
+   * Uses DeviceService cache for lights to avoid repeated API calls.
    */
-  async resolveTarget(settings: BaseSettings): Promise<DeviceTarget | null> {
+  async resolveTarget(
+    settings: BaseSettings,
+    forceRefresh = false,
+  ): Promise<DeviceTarget | null> {
     const target = this.parseTarget(settings);
     if (!target) return null;
 
@@ -176,13 +181,47 @@ export class ActionServices {
       target.type === "light" &&
       target.deviceId &&
       target.model &&
-      this.lightRepository
+      this.deviceService
     ) {
-      const light = await this.lightRepository.findLight(
-        target.deviceId,
-        target.model,
+      // Use DeviceService with its built-in caching (15s TTL)
+      const lights = await this.deviceService.discover(forceRefresh);
+      const lightItem = lights.find(
+        (l) => l.deviceId === target.deviceId && l.model === target.model,
       );
-      if (light) return { type: "light", light };
+
+      if (lightItem) {
+        // Convert LightItem to domain Light entity using Light.create()
+        // LightItem doesn't carry live state, so we use sensible defaults.
+        // Actual state is fetched via getLightState() when needed by actions.
+        const initialState: LightState = {
+          isOn: false,
+          isOnline: lightItem.controllable,
+          brightness: undefined,
+          color: undefined,
+          colorTemperature: undefined,
+        };
+
+        // Map shared LightCapabilities to domain LightCapabilities
+        const capabilities: LightCapabilities = {
+          brightness: lightItem.capabilities?.brightness ?? true,
+          color: lightItem.capabilities?.color ?? true,
+          colorTemperature: lightItem.capabilities?.colorTemperature ?? true,
+          scenes: lightItem.capabilities?.scenes ?? false,
+          segmentedColor: false,
+          musicMode: false,
+          nightlight: false,
+          gradient: false,
+        };
+
+        const light = Light.create(
+          lightItem.deviceId,
+          lightItem.model,
+          lightItem.name,
+          initialState,
+          capabilities,
+        );
+        return { type: "light", light };
+      }
     }
 
     return null;
@@ -345,6 +384,20 @@ export class ActionServices {
   }
 
   /**
+   * Force refresh the device cache
+   */
+  async handleRefreshState(): Promise<void> {
+    try {
+      if (this.deviceService) {
+        await this.deviceService.discover(true); // force refresh
+        streamDeck.logger.info("Device cache refreshed");
+      }
+    } catch (error) {
+      streamDeck.logger.error("Failed to refresh device cache:", error);
+    }
+  }
+
+  /**
    * Handle deleteGroup from PI
    */
   async handleDeleteGroup(payload: JsonValue): Promise<void> {
@@ -450,21 +503,60 @@ export class ActionServices {
 
   /**
    * Execute a control command on either a light or group
+   * Includes retry logic with exponential backoff for resilience
    */
   async controlTarget(
     target: DeviceTarget,
     command: "on" | "off" | "brightness" | "color" | "colorTemperature",
     value?: Brightness | ColorRgb | ColorTemperature,
+    maxRetries = 3,
   ): Promise<void> {
     if (!this.lightControlService) {
       throw new Error("Light control service not initialized");
     }
 
-    if (target.type === "light" && target.light) {
-      await this.lightControlService.controlLight(target.light, command, value);
-    } else if (target.type === "group" && target.group) {
-      await this.lightControlService.controlGroup(target.group, command, value);
-    }
+    const execute = async (attempt: number): Promise<void> => {
+      try {
+        if (target.type === "light" && target.light) {
+          await this.lightControlService!.controlLight(
+            target.light,
+            command,
+            value,
+          );
+        } else if (target.type === "group" && target.group) {
+          await this.lightControlService!.controlGroup(
+            target.group,
+            command,
+            value,
+          );
+        }
+      } catch (error) {
+        // Don't retry on validation errors - these are likely API issues
+        if (this.isValidationError(error)) {
+          throw error;
+        }
+        if (attempt < maxRetries) {
+          const delay = Math.min(100 * Math.pow(2, attempt), 1000);
+          streamDeck.logger?.warn(
+            `Command failed (attempt ${attempt + 1}/${maxRetries}), retrying in ${delay}ms:`,
+            error,
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          return execute(attempt + 1);
+        }
+        throw error;
+      }
+    };
+
+    await execute(0);
+  }
+
+  private isValidationError(error: unknown): boolean {
+    return (
+      error instanceof Error &&
+      (error.constructor.name === "ValidationError" ||
+        error.message.includes("API response validation failed"))
+    );
   }
 
   /**

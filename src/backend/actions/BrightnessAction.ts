@@ -93,6 +93,9 @@ export class BrightnessAction extends SingletonAction<BrightnessSettings> {
       case "deleteGroup":
         await this.services.handleDeleteGroup(ev.payload);
         break;
+      case "refreshState":
+        await this.services.handleRefreshState();
+        break;
     }
   }
 

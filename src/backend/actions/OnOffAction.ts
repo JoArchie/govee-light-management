@@ -136,6 +136,9 @@ export class OnOffAction extends SingletonAction<OnOffSettings> {
       case "deleteGroup":
         await this.services.handleDeleteGroup(ev.payload);
         break;
+      case "refreshState":
+        await this.services.handleRefreshState();
+        break;
     }
   }
 

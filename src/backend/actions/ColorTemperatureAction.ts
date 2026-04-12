@@ -100,6 +100,9 @@ export class ColorTemperatureAction extends SingletonAction<ColorTemperatureSett
       case "deleteGroup":
         await this.services.handleDeleteGroup(ev.payload);
         break;
+      case "refreshState":
+        await this.services.handleRefreshState();
+        break;
     }
   }
 

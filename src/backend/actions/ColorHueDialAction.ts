@@ -140,6 +140,9 @@ export class ColorHueDialAction extends SingletonAction<ColorHueDialSettings> {
       case "deleteGroup":
         await this.services.handleDeleteGroup(ev.payload);
         break;
+      case "refreshState":
+        await this.services.handleRefreshState();
+        break;
     }
   }
 

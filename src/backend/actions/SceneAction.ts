@@ -90,6 +90,18 @@ export class SceneAction extends SingletonAction<SceneSettings> {
       case "getDevices":
         await this.services.handleGetDevices();
         break;
+      case "getGroups":
+        await this.services.handleGetGroups();
+        break;
+      case "saveGroup":
+        await this.services.handleSaveGroup(ev.payload);
+        break;
+      case "deleteGroup":
+        await this.services.handleDeleteGroup(ev.payload);
+        break;
+      case "refreshState":
+        await this.services.handleRefreshState();
+        break;
       case "getScenes": {
         const settings = await ev.action.getSettings();
         await this.handleGetScenes(settings);
