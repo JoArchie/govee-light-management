@@ -33,7 +33,6 @@ import { SegmentColor } from "../../domain/value-objects/SegmentColor";
 const PI_HANDLER_TIMEOUT_MS = 10_000;
 
 /** Flash colors for dial bar feedback */
-const FLASH_SENDING = "#3366FF"; // blue – command in flight
 const FLASH_SUCCESS = "#22CC66"; // green – command succeeded
 const FLASH_ERROR = "#FF3333"; // red – command failed
 const FLASH_RESULT_MS = 400; // how long success/error flash stays visible
@@ -519,8 +518,7 @@ export class ActionServices {
    * The callback should contain ALL API work (ensureServices, resolveTarget,
    * controlTarget) so that no API calls happen during active dial rotation.
    *
-   * When `flash` is provided the bar briefly flashes:
-   *   blue  → while the API call is in-flight
+   * When `flash` is provided the bar briefly flashes the result:
    *   green → on success (auto-restores after 400 ms)
    *   red   → on error   (auto-restores after 400 ms)
    *
@@ -552,11 +550,6 @@ export class ActionServices {
       contextId,
       setTimeout(async () => {
         this.dialTimers.delete(contextId);
-
-        if (flash) {
-          // Show blue "sending" flash on entire bar
-          await this.flashDialBar(flash.action, FLASH_SENDING);
-        }
 
         try {
           await callback();
