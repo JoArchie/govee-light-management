@@ -14,6 +14,7 @@ import {
   sendToPI,
   type BaseSettings,
 } from "./shared/ActionServices";
+import { parseFeatureSetting } from "./shared/validation";
 
 type ToggleSettings = BaseSettings & {
   selectedFeature?: string; // JSON: { name, instance }
@@ -32,16 +33,17 @@ export class ToggleAction extends SingletonAction<ToggleSettings> {
     if (!this.featureState.has(ctx)) this.featureState.set(ctx, false);
 
     const { settings } = ev.payload;
-    if (settings.selectedFeature) {
+    const parsed = settings.selectedFeature
+      ? parseFeatureSetting(settings.selectedFeature)
+      : null;
+
+    if (parsed) {
       const apiKey = await this.services.getApiKey(settings);
       if (apiKey && settings.selectedDeviceId) {
         try {
           await this.services.ensureServices(apiKey);
           const target = await this.services.resolveTarget(settings);
           if (target?.type === "light" && target.light) {
-            const parsed = JSON.parse(settings.selectedFeature) as {
-              instance: string;
-            };
             const enabled = await this.services.getToggleFeatureState(
               target.light,
               parsed.instance,
@@ -86,17 +88,19 @@ export class ToggleAction extends SingletonAction<ToggleSettings> {
       return;
     }
 
-    if (!settings.selectedFeature) {
-      streamDeck.logger.warn("Toggle action: no feature selected");
+    const parsed = settings.selectedFeature
+      ? parseFeatureSetting(settings.selectedFeature)
+      : null;
+
+    if (!parsed) {
+      streamDeck.logger.warn("Toggle action: no valid feature selected");
       await ev.action.showAlert();
       return;
     }
 
+    const originalState = this.featureState.get(ctx) ?? false;
+
     try {
-      const parsed = JSON.parse(settings.selectedFeature) as {
-        name: string;
-        instance: string;
-      };
       const operation = settings.operation ?? "toggle";
 
       let enabled: boolean;
@@ -113,12 +117,14 @@ export class ToggleAction extends SingletonAction<ToggleSettings> {
             error,
           );
         }
-        const currentState = liveState ?? this.featureState.get(ctx) ?? false;
-        this.featureState.set(ctx, currentState);
+        const currentState = liveState ?? originalState;
         enabled = !currentState;
       } else {
         enabled = operation === "on";
       }
+
+      // Optimistic update
+      this.featureState.set(ctx, enabled);
 
       const stopSpinner = this.services.showSpinner(ev.action);
       try {
@@ -130,11 +136,13 @@ export class ToggleAction extends SingletonAction<ToggleSettings> {
       } finally {
         stopSpinner();
       }
-      this.featureState.set(ctx, enabled);
       await ev.action.setTitle(this.getTitle(settings, ctx));
       await ev.action.showOk();
     } catch (error) {
       streamDeck.logger.error("Failed to toggle feature:", error);
+      // Revert to original state
+      this.featureState.set(ctx, originalState);
+      await ev.action.setTitle(this.getTitle(settings, ctx));
       await ev.action.showAlert();
     }
   }
@@ -142,7 +150,12 @@ export class ToggleAction extends SingletonAction<ToggleSettings> {
   override async onSendToPlugin(
     ev: SendToPluginEvent<JsonValue, ToggleSettings>,
   ): Promise<void> {
-    if (!(ev.payload instanceof Object) || !("event" in ev.payload)) return;
+    if (
+      typeof ev.payload !== "object" ||
+      ev.payload === null ||
+      !("event" in ev.payload)
+    )
+      return;
 
     switch (ev.payload.event) {
       case "getDevices":
@@ -201,15 +214,10 @@ export class ToggleAction extends SingletonAction<ToggleSettings> {
   }
 
   private getTitle(settings: ToggleSettings, contextId: string): string {
-    let label = "Toggle";
-    if (settings.selectedFeature) {
-      try {
-        const parsed = JSON.parse(settings.selectedFeature);
-        label = parsed.name || "Toggle";
-      } catch {
-        /* ignore */
-      }
-    }
+    const parsed = settings.selectedFeature
+      ? parseFeatureSetting(settings.selectedFeature)
+      : null;
+    const label = parsed?.name || "Toggle";
 
     const operation = settings.operation ?? "toggle";
     if (operation === "toggle") {

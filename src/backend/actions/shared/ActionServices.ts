@@ -28,6 +28,7 @@ import { globalSettingsService } from "../../services/GlobalSettingsService";
 import { StreamDeckLightGroupRepository } from "../../infrastructure/repositories/StreamDeckLightGroupRepository";
 import { LightGroupService } from "../../domain/services/LightGroupService";
 import { SegmentColor } from "../../domain/value-objects/SegmentColor";
+import { isValidationError } from "./validation";
 
 /** Default timeout for API calls in PI handlers (10 seconds) */
 const PI_HANDLER_TIMEOUT_MS = 10_000;
@@ -113,6 +114,8 @@ export class ActionServices {
     transportOrchestrator?: TransportOrchestrator;
     deviceService?: DeviceService;
     currentApiKey?: string;
+    /** Guards concurrent ensureServices calls to prevent interleaving. */
+    initPromise?: Promise<void>;
   } = {};
 
   get lightRepository() {
@@ -128,51 +131,70 @@ export class ActionServices {
     return ActionServices._shared.deviceService;
   }
 
+  /**
+   * Initialize all shared services. Serializes concurrent calls so that
+   * interleaving cannot produce partially-initialized state.
+   */
   async ensureServices(apiKey?: string): Promise<void> {
     const s = ActionServices._shared;
-
-    if (!s.groupRepository) {
-      s.groupRepository = new StreamDeckLightGroupRepository();
+    if (s.initPromise) {
+      await s.initPromise;
+      // If the key hasn't changed, we're done
+      if (!apiKey || apiKey === s.currentApiKey) return;
     }
 
-    if (apiKey && apiKey !== s.currentApiKey) {
-      s.lightRepository = new GoveeLightRepository(apiKey, true);
-      s.lightControlService = new LightControlService(s.lightRepository);
-      s.groupService = new LightGroupService(
-        s.groupRepository,
-        s.lightRepository,
-      );
-      s.currentApiKey = apiKey;
-
-      try {
-        await globalSettingsService.setApiKey(apiKey);
-      } catch (error) {
-        streamDeck.logger?.warn("Failed to persist API key globally", error);
+    const doInit = async () => {
+      if (!s.groupRepository) {
+        s.groupRepository = new StreamDeckLightGroupRepository();
       }
-    }
 
-    if (s.lightRepository && !s.lightControlService) {
-      s.lightControlService = new LightControlService(s.lightRepository);
-    }
+      if (apiKey && apiKey !== s.currentApiKey) {
+        // Persist first, then update in-memory state
+        try {
+          await globalSettingsService.setApiKey(apiKey);
+        } catch (error) {
+          streamDeck.logger?.warn("Failed to persist API key globally", error);
+        }
 
-    if (s.groupRepository && s.lightRepository && !s.groupService) {
-      s.groupService = new LightGroupService(
-        s.groupRepository,
-        s.lightRepository,
-      );
-    }
+        s.lightRepository = new GoveeLightRepository(apiKey, true);
+        s.lightControlService = new LightControlService(s.lightRepository);
+        s.groupService = new LightGroupService(
+          s.groupRepository,
+          s.lightRepository,
+        );
+        s.currentApiKey = apiKey;
+      }
 
-    if (!s.transportOrchestrator) {
-      const cloudTransport = new CloudTransport();
-      s.transportOrchestrator = new TransportOrchestrator({
-        [TransportKind.Cloud]: cloudTransport,
-      });
-    }
+      if (s.lightRepository && !s.lightControlService) {
+        s.lightControlService = new LightControlService(s.lightRepository);
+      }
 
-    if (s.transportOrchestrator && !s.deviceService) {
-      s.deviceService = new DeviceService(s.transportOrchestrator, {
-        logger: streamDeck.logger,
-      });
+      if (s.groupRepository && s.lightRepository && !s.groupService) {
+        s.groupService = new LightGroupService(
+          s.groupRepository,
+          s.lightRepository,
+        );
+      }
+
+      if (!s.transportOrchestrator) {
+        const cloudTransport = new CloudTransport();
+        s.transportOrchestrator = new TransportOrchestrator({
+          [TransportKind.Cloud]: cloudTransport,
+        });
+      }
+
+      if (s.transportOrchestrator && !s.deviceService) {
+        s.deviceService = new DeviceService(s.transportOrchestrator, {
+          logger: streamDeck.logger,
+        });
+      }
+    };
+
+    s.initPromise = doInit();
+    try {
+      await s.initPromise;
+    } finally {
+      s.initPromise = undefined;
     }
   }
 
@@ -263,10 +285,10 @@ export class ActionServices {
           color: lightItem.capabilities?.color ?? true,
           colorTemperature: lightItem.capabilities?.colorTemperature ?? true,
           scenes: lightItem.capabilities?.scenes ?? false,
-          segmentedColor: false,
-          musicMode: false,
-          nightlight: false,
-          gradient: false,
+          segmentedColor: lightItem.capabilities?.segmentedColor ?? false,
+          musicMode: lightItem.capabilities?.musicMode ?? false,
+          nightlight: lightItem.capabilities?.nightlight ?? false,
+          gradient: lightItem.capabilities?.gradient ?? false,
         };
 
         const light = Light.create(
@@ -527,6 +549,8 @@ export class ActionServices {
    * Key = action context ID to support multiple dials independently.
    */
   private dialTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  /** Tracks flash-restore timeouts so they can be cancelled on disappear. */
+  private restoreTimers = new Map<string, ReturnType<typeof setTimeout>>();
   deferDialAction(
     contextId: string,
     callback: () => Promise<void>,
@@ -579,14 +603,7 @@ export class ActionServices {
           if (flash) {
             // Show green "success" flash, then restore layout defaults
             await this.flashDialBar(flash.action, FLASH_SUCCESS);
-            setTimeout(() => {
-              this.restoreDialBar(
-                flash.action,
-                flash.getRestoreValue(),
-                flash.restoreFillColor,
-                flash.restoreBgColor,
-              ).catch(() => {});
-            }, FLASH_RESULT_MS);
+            this.scheduleRestore(contextId, flash);
           }
         } catch (e) {
           streamDeck.logger.error("Deferred dial action failed:", e);
@@ -596,14 +613,7 @@ export class ActionServices {
           if (flash) {
             // Show red "error" flash, then restore layout defaults
             await this.flashDialBar(flash.action, FLASH_ERROR);
-            setTimeout(() => {
-              this.restoreDialBar(
-                flash.action,
-                flash.getRestoreValue(),
-                flash.restoreFillColor,
-                flash.restoreBgColor,
-              ).catch(() => {});
-            }, FLASH_RESULT_MS);
+            this.scheduleRestore(contextId, flash);
           }
         }
       }, delay),
@@ -669,12 +679,47 @@ export class ActionServices {
   }
 
   /**
-   * Clean up deferred dial timers for a specific context (call from onWillDisappear).
+   * Schedule a flash-restore timeout and track it for cleanup.
+   */
+
+  private scheduleRestore(
+    contextId: string,
+    flash: {
+      action: any;
+      getRestoreValue: () => number;
+      restoreFillColor: string;
+      restoreBgColor: string;
+    },
+  ): void {
+    const existing = this.restoreTimers.get(contextId);
+    if (existing) clearTimeout(existing);
+
+    this.restoreTimers.set(
+      contextId,
+      setTimeout(() => {
+        this.restoreTimers.delete(contextId);
+        this.restoreDialBar(
+          flash.action,
+          flash.getRestoreValue(),
+          flash.restoreFillColor,
+          flash.restoreBgColor,
+        ).catch(() => {});
+      }, FLASH_RESULT_MS),
+    );
+  }
+
+  /**
+   * Clean up deferred dial timers and restore timers for a specific context
+   * (call from onWillDisappear).
    */
   cleanupDialTimers(contextId: string): void {
     const timer = this.dialTimers.get(contextId);
     if (timer) clearTimeout(timer);
     this.dialTimers.delete(contextId);
+
+    const restoreTimer = this.restoreTimers.get(contextId);
+    if (restoreTimer) clearTimeout(restoreTimer);
+    this.restoreTimers.delete(contextId);
   }
 
   /**
@@ -730,7 +775,7 @@ export class ActionServices {
         }
       } catch (error) {
         // Don't retry on validation errors - these are likely API issues
-        if (this.isValidationError(error)) {
+        if (isValidationError(error)) {
           throw error;
         }
         if (attempt < maxRetries) {
@@ -747,14 +792,6 @@ export class ActionServices {
     };
 
     await execute(0);
-  }
-
-  private isValidationError(error: unknown): boolean {
-    return (
-      error instanceof Error &&
-      (error.constructor.name === "ValidationError" ||
-        error.message.includes("API response validation failed"))
-    );
   }
 
   /**

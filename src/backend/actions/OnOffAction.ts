@@ -19,8 +19,9 @@ type OnOffSettings = BaseSettings & {
 @action({ UUID: "com.felixgeelhaar.govee-light-management.lights" })
 export class OnOffAction extends SingletonAction<OnOffSettings> {
   private services = new ActionServices();
-  // Track power state per button context for toggle
   private powerState = new Map<string, boolean>();
+  /** Track last synced device to avoid redundant API calls on settings changes. */
+  private lastSyncedDevice = new Map<string, string>();
 
   override async onWillAppear(
     ev: WillAppearEvent<OnOffSettings>,
@@ -35,12 +36,21 @@ export class OnOffAction extends SingletonAction<OnOffSettings> {
 
   override onWillDisappear(ev: WillDisappearEvent<OnOffSettings>): void {
     this.powerState.delete(ev.action.id);
+    this.lastSyncedDevice.delete(ev.action.id);
   }
 
   override async onDidReceiveSettings(
     ev: DidReceiveSettingsEvent<OnOffSettings>,
   ): Promise<void> {
-    await this.syncDisplayedPowerState(ev.action, ev.payload.settings);
+    const contextId = ev.action.id;
+    const newDevice = ev.payload.settings.selectedDeviceId ?? "";
+
+    // Only re-sync from API if the selected device actually changed
+    if (this.lastSyncedDevice.get(contextId) !== newDevice) {
+      await this.syncDisplayedPowerState(ev.action, ev.payload.settings);
+    } else {
+      await ev.action.setTitle(this.getTitle(ev.payload.settings, contextId));
+    }
   }
 
   override async onKeyDown(ev: KeyDownEvent<OnOffSettings>): Promise<void> {
@@ -63,24 +73,26 @@ export class OnOffAction extends SingletonAction<OnOffSettings> {
 
     const operation = settings.operation || "toggle";
     const started = Date.now();
+    let originalState = this.powerState.get(contextId) ?? false;
 
     try {
       let command: "on" | "off";
-      let currentlyOn = this.powerState.get(contextId) ?? false;
 
       if (operation === "toggle") {
         if (target.type === "light" && target.light) {
           const liveState = await this.services.getLivePowerState(target.light);
           if (liveState !== undefined) {
-            currentlyOn = liveState;
+            originalState = liveState;
           }
         }
-        command = currentlyOn ? "off" : "on";
-        this.powerState.set(contextId, !currentlyOn);
+        command = originalState ? "off" : "on";
       } else {
         command = operation as "on" | "off";
-        this.powerState.set(contextId, command === "on");
+        originalState = this.powerState.get(contextId) ?? false;
       }
+
+      // Optimistic update
+      this.powerState.set(contextId, command === "on");
 
       if (target.type === "light" && target.light) {
         streamDeck.logger.info("onoff.toggle.request", {
@@ -88,7 +100,7 @@ export class OnOffAction extends SingletonAction<OnOffSettings> {
           model: target.light.model,
           name: target.light.name,
           operation,
-          currentlyOn,
+          originalState,
           command,
         });
       }
@@ -97,14 +109,6 @@ export class OnOffAction extends SingletonAction<OnOffSettings> {
 
       try {
         await this.services.controlTarget(target, command);
-        if (target.type === "light" && target.light) {
-          streamDeck.logger.info("onoff.toggle.command-sent", {
-            deviceId: target.light.deviceId,
-            model: target.light.model,
-            name: target.light.name,
-            command,
-          });
-        }
         if (target.type === "light" && target.light) {
           await this.services.verifyLivePowerState(
             target.light,
@@ -115,7 +119,6 @@ export class OnOffAction extends SingletonAction<OnOffSettings> {
         stopSpinner();
       }
 
-      // Update title to reflect new state
       await ev.action.setTitle(this.getTitle(settings, contextId));
       await ev.action.showOk();
 
@@ -126,9 +129,8 @@ export class OnOffAction extends SingletonAction<OnOffSettings> {
       });
     } catch (error) {
       streamDeck.logger.error("Failed to toggle power:", error);
-      // Revert power state on failure
-      const currentlyOn = this.powerState.get(contextId) ?? false;
-      this.powerState.set(contextId, !currentlyOn);
+      // Revert to original state, not a double-flip
+      this.powerState.set(contextId, originalState);
       await ev.action.setTitle(this.getTitle(settings, contextId));
       await ev.action.showAlert();
     }
@@ -137,7 +139,12 @@ export class OnOffAction extends SingletonAction<OnOffSettings> {
   override async onSendToPlugin(
     ev: SendToPluginEvent<JsonValue, OnOffSettings>,
   ): Promise<void> {
-    if (!(ev.payload instanceof Object) || !("event" in ev.payload)) return;
+    if (
+      typeof ev.payload !== "object" ||
+      ev.payload === null ||
+      !("event" in ev.payload)
+    )
+      return;
 
     switch (ev.payload.event) {
       case "getDevices":
@@ -187,6 +194,7 @@ export class OnOffAction extends SingletonAction<OnOffSettings> {
       } catch {
         // Best effort - keep cached state
       }
+      this.lastSyncedDevice.set(contextId, settings.selectedDeviceId ?? "");
     }
 
     await action.setTitle(this.getTitle(settings, contextId));

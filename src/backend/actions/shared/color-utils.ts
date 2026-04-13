@@ -16,7 +16,7 @@ export function rgbToHue(color: ColorRgb): number {
 
   let h: number;
   if (max === r) {
-    h = ((g - b) / delta) % 6;
+    h = ((g - b) / delta + 6) % 6;
   } else if (max === g) {
     h = (b - r) / delta + 2;
   } else {
