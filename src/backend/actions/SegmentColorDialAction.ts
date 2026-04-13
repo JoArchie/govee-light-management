@@ -90,7 +90,8 @@ export class SegmentColorDialAction extends BaseDialAction<SegmentColorDialSetti
 
     const saturation = clamp(settings.saturation ?? 100, 0, 100);
     const color = hsvToRgb(hue, saturation, 100);
-    const segmentIndex = clamp(settings.segmentIndex ?? 0, 0, 14);
+    // UI stores 1-based index (1–15), translate to 0-based (0–14) for the API
+    const segmentIndex = clamp((settings.segmentIndex ?? 1) - 1, 0, 14);
     await this.services.setSegmentColors(target.light, [
       SegmentColor.create(segmentIndex, color),
     ]);
@@ -128,10 +129,11 @@ export class SegmentColorDialAction extends BaseDialAction<SegmentColorDialSetti
     const ctx = action.id || "default";
     const hue = this.hueMap.get(ctx) ?? 0;
     const isOn = this.powerMap.get(ctx) ?? true;
-    const segmentIndex = settings.segmentIndex ?? 0;
+    // Display 1-based segment number to match the UI
+    const segmentDisplay = settings.segmentIndex ?? 1;
 
     await action.setFeedback({
-      label: `Segment ${segmentIndex}`,
+      label: `Segment ${segmentDisplay}`,
       value: isOn ? `${hue}°` : "Off",
       bar: { value: isOn ? Math.round((hue / 360) * 100) : 0 },
     });

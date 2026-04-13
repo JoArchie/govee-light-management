@@ -89,8 +89,9 @@ export class SegmentColorAction extends SingletonAction<SegmentColorSettings> {
   }
 
   private buildSegments(settings: SegmentColorSettings): SegmentColor[] {
-    const start = Math.max(0, Math.min(14, settings.segmentStart ?? 0));
-    const end = Math.max(start, Math.min(14, settings.segmentEnd ?? 14));
+    // UI stores 1-based indices (1–15), translate to 0-based (0–14) for the API
+    const start = Math.max(0, Math.min(14, (settings.segmentStart ?? 1) - 1));
+    const end = Math.max(start, Math.min(14, (settings.segmentEnd ?? 15) - 1));
     const count = end - start + 1;
     const preset = settings.preset ?? "rainbow";
     const segments: SegmentColor[] = [];
@@ -123,8 +124,9 @@ export class SegmentColorAction extends SingletonAction<SegmentColorSettings> {
 
   private getTitle(settings: SegmentColorSettings): string {
     const preset = settings.preset ?? "rainbow";
-    const start = settings.segmentStart ?? 0;
-    const end = settings.segmentEnd ?? 14;
+    // Display 1-based segment numbers to match the UI
+    const start = settings.segmentStart ?? 1;
+    const end = settings.segmentEnd ?? 15;
     const label = preset.charAt(0).toUpperCase() + preset.slice(1);
     return `${label}\n${start}-${end}`;
   }

@@ -23,6 +23,8 @@ interface LightGroupStorage {
 export class StreamDeckLightGroupRepository implements ILightGroupRepository {
   private static readonly STORAGE_KEY = "govee_v1_lightGroups";
   private static readonly STORAGE_VERSION = "1.1";
+  /** Previous versions to migrate from (oldest first). */
+  private static readonly LEGACY_VERSIONS = ["1.0"];
 
   /**
    * Get all saved light groups from Stream Deck settings
@@ -170,11 +172,27 @@ export class StreamDeckLightGroupRepository implements ILightGroupRepository {
       const storageData = settings[StreamDeckLightGroupRepository.STORAGE_KEY];
       const storage = storageData as unknown as LightGroupStorage;
 
+      if (!storage) {
+        return {
+          groups: [],
+          version: StreamDeckLightGroupRepository.STORAGE_VERSION,
+        };
+      }
+
+      // Migrate from a previous version: keep existing groups, bump version
       if (
-        !storage ||
-        storage.version !== StreamDeckLightGroupRepository.STORAGE_VERSION
+        storage.version !== StreamDeckLightGroupRepository.STORAGE_VERSION &&
+        StreamDeckLightGroupRepository.LEGACY_VERSIONS.includes(storage.version)
       ) {
-        // Return default storage if not found or version mismatch
+        streamDeck.logger.info(
+          `Migrating light group storage from v${storage.version} to v${StreamDeckLightGroupRepository.STORAGE_VERSION}`,
+        );
+        storage.version = StreamDeckLightGroupRepository.STORAGE_VERSION;
+        await this.saveStorage(storage);
+      }
+
+      if (storage.version !== StreamDeckLightGroupRepository.STORAGE_VERSION) {
+        // Unknown version — start fresh rather than corrupt data
         return {
           groups: [],
           version: StreamDeckLightGroupRepository.STORAGE_VERSION,
