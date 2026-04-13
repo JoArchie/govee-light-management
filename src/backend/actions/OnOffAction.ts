@@ -26,26 +26,11 @@ export class OnOffAction extends SingletonAction<OnOffSettings> {
     ev: WillAppearEvent<OnOffSettings>,
   ): Promise<void> {
     const contextId = ev.action.id;
-    const settings = ev.payload.settings;
-
-    // Try to sync power state from device
     if (!this.powerState.has(contextId)) {
       this.powerState.set(contextId, false);
-      const apiKey = await this.services.getApiKey(settings);
-      if (apiKey && settings.selectedDeviceId) {
-        try {
-          await this.services.ensureServices(apiKey);
-          const target = await this.services.resolveTarget(settings);
-          if (target?.type === "light" && target.light) {
-            this.powerState.set(contextId, target.light.state.isOn);
-          }
-        } catch {
-          // Best effort - keep default
-        }
-      }
     }
 
-    await ev.action.setTitle(this.getTitle(settings, contextId));
+    await this.syncDisplayedPowerState(ev.action, ev.payload.settings);
   }
 
   override onWillDisappear(ev: WillDisappearEvent<OnOffSettings>): void {
@@ -55,7 +40,7 @@ export class OnOffAction extends SingletonAction<OnOffSettings> {
   override async onDidReceiveSettings(
     ev: DidReceiveSettingsEvent<OnOffSettings>,
   ): Promise<void> {
-    await ev.action.setTitle(this.getTitle(ev.payload.settings, ev.action.id));
+    await this.syncDisplayedPowerState(ev.action, ev.payload.settings);
   }
 
   override async onKeyDown(ev: KeyDownEvent<OnOffSettings>): Promise<void> {
@@ -81,9 +66,15 @@ export class OnOffAction extends SingletonAction<OnOffSettings> {
 
     try {
       let command: "on" | "off";
+      let currentlyOn = this.powerState.get(contextId) ?? false;
 
       if (operation === "toggle") {
-        const currentlyOn = this.powerState.get(contextId) ?? false;
+        if (target.type === "light" && target.light) {
+          const liveState = await this.services.getLivePowerState(target.light);
+          if (liveState !== undefined) {
+            currentlyOn = liveState;
+          }
+        }
         command = currentlyOn ? "off" : "on";
         this.powerState.set(contextId, !currentlyOn);
       } else {
@@ -91,10 +82,35 @@ export class OnOffAction extends SingletonAction<OnOffSettings> {
         this.powerState.set(contextId, command === "on");
       }
 
+      if (target.type === "light" && target.light) {
+        streamDeck.logger.info("onoff.toggle.request", {
+          deviceId: target.light.deviceId,
+          model: target.light.model,
+          name: target.light.name,
+          operation,
+          currentlyOn,
+          command,
+        });
+      }
+
       const stopSpinner = this.services.showSpinner(ev.action);
 
       try {
         await this.services.controlTarget(target, command);
+        if (target.type === "light" && target.light) {
+          streamDeck.logger.info("onoff.toggle.command-sent", {
+            deviceId: target.light.deviceId,
+            model: target.light.model,
+            name: target.light.name,
+            command,
+          });
+        }
+        if (target.type === "light" && target.light) {
+          await this.services.verifyLivePowerState(
+            target.light,
+            command === "on",
+          );
+        }
       } finally {
         stopSpinner();
       }
@@ -149,5 +165,30 @@ export class OnOffAction extends SingletonAction<OnOffSettings> {
       return isOn ? "●" : "○";
     }
     return "";
+  }
+
+  private async syncDisplayedPowerState(
+    action: any,
+    settings: OnOffSettings,
+  ): Promise<void> {
+    const contextId = action.id;
+    const apiKey = await this.services.getApiKey(settings);
+
+    if (apiKey && settings.selectedDeviceId) {
+      try {
+        await this.services.ensureServices(apiKey);
+        const target = await this.services.resolveTarget(settings);
+        if (target?.type === "light" && target.light) {
+          const isOn = await this.services.getLivePowerState(target.light);
+          if (isOn !== undefined) {
+            this.powerState.set(contextId, isOn);
+          }
+        }
+      } catch {
+        // Best effort - keep cached state
+      }
+    }
+
+    await action.setTitle(this.getTitle(settings, contextId));
   }
 }

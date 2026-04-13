@@ -617,6 +617,46 @@ export class GoveeLightRepository implements ILightRepository {
     }
   }
 
+  async getToggleState(
+    light: Light,
+    instance: string,
+  ): Promise<boolean | undefined> {
+    try {
+      const deviceState = await this.client.getDeviceState(
+        light.deviceId,
+        light.model,
+      );
+
+      switch (instance) {
+        case "nightlightToggle":
+          return deviceState.getNightlightToggle() ?? false;
+        case "gradientToggle":
+          return deviceState.getGradientToggle() ?? false;
+        case "sceneStageToggle":
+          return deviceState.getSceneStageToggle() ?? false;
+        default:
+          streamDeck.logger.warn(
+            `No live toggle-state reader for ${instance} on ${light.name}`,
+          );
+          return undefined;
+      }
+    } catch (error) {
+      if (this.isValidationError(error)) {
+        streamDeck.logger.warn(
+          `Toggle state query response validation failed for ${light.name} (${instance})`,
+        );
+        return undefined;
+      }
+      streamDeck.logger.error(
+        `Failed to get toggle state ${instance} for ${light.name}:`,
+        error,
+      );
+      throw new Error(
+        `Failed to get toggle state ${instance}: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
   async getToggleFeatures(
     selectedDeviceId: string,
   ): Promise<Array<{ name: string; instance: string }>> {

@@ -35,6 +35,7 @@ const PI_HANDLER_TIMEOUT_MS = 10_000;
 /** Flash colors for dial bar feedback */
 const FLASH_SUCCESS = "#22CC66"; // green – command succeeded
 const FLASH_ERROR = "#FF3333"; // red – command failed
+const FLASH_LOADING_DELAY_MS = 250; // only show loading if request is noticeably slow
 const FLASH_RESULT_MS = 400; // how long success/error flash stays visible
 
 /**
@@ -518,14 +519,14 @@ export class ActionServices {
    * The callback should contain ALL API work (ensureServices, resolveTarget,
    * controlTarget) so that no API calls happen during active dial rotation.
    *
-   * When `flash` is provided the bar briefly flashes the result:
+   * When `flash` is provided the bar shows loading and result feedback:
+   *   white → while the deferred command is being sent, but only for slower calls
    *   green → on success (auto-restores after 400 ms)
    *   red   → on error   (auto-restores after 400 ms)
    *
    * Key = action context ID to support multiple dials independently.
    */
   private dialTimers = new Map<string, ReturnType<typeof setTimeout>>();
-
   deferDialAction(
     contextId: string,
     callback: () => Promise<void>,
@@ -534,6 +535,12 @@ export class ActionServices {
       /** The Stream Deck action object (has setFeedback) */
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       action: any;
+      /** Returns the dial's current logical bar value (0-100) for restore */
+      getRestoreValue: () => number;
+      /** Loading-state bar_fill_c override */
+      loadingFillColor: string;
+      /** Loading-state bar_bg_c override */
+      loadingBgColor: string;
       /** Layout default for bar_fill_c (e.g. gradient string or "#FFFFFF") */
       restoreFillColor: string;
       /** Layout default for bar_bg_c (e.g. "#1F2937" or gradient string) */
@@ -551,8 +558,23 @@ export class ActionServices {
       setTimeout(async () => {
         this.dialTimers.delete(contextId);
 
+        let loadingTimer: ReturnType<typeof setTimeout> | undefined;
+
         try {
+          if (flash) {
+            loadingTimer = setTimeout(() => {
+              this.showDialLoadingState(
+                flash.action,
+                flash.getRestoreValue(),
+                flash.loadingFillColor,
+                flash.loadingBgColor,
+              ).catch(() => {});
+            }, FLASH_LOADING_DELAY_MS);
+          }
+
           await callback();
+
+          if (loadingTimer) clearTimeout(loadingTimer);
 
           if (flash) {
             // Show green "success" flash, then restore layout defaults
@@ -560,6 +582,7 @@ export class ActionServices {
             setTimeout(() => {
               this.restoreDialBar(
                 flash.action,
+                flash.getRestoreValue(),
                 flash.restoreFillColor,
                 flash.restoreBgColor,
               ).catch(() => {});
@@ -568,12 +591,15 @@ export class ActionServices {
         } catch (e) {
           streamDeck.logger.error("Deferred dial action failed:", e);
 
+          if (loadingTimer) clearTimeout(loadingTimer);
+
           if (flash) {
             // Show red "error" flash, then restore layout defaults
             await this.flashDialBar(flash.action, FLASH_ERROR);
             setTimeout(() => {
               this.restoreDialBar(
                 flash.action,
+                flash.getRestoreValue(),
                 flash.restoreFillColor,
                 flash.restoreBgColor,
               ).catch(() => {});
@@ -582,6 +608,30 @@ export class ActionServices {
         }
       }, delay),
     );
+  }
+
+  /**
+   * Show a static loading state while the deferred command is in flight.
+   * Keeps the current value fixed so the indicator/arrow does not move.
+   */
+
+  private async showDialLoadingState(
+    action: any,
+    value: number,
+    fillColor: string,
+    bgColor: string,
+  ): Promise<void> {
+    try {
+      await action.setFeedback({
+        bar: {
+          value,
+          bar_fill_c: fillColor,
+          bar_bg_c: bgColor,
+        },
+      });
+    } catch {
+      // Ignore - action may have disappeared
+    }
   }
 
   /**
@@ -605,12 +655,13 @@ export class ActionServices {
 
   private async restoreDialBar(
     action: any,
+    value: number,
     fillColor: string,
     bgColor: string,
   ): Promise<void> {
     try {
       await action.setFeedback({
-        bar: { bar_fill_c: fillColor, bar_bg_c: bgColor },
+        bar: { value, bar_fill_c: fillColor, bar_bg_c: bgColor },
       });
     } catch {
       // Ignore – action may have disappeared
@@ -742,6 +793,98 @@ export class ActionServices {
       throw new Error("Light repository not initialized");
     }
     await this.lightRepository.toggleRaw(light, instance, enabled);
+  }
+
+  async getToggleFeatureState(
+    light: Light,
+    instance: string,
+  ): Promise<boolean | undefined> {
+    if (!this.lightRepository) {
+      throw new Error("Light repository not initialized");
+    }
+    return this.lightRepository.getToggleState(light, instance);
+  }
+
+  async syncLightState(light: Light): Promise<void> {
+    if (!this.lightRepository) {
+      throw new Error("Light repository not initialized");
+    }
+    await this.lightRepository.getLightState(light);
+  }
+
+  async getLivePowerState(light: Light): Promise<boolean | undefined> {
+    if (!this.deviceService) {
+      return undefined;
+    }
+
+    try {
+      const result = await this.deviceService.getLightState(
+        light.deviceId,
+        light.model,
+      );
+      streamDeck.logger.info("light.power.live-state", {
+        deviceId: light.deviceId,
+        model: light.model,
+        name: light.name,
+        powerState: result.state.powerState,
+        isOnline: result.state.isOnline,
+        transport: result.transport,
+      });
+      return result.state.powerState;
+    } catch (error) {
+      streamDeck.logger.warn(
+        `Failed to get live power state for ${light.name}, using cached state:`,
+        error,
+      );
+      return undefined;
+    }
+  }
+
+  async verifyLivePowerState(
+    light: Light,
+    expected: boolean,
+    attempts = 3,
+  ): Promise<void> {
+    let observedKnownState: boolean | undefined;
+
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      const liveState = await this.getLivePowerState(light);
+      streamDeck.logger.info("light.power.verify", {
+        attempt: attempt + 1,
+        attempts,
+        deviceId: light.deviceId,
+        model: light.model,
+        name: light.name,
+        expected,
+        actual: liveState ?? null,
+      });
+      if (liveState === expected) {
+        return;
+      }
+
+      if (liveState !== undefined) {
+        observedKnownState = liveState;
+      }
+
+      if (attempt < attempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+    }
+
+    if (observedKnownState === undefined) {
+      streamDeck.logger.warn("light.power.verify.skipped", {
+        deviceId: light.deviceId,
+        model: light.model,
+        name: light.name,
+        expected,
+        reason: "live-power-state-unavailable",
+      });
+      return;
+    }
+
+    throw new Error(
+      `Power state did not update to ${expected ? "on" : "off"} (actual: ${observedKnownState ? "on" : "off"})`,
+    );
   }
 
   async applyMusicModeRaw(light: Light, musicMode: MusicMode): Promise<void> {

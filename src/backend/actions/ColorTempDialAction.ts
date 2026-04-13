@@ -41,6 +41,8 @@ export class ColorTempDialAction extends SingletonAction<ColorTempDialSettings> 
     const ctx = ev.action.id;
     if (!this.tempMap.has(ctx)) this.tempMap.set(ctx, DEFAULT_KELVIN);
     if (!this.powerMap.has(ctx)) this.powerMap.set(ctx, true);
+
+    await this.syncLiveState(ctx, ev.payload.settings);
     await this.updateDisplay(ev.action, ev.payload.settings);
   }
 
@@ -94,6 +96,16 @@ export class ColorTempDialAction extends SingletonAction<ColorTempDialSettings> 
       undefined,
       {
         action: ev.action,
+        getRestoreValue: () => {
+          const kelvin = this.tempMap.get(ctx) ?? DEFAULT_KELVIN;
+          const isOn = this.powerMap.get(ctx) ?? true;
+          const barValue = Math.round(
+            ((kelvin - MIN_KELVIN) / (MAX_KELVIN - MIN_KELVIN)) * 100,
+          );
+          return isOn ? barValue : 0;
+        },
+        loadingFillColor: DEFAULT_BAR_FILL,
+        loadingBgColor: "#FFFFFF",
         restoreFillColor: DEFAULT_BAR_FILL,
         restoreBgColor: DEFAULT_BAR_BG,
       },
@@ -130,9 +142,18 @@ export class ColorTempDialAction extends SingletonAction<ColorTempDialSettings> 
     }
 
     try {
-      const isOn = this.powerMap.get(ctx) ?? true;
+      let isOn = this.powerMap.get(ctx) ?? true;
+      if (target.type === "light" && target.light) {
+        const liveState = await this.services.getLivePowerState(target.light);
+        if (liveState !== undefined) {
+          isOn = liveState;
+        }
+      }
       this.powerMap.set(ctx, !isOn);
       await this.services.controlTarget(target, isOn ? "off" : "on");
+      if (target.type === "light" && target.light) {
+        await this.services.verifyLivePowerState(target.light, !isOn);
+      }
       await this.updateDisplay(action, settings);
     } catch (error) {
       streamDeck.logger.error("Failed to toggle power:", error);
@@ -162,6 +183,28 @@ export class ColorTempDialAction extends SingletonAction<ColorTempDialSettings> 
       case "refreshState":
         await this.services.handleRefreshState();
         break;
+    }
+  }
+
+  private async syncLiveState(
+    ctx: string,
+    settings: ColorTempDialSettings,
+  ): Promise<void> {
+    const apiKey = await this.services.getApiKey(settings);
+    if (!apiKey || !settings.selectedDeviceId) return;
+
+    try {
+      await this.services.ensureServices(apiKey);
+      const target = await this.services.resolveTarget(settings);
+      if (target?.type === "light" && target.light) {
+        await this.services.syncLightState(target.light);
+        this.powerMap.set(ctx, target.light.isOn);
+        if (target.light.colorTemperature) {
+          this.tempMap.set(ctx, target.light.colorTemperature.kelvin);
+        }
+      }
+    } catch {
+      // Best effort - keep defaults
     }
   }
 

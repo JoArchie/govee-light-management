@@ -34,6 +34,8 @@ export class BrightnessDialAction extends SingletonAction<BrightnessDialSettings
     const ctx = ev.action.id;
     if (!this.brightnessMap.has(ctx)) this.brightnessMap.set(ctx, 50);
     if (!this.powerMap.has(ctx)) this.powerMap.set(ctx, true);
+
+    await this.syncLiveState(ctx, ev.payload.settings);
     await this.updateDisplay(ev.action, ev.payload.settings);
   }
 
@@ -84,6 +86,13 @@ export class BrightnessDialAction extends SingletonAction<BrightnessDialSettings
       undefined,
       {
         action: ev.action,
+        getRestoreValue: () => {
+          const brightness = this.brightnessMap.get(ctx) ?? 50;
+          const isOn = this.powerMap.get(ctx) ?? true;
+          return isOn ? brightness : 0;
+        },
+        loadingFillColor: "#FFFFFF",
+        loadingBgColor: DEFAULT_BAR_BG,
         restoreFillColor: DEFAULT_BAR_FILL,
         restoreBgColor: DEFAULT_BAR_BG,
       },
@@ -120,9 +129,18 @@ export class BrightnessDialAction extends SingletonAction<BrightnessDialSettings
     }
 
     try {
-      const isOn = this.powerMap.get(ctx) ?? true;
+      let isOn = this.powerMap.get(ctx) ?? true;
+      if (target.type === "light" && target.light) {
+        const liveState = await this.services.getLivePowerState(target.light);
+        if (liveState !== undefined) {
+          isOn = liveState;
+        }
+      }
       this.powerMap.set(ctx, !isOn);
       await this.services.controlTarget(target, isOn ? "off" : "on");
+      if (target.type === "light" && target.light) {
+        await this.services.verifyLivePowerState(target.light, !isOn);
+      }
       await this.updateDisplay(action, settings);
     } catch (error) {
       streamDeck.logger.error("Failed to toggle power:", error);
@@ -152,6 +170,28 @@ export class BrightnessDialAction extends SingletonAction<BrightnessDialSettings
       case "refreshState":
         await this.services.handleRefreshState();
         break;
+    }
+  }
+
+  private async syncLiveState(
+    ctx: string,
+    settings: BrightnessDialSettings,
+  ): Promise<void> {
+    const apiKey = await this.services.getApiKey(settings);
+    if (!apiKey || !settings.selectedDeviceId) return;
+
+    try {
+      await this.services.ensureServices(apiKey);
+      const target = await this.services.resolveTarget(settings);
+      if (target?.type === "light" && target.light) {
+        await this.services.syncLightState(target.light);
+        this.powerMap.set(ctx, target.light.isOn);
+        if (target.light.brightness) {
+          this.brightnessMap.set(ctx, target.light.brightness.level);
+        }
+      }
+    } catch {
+      // Best effort - keep defaults
     }
   }
 

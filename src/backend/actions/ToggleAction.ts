@@ -30,6 +30,32 @@ export class ToggleAction extends SingletonAction<ToggleSettings> {
   ): Promise<void> {
     const ctx = ev.action.id;
     if (!this.featureState.has(ctx)) this.featureState.set(ctx, false);
+
+    const { settings } = ev.payload;
+    if (settings.selectedFeature) {
+      const apiKey = await this.services.getApiKey(settings);
+      if (apiKey && settings.selectedDeviceId) {
+        try {
+          await this.services.ensureServices(apiKey);
+          const target = await this.services.resolveTarget(settings);
+          if (target?.type === "light" && target.light) {
+            const parsed = JSON.parse(settings.selectedFeature) as {
+              instance: string;
+            };
+            const enabled = await this.services.getToggleFeatureState(
+              target.light,
+              parsed.instance,
+            );
+            if (enabled !== undefined) {
+              this.featureState.set(ctx, enabled);
+            }
+          }
+        } catch {
+          // Best effort - keep default
+        }
+      }
+    }
+
     await ev.action.setTitle(this.getTitle(ev.payload.settings, ctx));
   }
 
@@ -66,20 +92,34 @@ export class ToggleAction extends SingletonAction<ToggleSettings> {
       return;
     }
 
-    const operation = settings.operation ?? "toggle";
-
-    let enabled: boolean;
-    if (operation === "toggle") {
-      enabled = !(this.featureState.get(ctx) ?? false);
-    } else {
-      enabled = operation === "on";
-    }
-
     try {
       const parsed = JSON.parse(settings.selectedFeature) as {
         name: string;
         instance: string;
       };
+      const operation = settings.operation ?? "toggle";
+
+      let enabled: boolean;
+      if (operation === "toggle") {
+        let liveState: boolean | undefined;
+        try {
+          liveState = await this.services.getToggleFeatureState(
+            target.light,
+            parsed.instance,
+          );
+        } catch (error) {
+          streamDeck.logger.warn(
+            `Falling back to cached toggle state for ${parsed.instance}:`,
+            error,
+          );
+        }
+        const currentState = liveState ?? this.featureState.get(ctx) ?? false;
+        this.featureState.set(ctx, currentState);
+        enabled = !currentState;
+      } else {
+        enabled = operation === "on";
+      }
+
       const stopSpinner = this.services.showSpinner(ev.action);
       try {
         await this.services.toggleFeatureRaw(
@@ -95,9 +135,6 @@ export class ToggleAction extends SingletonAction<ToggleSettings> {
       await ev.action.showOk();
     } catch (error) {
       streamDeck.logger.error("Failed to toggle feature:", error);
-      if (operation === "toggle") {
-        this.featureState.set(ctx, !enabled);
-      }
       await ev.action.showAlert();
     }
   }

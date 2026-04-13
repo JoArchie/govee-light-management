@@ -32,12 +32,16 @@ const DEFAULT_BAR_BG =
 export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSettings> {
   private services = new ActionServices();
   private hueMap = new Map<string, number>();
+  private powerMap = new Map<string, boolean>();
 
   override async onWillAppear(
     ev: WillAppearEvent<SegmentColorDialSettings>,
   ): Promise<void> {
     const ctx = ev.action.id;
     if (!this.hueMap.has(ctx)) this.hueMap.set(ctx, 0);
+    if (!this.powerMap.has(ctx)) this.powerMap.set(ctx, true);
+
+    await this.syncLiveState(ctx, ev.payload.settings);
     await this.updateDisplay(ev.action, ev.payload.settings);
   }
 
@@ -46,6 +50,7 @@ export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSett
   ): Promise<void> {
     const ctx = ev.action.id;
     this.hueMap.delete(ctx);
+    this.powerMap.delete(ctx);
     this.services.cleanupDialTimers(ctx);
   }
 
@@ -78,6 +83,12 @@ export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSett
       undefined,
       {
         action: ev.action,
+        getRestoreValue: () => {
+          const hue = this.hueMap.get(ctx) ?? 0;
+          return Math.round((hue / 360) * 100);
+        },
+        loadingFillColor: DEFAULT_BAR_FILL,
+        loadingBgColor: "#FFFFFF",
         restoreFillColor: DEFAULT_BAR_FILL,
         restoreBgColor: DEFAULT_BAR_BG,
       },
@@ -87,26 +98,51 @@ export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSett
   override async onDialDown(
     ev: DialDownEvent<SegmentColorDialSettings>,
   ): Promise<void> {
-    const ctx = ev.action.id;
-    const hue = this.hueMap.get(ctx) ?? 0;
-    try {
-      await this.applyToSegment(ev.action, ev.payload.settings, hue);
-    } catch (error) {
-      streamDeck.logger.error("Failed to apply segment color:", error);
-      await ev.action.showAlert();
-    }
+    await this.togglePower(ev.action, ev.payload.settings);
   }
 
   override async onTouchTap(
     ev: TouchTapEvent<SegmentColorDialSettings>,
   ): Promise<void> {
-    const ctx = ev.action.id;
-    const hue = this.hueMap.get(ctx) ?? 0;
+    await this.togglePower(ev.action, ev.payload.settings);
+  }
+
+  private async togglePower(
+    action: any,
+    settings: SegmentColorDialSettings,
+  ): Promise<void> {
+    const ctx = action.id;
+    const apiKey = await this.services.getApiKey(settings);
+    if (!apiKey || !settings.selectedDeviceId) {
+      await action.showAlert();
+      return;
+    }
+    await this.services.ensureServices(apiKey);
+    const target = await this.services.resolveTarget(settings);
+    if (!target) {
+      await action.showAlert();
+      return;
+    }
+
     try {
-      await this.applyToSegment(ev.action, ev.payload.settings, hue);
+      let isOn = this.powerMap.get(ctx) ?? true;
+      if (target.type === "light" && target.light) {
+        const liveState = await this.services.getLivePowerState(target.light);
+        if (liveState !== undefined) {
+          isOn = liveState;
+        }
+      }
+      this.powerMap.set(ctx, !isOn);
+      await this.services.controlTarget(target, isOn ? "off" : "on");
+      if (target.type === "light" && target.light) {
+        await this.services.verifyLivePowerState(target.light, !isOn);
+      }
+      await this.updateDisplay(action, settings);
     } catch (error) {
-      streamDeck.logger.error("Failed to apply segment color:", error);
-      await ev.action.showAlert();
+      streamDeck.logger.error("Failed to toggle power:", error);
+      const isOn = this.powerMap.get(ctx) ?? true;
+      this.powerMap.set(ctx, !isOn);
+      await action.showAlert();
     }
   }
 
@@ -161,18 +197,40 @@ export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSett
     }
   }
 
+  private async syncLiveState(
+    ctx: string,
+    settings: SegmentColorDialSettings,
+  ): Promise<void> {
+    const apiKey = await this.services.getApiKey(settings);
+    if (!apiKey || !settings.selectedDeviceId) return;
+
+    try {
+      await this.services.ensureServices(apiKey);
+      const target = await this.services.resolveTarget(settings);
+      if (target?.type === "light" && target.light) {
+        const isOn = await this.services.getLivePowerState(target.light);
+        if (isOn !== undefined) {
+          this.powerMap.set(ctx, isOn);
+        }
+      }
+    } catch {
+      // Best effort - keep defaults
+    }
+  }
+
   private async updateDisplay(
     action: any,
     settings: SegmentColorDialSettings,
   ): Promise<void> {
     const ctx = action.id || "default";
     const hue = this.hueMap.get(ctx) ?? 0;
+    const isOn = this.powerMap.get(ctx) ?? true;
     const segmentIndex = settings.segmentIndex ?? 0;
 
     await action.setFeedback({
       label: `Segment ${segmentIndex}`,
-      value: `${hue}°`,
-      bar: { value: Math.round((hue / 360) * 100) },
+      value: isOn ? `${hue}°` : "Off",
+      bar: { value: isOn ? Math.round((hue / 360) * 100) : 0 },
     });
   }
 }

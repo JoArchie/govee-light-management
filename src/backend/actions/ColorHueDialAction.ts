@@ -12,7 +12,7 @@ import {
 } from "@elgato/streamdeck";
 import type { JsonValue } from "@elgato/utils";
 import { ActionServices, type BaseSettings } from "./shared/ActionServices";
-import { hsvToRgb } from "./shared/color-utils";
+import { hsvToRgb, rgbToHue } from "./shared/color-utils";
 
 type ColorHueDialSettings = BaseSettings & {
   stepSize?: number;
@@ -36,6 +36,8 @@ export class ColorHueDialAction extends SingletonAction<ColorHueDialSettings> {
     const ctx = ev.action.id;
     if (!this.hueMap.has(ctx)) this.hueMap.set(ctx, 0);
     if (!this.powerMap.has(ctx)) this.powerMap.set(ctx, true);
+
+    await this.syncLiveState(ctx, ev.payload.settings);
     await this.updateDisplay(ev.action, ev.payload.settings);
   }
 
@@ -83,6 +85,13 @@ export class ColorHueDialAction extends SingletonAction<ColorHueDialSettings> {
       undefined,
       {
         action: ev.action,
+        getRestoreValue: () => {
+          const hue = this.hueMap.get(ctx) ?? 0;
+          const isOn = this.powerMap.get(ctx) ?? true;
+          return isOn ? Math.round((hue / 360) * 100) : 0;
+        },
+        loadingFillColor: DEFAULT_BAR_FILL,
+        loadingBgColor: "#FFFFFF",
         restoreFillColor: DEFAULT_BAR_FILL,
         restoreBgColor: DEFAULT_BAR_BG,
       },
@@ -119,9 +128,18 @@ export class ColorHueDialAction extends SingletonAction<ColorHueDialSettings> {
     }
 
     try {
-      const isOn = this.powerMap.get(ctx) ?? true;
+      let isOn = this.powerMap.get(ctx) ?? true;
+      if (target.type === "light" && target.light) {
+        const liveState = await this.services.getLivePowerState(target.light);
+        if (liveState !== undefined) {
+          isOn = liveState;
+        }
+      }
       this.powerMap.set(ctx, !isOn);
       await this.services.controlTarget(target, isOn ? "off" : "on");
+      if (target.type === "light" && target.light) {
+        await this.services.verifyLivePowerState(target.light, !isOn);
+      }
       await this.updateDisplay(action, settings);
     } catch (error) {
       streamDeck.logger.error("Failed to toggle power:", error);
@@ -151,6 +169,28 @@ export class ColorHueDialAction extends SingletonAction<ColorHueDialSettings> {
       case "refreshState":
         await this.services.handleRefreshState();
         break;
+    }
+  }
+
+  private async syncLiveState(
+    ctx: string,
+    settings: ColorHueDialSettings,
+  ): Promise<void> {
+    const apiKey = await this.services.getApiKey(settings);
+    if (!apiKey || !settings.selectedDeviceId) return;
+
+    try {
+      await this.services.ensureServices(apiKey);
+      const target = await this.services.resolveTarget(settings);
+      if (target?.type === "light" && target.light) {
+        await this.services.syncLightState(target.light);
+        this.powerMap.set(ctx, target.light.isOn);
+        if (target.light.color) {
+          this.hueMap.set(ctx, rgbToHue(target.light.color));
+        }
+      }
+    } catch {
+      // Best effort - keep defaults
     }
   }
 
