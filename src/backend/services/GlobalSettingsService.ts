@@ -1,5 +1,6 @@
 import { streamDeck } from "@elgato/streamdeck";
 import type { JsonValue } from "@elgato/utils";
+import { isValidApiKeyFormat } from "../actions/shared/validation";
 
 export interface GlobalPluginSettings {
   apiKey?: string;
@@ -47,6 +48,9 @@ export class GlobalSettingsService {
 
   async setApiKey(apiKey: string): Promise<void> {
     const trimmed = apiKey.trim();
+    if (!isValidApiKeyFormat(trimmed)) {
+      throw new Error("Invalid API key format");
+    }
     const settings = await this.getSettings();
     const updated: GlobalPluginSettings = {
       ...settings,

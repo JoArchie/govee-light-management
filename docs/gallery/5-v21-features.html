@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Gallery 5 — New in v2.1</title><link rel="stylesheet" href="./shared.css">
+<style>
+  .wrap {
+    width: 1920px; height: 1080px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 0 120px;
+  }
+  .head { text-align: center; margin-bottom: 80px; }
+  .badge {
+    display: inline-block;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #fff;
+    background: var(--grad);
+    padding: 8px 22px;
+    border-radius: 100px;
+    margin-bottom: 28px;
+  }
+  h1 {
+    font-size: 78px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    margin-bottom: 24px;
+  }
+  .sub {
+    font-size: 24px;
+    color: var(--muted);
+    max-width: 860px;
+    margin: 0 auto;
+  }
+  .features {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 44px;
+    width: 100%;
+    max-width: 1500px;
+  }
+  .feature {
+    background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01));
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 48px 40px;
+    display: flex; flex-direction: column; align-items: center;
+    text-align: center;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.03) inset;
+  }
+  .feature img {
+    width: 140px; height: 140px;
+    margin-bottom: 28px;
+    filter: drop-shadow(0 16px 48px rgba(168,85,247,0.4));
+  }
+  .feature h3 {
+    font-size: 30px;
+    font-weight: 800;
+    margin-bottom: 14px;
+    letter-spacing: -0.01em;
+  }
+  .feature p {
+    font-size: 18px;
+    color: var(--muted);
+    line-height: 1.55;
+    max-width: 300px;
+  }
+  .feature .tag {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--a3);
+    margin-bottom: 20px;
+  }
+</style></head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div class="badge">New in v2.1</div>
+    <h1>Three powerful <span class="grad-text">new actions</span></h1>
+    <p class="sub">Dynamic scenes, music-reactive lighting, and feature toggles — all queried live from your devices.</p>
+  </div>
+  <div class="features">
+    <div class="feature">
+      <div class="tag">Keypad action</div>
+      <img src="./assets/scene.svg" alt="">
+      <h3>Scenes</h3>
+      <p>Apply dynamic scenes like Sunrise, Aurora, or Rainbow — fetched directly from each device's capabilities.</p>
+    </div>
+    <div class="feature">
+      <div class="tag">Keypad action</div>
+      <img src="./assets/music-mode.svg" alt="">
+      <h3>Music Mode</h3>
+      <p>Activate audio-reactive lighting with Rhythm, Energic, Spectrum, or Rolling — sensitivity adjustable per button.</p>
+    </div>
+    <div class="feature">
+      <div class="tag">Keypad action</div>
+      <img src="./assets/toggle.svg" alt="">
+      <h3>Feature Toggle</h3>
+      <p>One-tap control for Nightlight, Gradient, DreamView, and Scene Stage — auto-filtered by device capability.</p>
+    </div>
+  </div>
+</div>
+<div class="brand-footer">
+  <img src="./assets/light.svg" alt="">
+  Govee Light Management
+</div>
+</body></html>

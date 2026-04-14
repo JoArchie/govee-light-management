@@ -7,6 +7,7 @@
 	<script src="./js/ws-bridge.js"></script>
 	<script src="./js/sdpi-components.js"></script>
 	<script src="./js/setup.js"></script>
+	<script src="./js/range-value.js"></script>
 </head>
 <body>
 	<div id="settings" class="hidden">
@@ -16,7 +17,7 @@
 		</sdpi-item>
 
 		<sdpi-item label="Temperature">
-			<sdpi-range setting="colorTempValue" default="50" min="0" max="100" step="1" showlabels>
+			<sdpi-range setting="colorTempValue" default="50" min="0" max="100" step="1" showlabels data-suffix="%">
 				<span slot="min">Warm</span>
 				<span slot="max">Cool</span>
 			</sdpi-range>

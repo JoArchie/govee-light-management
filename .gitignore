@@ -45,3 +45,4 @@ storybook-static
 
 # Local Claude Code settings
 .claude/settings.local.json
+.nox/

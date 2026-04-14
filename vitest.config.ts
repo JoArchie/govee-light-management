@@ -1,9 +1,7 @@
 import { defineConfig } from 'vitest/config';
 import path from 'node:path';
-import tsconfigPaths from 'vite-tsconfig-paths';
 
 export default defineConfig({
-  plugins: [tsconfigPaths()],
   test: {
     globals: true,
     environment: 'jsdom',
@@ -24,6 +22,7 @@ export default defineConfig({
     setupFiles: ['./test/setup.ts']
   },
   resolve: {
+    tsconfigPaths: true,
     alias: {
       '@': path.resolve(__dirname, './src'),
       '@shared': path.resolve(__dirname, './src/shared')

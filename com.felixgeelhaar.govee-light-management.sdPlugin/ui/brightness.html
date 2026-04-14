@@ -7,6 +7,7 @@
 	<script src="./js/ws-bridge.js"></script>
 	<script src="./js/sdpi-components.js"></script>
 	<script src="./js/setup.js"></script>
+	<script src="./js/range-value.js"></script>
 </head>
 <body>
 	<div id="settings" class="hidden">
@@ -16,7 +17,10 @@
 		</sdpi-item>
 
 		<sdpi-item label="Brightness">
-			<sdpi-range setting="brightnessValue" default="50" min="0" max="100" step="1" showlabels></sdpi-range>
+			<sdpi-range setting="brightnessValue" default="50" min="0" max="100" step="1" showlabels data-suffix="%">
+				<span slot="min">Off</span>
+				<span slot="max">Max</span>
+			</sdpi-range>
 		</sdpi-item>
 
 		<div id="groupManager"></div>

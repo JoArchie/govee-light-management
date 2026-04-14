@@ -8,6 +8,11 @@ export interface LightCapabilities {
   color: boolean;
   colorTemperature: boolean;
   scenes: boolean;
+  // Advanced capabilities (detected from device capabilities)
+  segmentedColor?: boolean;
+  musicMode?: boolean;
+  nightlight?: boolean;
+  gradient?: boolean;
 }
 
 export interface LightItem {

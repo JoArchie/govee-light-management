@@ -9,7 +9,7 @@ Open each in a browser and take a screenshot to produce marketplace gallery imag
 
 ```bash
 cd docs/gallery
-for page in 1-hero 2-actions 3-dials 4-setup; do
+for page in 1-hero 2-actions 3-dials 4-setup 5-v21-features; do
   /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
     --headless --disable-gpu --hide-scrollbars \
     --window-size=1920,1080 \
@@ -34,11 +34,12 @@ npx playwright screenshot --viewport-size=1920,1080 \
 
 ## Files
 
-| File             | Purpose                                               |
-| ---------------- | ----------------------------------------------------- |
-| `1-hero.html`    | Hero shot with headline + 4 action icons              |
-| `2-actions.html` | 5-icon keypad actions overview                        |
-| `3-dials.html`   | Stream Deck+ dial experience with touchscreen layouts |
-| `4-setup.html`   | 3-step setup walkthrough                              |
+| File                  | Purpose                                                   |
+| --------------------- | --------------------------------------------------------- |
+| `1-hero.html`         | Hero shot with headline + 4 action icons                  |
+| `2-actions.html`      | All 8 keypad actions in a 4×2 grid                        |
+| `3-dials.html`        | Stream Deck+ dial experience with touchscreen layouts     |
+| `4-setup.html`        | 3-step setup walkthrough                                  |
+| `5-v21-features.html` | New in v2.1 — Scenes, Music Mode, Feature Toggle showcase |
 
 Upload the captured PNGs to the Elgato Marketplace listing (minimum 3, no cropped info).

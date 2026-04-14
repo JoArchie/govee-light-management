@@ -62,6 +62,10 @@ describe("DeviceService", () => {
       color: true,
       colorTemperature: true,
       scenes: true,
+      segmentedColor: false,
+      musicMode: false,
+      nightlight: false,
+      gradient: false,
     });
 
     // telemetry snapshot updated

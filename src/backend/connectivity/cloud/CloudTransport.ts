@@ -71,16 +71,35 @@ export class CloudTransport implements ITransport {
   async discoverDevices(): Promise<DeviceDiscoveryResult> {
     const client = await this.ensureClient();
     const devices = await client.getControllableDevices();
-    const lights: LightItem[] = devices.map((device) => ({
-      deviceId: device.deviceId,
-      model: device.model,
-      name: device.deviceName,
-      label: device.deviceName,
-      value: `${device.deviceId}|${device.model}`,
-      controllable: device.controllable,
-      retrievable: device.retrievable,
-      supportedCommands: [...device.supportedCmds],
-    }));
+    const lights: LightItem[] = devices.map((device) => {
+      // Detect advanced capabilities from the device's capability list
+      const capInstances = new Set(device.capabilities.map((c) => c.instance));
+      const capTypes = new Set(device.capabilities.map((c) => c.type));
+
+      return {
+        deviceId: device.deviceId,
+        model: device.model,
+        name: device.deviceName,
+        label: device.deviceName,
+        value: `${device.deviceId}|${device.model}`,
+        controllable: device.controllable,
+        retrievable: device.retrievable,
+        supportedCommands: [...device.supportedCmds],
+        capabilities: {
+          power: true,
+          brightness: capInstances.has("brightness"),
+          color: capInstances.has("colorRgb"),
+          colorTemperature: capInstances.has("colorTemInKelvin"),
+          scenes: capInstances.has("lightScene"),
+          segmentedColor: capInstances.has("segmentedColorRgb"),
+          musicMode: capInstances.has("musicMode"),
+          nightlight: capInstances.has("nightlightToggle"),
+          gradient:
+            capInstances.has("gradientToggle") ||
+            capTypes.has("gradientToggle"),
+        },
+      };
+    });
 
     return { lights };
   }

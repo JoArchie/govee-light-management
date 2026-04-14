@@ -60,6 +60,7 @@ export class ColorAction extends SingletonAction<ColorSettings> {
         stopSpinner();
       }
       await ev.action.setTitle(this.getTitle(settings));
+      await ev.action.showOk();
 
       telemetryService.recordCommand({
         command: `${target.type}.color`,
@@ -79,16 +80,19 @@ export class ColorAction extends SingletonAction<ColorSettings> {
 
     switch (ev.payload.event) {
       case "getDevices":
-        await this.services.handleGetDevices();
+        await this.services.handleGetDevices(ev.action.id);
         break;
       case "getGroups":
-        await this.services.handleGetGroups();
+        await this.services.handleGetGroups(ev.action.id);
         break;
       case "saveGroup":
-        await this.services.handleSaveGroup(ev.payload);
+        await this.services.handleSaveGroup(ev.action.id, ev.payload);
         break;
       case "deleteGroup":
-        await this.services.handleDeleteGroup(ev.payload);
+        await this.services.handleDeleteGroup(ev.action.id, ev.payload);
+        break;
+      case "refreshState":
+        await this.services.handleRefreshState();
         break;
     }
   }

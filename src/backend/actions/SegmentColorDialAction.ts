@@ -1,43 +1,37 @@
 import {
   action,
-  DialRotateEvent,
-  DialDownEvent,
-  TouchTapEvent,
-  SingletonAction,
-  WillAppearEvent,
-  type DidReceiveSettingsEvent,
-  type SendToPluginEvent,
+  type DialAction,
+  type DialRotateEvent,
+  streamDeck,
 } from "@elgato/streamdeck";
-import type { JsonValue } from "@elgato/utils";
-import { ColorRgb } from "@felixgeelhaar/govee-api-client";
-import { ActionServices, type BaseSettings } from "./shared/ActionServices";
+import type { JsonObject } from "@elgato/utils";
+import { BaseDialAction, type BaseDialSettings } from "./shared/BaseDialAction";
+import { hsvToRgb } from "./shared/color-utils";
+import { clamp } from "./shared/validation";
 import { SegmentColor } from "../domain/value-objects/SegmentColor";
 
-type SegmentColorDialSettings = BaseSettings & {
+type SegmentColorDialSettings = BaseDialSettings & {
   segmentIndex?: number;
-  stepSize?: number;
   saturation?: number;
 };
+
+/** Default bar colors from layouts/segment.json (gbar) */
+const DEFAULT_BAR_FILL = "#FFFFFF"; // white indicator
+const DEFAULT_BAR_BG =
+  "0:#FF0000,0.17:#FFFF00,0.33:#00FF00,0.5:#00FFFF,0.67:#0000FF,0.83:#FF00FF,1:#FF0000"; // rainbow
 
 @action({
   UUID: "com.felixgeelhaar.govee-light-management.segment-color-dial",
 })
-export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSettings> {
-  private services = new ActionServices();
+export class SegmentColorDialAction extends BaseDialAction<SegmentColorDialSettings> {
   private hueMap = new Map<string, number>();
 
-  override async onWillAppear(
-    ev: WillAppearEvent<SegmentColorDialSettings>,
-  ): Promise<void> {
-    const ctx = ev.action.id;
+  protected initValueMaps(ctx: string): void {
     if (!this.hueMap.has(ctx)) this.hueMap.set(ctx, 0);
-    await this.updateDisplay(ev.action, ev.payload.settings);
   }
 
-  override async onDidReceiveSettings(
-    ev: DidReceiveSettingsEvent<SegmentColorDialSettings>,
-  ): Promise<void> {
-    await this.updateDisplay(ev.action, ev.payload.settings);
+  protected cleanupValueMaps(ctx: string): void {
+    this.hueMap.delete(ctx);
   }
 
   override async onDialRotate(
@@ -45,117 +39,103 @@ export class SegmentColorDialAction extends SingletonAction<SegmentColorDialSett
   ): Promise<void> {
     const { settings } = ev.payload;
     const ctx = ev.action.id;
-    const step = settings.stepSize || 15;
+    const step = clamp(settings.stepSize || 15, 1, 90);
     const current = this.hueMap.get(ctx) ?? 0;
     const next = (((current + ev.payload.ticks * step) % 360) + 360) % 360;
     this.hueMap.set(ctx, next);
 
     await this.updateDisplay(ev.action, settings);
-    await this.applyToSegment(ev.action, settings, next);
-  }
 
-  override async onDialDown(
-    ev: DialDownEvent<SegmentColorDialSettings>,
-  ): Promise<void> {
-    const ctx = ev.action.id;
-    const hue = this.hueMap.get(ctx) ?? 0;
-    await this.applyToSegment(ev.action, ev.payload.settings, hue);
-  }
-
-  override async onTouchTap(
-    ev: TouchTapEvent<SegmentColorDialSettings>,
-  ): Promise<void> {
-    const ctx = ev.action.id;
-    const hue = this.hueMap.get(ctx) ?? 0;
-    await this.applyToSegment(ev.action, ev.payload.settings, hue);
+    this.services.deferDialAction(
+      ctx,
+      async () => {
+        const finalHue = this.hueMap.get(ctx) ?? next;
+        await this.applyToSegment(settings, finalHue);
+      },
+      undefined,
+      {
+        action: ev.action,
+        getRestoreValue: () => {
+          const hue = this.hueMap.get(ctx) ?? 0;
+          const isOn = this.powerMap.get(ctx) ?? true;
+          return isOn ? Math.round((hue / 360) * 100) : 0;
+        },
+        loadingFillColor: DEFAULT_BAR_FILL,
+        loadingBgColor: "#FFFFFF",
+        restoreFillColor: DEFAULT_BAR_FILL,
+        restoreBgColor: DEFAULT_BAR_BG,
+      },
+    );
   }
 
   private async applyToSegment(
-    action: any,
     settings: SegmentColorDialSettings,
     hue: number,
   ): Promise<void> {
     const apiKey = await this.services.getApiKey(settings);
     if (!apiKey || !settings.selectedDeviceId) {
-      await action.showAlert();
-      return;
+      streamDeck.logger.warn(
+        `Segment color: missing apiKey=${!!apiKey} deviceId=${settings.selectedDeviceId}`,
+      );
+      throw new Error("Missing API key or device ID");
     }
     await this.services.ensureServices(apiKey);
     const target = await this.services.resolveTarget(settings);
     if (!target || target.type !== "light" || !target.light) {
-      await action.showAlert();
-      return;
+      streamDeck.logger.warn(
+        `Segment color: could not resolve target for device ${settings.selectedDeviceId}`,
+      );
+      throw new Error("Could not resolve target device");
     }
 
-    const color = this.hsvToRgb(hue, settings.saturation ?? 100, 100);
-    const segmentIndex = settings.segmentIndex ?? 0;
-    try {
-      await this.services.setSegmentColors(target.light, [
-        SegmentColor.create(segmentIndex, color),
-      ]);
-    } catch {
-      await action.showAlert();
-    }
+    const saturation = clamp(settings.saturation ?? 100, 0, 100);
+    const color = hsvToRgb(hue, saturation, 100);
+    // UI stores 1-based index (1–15), translate to 0-based (0–14) for the API
+    const segmentIndex = clamp((settings.segmentIndex ?? 1) - 1, 0, 14);
+    await this.services.setSegmentColors(target.light, [
+      SegmentColor.create(segmentIndex, color),
+    ]);
   }
 
-  override async onSendToPlugin(
-    ev: SendToPluginEvent<JsonValue, SegmentColorDialSettings>,
+  /**
+   * Sync power state only. The Govee API does not expose per-segment color
+   * state, so hue always starts at the default (0 deg). Only power can be synced.
+   */
+  protected async syncLiveState(
+    ctx: string,
+    settings: SegmentColorDialSettings,
   ): Promise<void> {
-    if (!(ev.payload instanceof Object) || !("event" in ev.payload)) return;
-    switch (ev.payload.event) {
-      case "getDevices":
-        await this.services.handleGetDevices();
-        break;
+    const apiKey = await this.services.getApiKey(settings);
+    if (!apiKey || !settings.selectedDeviceId) return;
+
+    try {
+      await this.services.ensureServices(apiKey);
+      const target = await this.services.resolveTarget(settings);
+      if (target?.type === "light" && target.light) {
+        const isOn = await this.services.getLivePowerState(target.light);
+        if (isOn !== undefined) {
+          this.powerMap.set(ctx, isOn);
+        }
+      }
+    } catch {
+      // Best effort - keep defaults
     }
   }
 
-  private async updateDisplay(
-    action: any,
+  protected async updateDisplay(
+    action: DialAction<SegmentColorDialSettings & JsonObject>,
     settings: SegmentColorDialSettings,
   ): Promise<void> {
     const ctx = action.id || "default";
     const hue = this.hueMap.get(ctx) ?? 0;
-    const segmentIndex = settings.segmentIndex ?? 0;
+    const isOn = this.powerMap.get(ctx) ?? true;
+    // Display 1-based segment number to match the UI
+    const segmentDisplay = settings.segmentIndex ?? 1;
 
     await action.setFeedback({
-      label: `Segment ${segmentIndex}`,
-      value: `${hue}°`,
-      bar: { value: Math.round((hue / 360) * 100) },
+      label: `Segment ${segmentDisplay}`,
+      value: isOn ? `${hue}°` : "Off",
+      bar: { value: isOn ? Math.round((hue / 360) * 100) : 0 },
     });
-  }
-
-  private hsvToRgb(h: number, s: number, v: number): ColorRgb {
-    const sn = s / 100,
-      vn = v / 100;
-    const c = vn * sn;
-    const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
-    const m = vn - c;
-    let r = 0,
-      g = 0,
-      b = 0;
-    if (h < 60) {
-      r = c;
-      g = x;
-    } else if (h < 120) {
-      r = x;
-      g = c;
-    } else if (h < 180) {
-      g = c;
-      b = x;
-    } else if (h < 240) {
-      g = x;
-      b = c;
-    } else if (h < 300) {
-      r = x;
-      b = c;
-    } else {
-      r = c;
-      b = x;
-    }
-    return new ColorRgb(
-      Math.round((r + m) * 255),
-      Math.round((g + m) * 255),
-      Math.round((b + m) * 255),
-    );
   }
 }

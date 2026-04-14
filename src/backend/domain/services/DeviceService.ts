@@ -150,7 +150,11 @@ export class DeviceService {
       brightness: has("brightness", "turnonwithbrightness"),
       color: has("color", "turnonwithcolor"),
       colorTemperature: has("colortemperature", "turnonwithcolortemperature"),
-      scenes: has("scene", "setscene"),
+      scenes: has("scene", "setscene", "lightscene"),
+      segmentedColor: has("segmentedcolorrgb"),
+      musicMode: has("musicmode"),
+      nightlight: has("nightlighttoggle"),
+      gradient: has("gradienttoggle"),
     };
   }
 }

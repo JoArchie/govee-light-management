@@ -1,40 +1,29 @@
 import {
   action,
-  DialRotateEvent,
-  DialDownEvent,
-  TouchTapEvent,
-  SingletonAction,
-  WillAppearEvent,
-  type DidReceiveSettingsEvent,
-  type SendToPluginEvent,
+  type DialAction,
+  type DialRotateEvent,
 } from "@elgato/streamdeck";
-import type { JsonValue } from "@elgato/utils";
+import type { JsonObject } from "@elgato/utils";
 import { Brightness } from "@felixgeelhaar/govee-api-client";
-import { ActionServices, type BaseSettings } from "./shared/ActionServices";
+import { BaseDialAction, type BaseDialSettings } from "./shared/BaseDialAction";
+import { clamp } from "./shared/validation";
 
-type BrightnessDialSettings = BaseSettings & {
-  stepSize?: number;
-};
+type BrightnessDialSettings = BaseDialSettings;
+
+/** Default bar colors from layouts/brightness.json */
+const DEFAULT_BAR_FILL = "0:#7B2CBF,1:#3A86FF"; // purple→blue gradient
+const DEFAULT_BAR_BG = "#1F2937"; // dark gray
 
 @action({ UUID: "com.felixgeelhaar.govee-light-management.brightness-dial" })
-export class BrightnessDialAction extends SingletonAction<BrightnessDialSettings> {
-  private services = new ActionServices();
+export class BrightnessDialAction extends BaseDialAction<BrightnessDialSettings> {
   private brightnessMap = new Map<string, number>();
-  private powerMap = new Map<string, boolean>();
 
-  override async onWillAppear(
-    ev: WillAppearEvent<BrightnessDialSettings>,
-  ): Promise<void> {
-    const ctx = ev.action.id;
+  protected initValueMaps(ctx: string): void {
     if (!this.brightnessMap.has(ctx)) this.brightnessMap.set(ctx, 50);
-    if (!this.powerMap.has(ctx)) this.powerMap.set(ctx, true);
-    await this.updateDisplay(ev.action, ev.payload.settings);
   }
 
-  override async onDidReceiveSettings(
-    ev: DidReceiveSettingsEvent<BrightnessDialSettings>,
-  ): Promise<void> {
-    await this.updateDisplay(ev.action, ev.payload.settings);
+  protected cleanupValueMaps(ctx: string): void {
+    this.brightnessMap.delete(ctx);
   }
 
   override async onDialRotate(
@@ -42,84 +31,68 @@ export class BrightnessDialAction extends SingletonAction<BrightnessDialSettings
   ): Promise<void> {
     const { settings } = ev.payload;
     const ctx = ev.action.id;
-    const step = settings.stepSize || 5;
+    const step = clamp(settings.stepSize || 5, 1, 25);
     const current = this.brightnessMap.get(ctx) ?? 50;
-    const next = Math.max(0, Math.min(100, current + ev.payload.ticks * step));
+    const next = clamp(current + ev.payload.ticks * step, 0, 100);
     this.brightnessMap.set(ctx, next);
 
     await this.updateDisplay(ev.action, settings);
 
-    const apiKey = await this.services.getApiKey(settings);
-    if (!apiKey || !settings.selectedDeviceId) return;
-    await this.services.ensureServices(apiKey);
-    const target = await this.services.resolveTarget(settings);
-    if (!target) return;
-
-    await this.services.controlTargetThrottled(
+    this.services.deferDialAction(
       ctx,
-      target,
-      "brightness",
-      new Brightness(next),
+      async () => {
+        const apiKey = await this.services.getApiKey(settings);
+        if (!apiKey || !settings.selectedDeviceId) return;
+        await this.services.ensureServices(apiKey);
+        const target = await this.services.resolveTarget(settings);
+        if (!target) return;
+        const finalValue = this.brightnessMap.get(ctx) ?? next;
+        await this.services.controlTarget(
+          target,
+          "brightness",
+          new Brightness(finalValue),
+        );
+      },
+      undefined,
+      {
+        action: ev.action,
+        getRestoreValue: () => {
+          const brightness = this.brightnessMap.get(ctx) ?? 50;
+          const isOn = this.powerMap.get(ctx) ?? true;
+          return isOn ? brightness : 0;
+        },
+        loadingFillColor: "#FFFFFF",
+        loadingBgColor: DEFAULT_BAR_BG,
+        restoreFillColor: DEFAULT_BAR_FILL,
+        restoreBgColor: DEFAULT_BAR_BG,
+      },
     );
   }
 
-  override async onDialDown(
-    ev: DialDownEvent<BrightnessDialSettings>,
-  ): Promise<void> {
-    await this.togglePower(ev.action, ev.payload.settings);
-  }
-
-  override async onTouchTap(
-    ev: TouchTapEvent<BrightnessDialSettings>,
-  ): Promise<void> {
-    await this.togglePower(ev.action, ev.payload.settings);
-  }
-
-  private async togglePower(
-    action: any,
+  protected async syncLiveState(
+    ctx: string,
     settings: BrightnessDialSettings,
   ): Promise<void> {
-    const ctx = action.id;
     const apiKey = await this.services.getApiKey(settings);
-    if (!apiKey || !settings.selectedDeviceId) {
-      await action.showAlert();
-      return;
-    }
-    await this.services.ensureServices(apiKey);
-    const target = await this.services.resolveTarget(settings);
-    if (!target) {
-      await action.showAlert();
-      return;
-    }
+    if (!apiKey || !settings.selectedDeviceId) return;
 
-    const isOn = this.powerMap.get(ctx) ?? true;
-    this.powerMap.set(ctx, !isOn);
-    await this.services.controlTarget(target, isOn ? "off" : "on");
-    await this.updateDisplay(action, settings);
-  }
-
-  override async onSendToPlugin(
-    ev: SendToPluginEvent<JsonValue, BrightnessDialSettings>,
-  ): Promise<void> {
-    if (!(ev.payload instanceof Object) || !("event" in ev.payload)) return;
-    switch (ev.payload.event) {
-      case "getDevices":
-        await this.services.handleGetDevices();
-        break;
-      case "getGroups":
-        await this.services.handleGetGroups();
-        break;
-      case "saveGroup":
-        await this.services.handleSaveGroup(ev.payload);
-        break;
-      case "deleteGroup":
-        await this.services.handleDeleteGroup(ev.payload);
-        break;
+    try {
+      await this.services.ensureServices(apiKey);
+      const target = await this.services.resolveTarget(settings);
+      if (target?.type === "light" && target.light) {
+        await this.services.syncLightState(target.light);
+        this.powerMap.set(ctx, target.light.isOn);
+        if (target.light.brightness) {
+          this.brightnessMap.set(ctx, target.light.brightness.level);
+        }
+      }
+    } catch {
+      // Best effort - keep defaults
     }
   }
 
-  private async updateDisplay(
-    action: any,
+  protected async updateDisplay(
+    action: DialAction<BrightnessDialSettings & JsonObject>,
     _settings: BrightnessDialSettings,
   ): Promise<void> {
     const ctx = action.id || "default";
