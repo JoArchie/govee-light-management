@@ -59,18 +59,35 @@ Works with all Govee lights that support the Govee Developer API, including LED 
 
 ## What's New / Release Notes (v2.1.0)
 
-**Three new actions and major quality improvements**
+**Three powerful new actions and smarter dials**
 
-- **Scene action**: apply dynamic scenes like Sunrise, Aurora, and Rainbow — fetched live from each device
-- **Music Mode action**: activate audio-reactive lighting with device-specific modes and adjustable sensitivity
-- **Feature Toggle action**: one-tap control for Nightlight, Gradient, DreamView, and Scene Stage
-- All dials now sync live state from your lights on appear
-- All dials support power toggle via press or touch
-- Visual flash feedback on dial API calls (green for success, red for error)
-- Deferred dial execution for smooth, responsive rotation
-- Updated all dependencies to latest versions
-- Fixed segment index display to match 1-based numbering in the UI
-- Improved error handling and recovery across all actions
+### New Actions
+
+- **Scenes** — Apply dynamic scenes like Sunrise, Aurora, and Rainbow with a single tap. Scenes are fetched live from each device so you only see what your light actually supports.
+- **Music Mode** — Turn your room into a light show. Activate audio-reactive lighting with device-specific modes (Rhythm, Energic, Spectrum, Rolling) and adjustable sensitivity.
+- **Feature Toggle** — One-tap control for Nightlight, Gradient, DreamView, and Scene Stage. Features are auto-filtered by device capability — no guessing what works.
+
+### Smarter Dials
+
+- **Live state sync** — Dials now read the actual state of your lights when they appear. No more starting at default values.
+- **Power toggle on press** — Press any dial to toggle power on/off, matching the keypad experience.
+- **Visual flash feedback** — Green flash on success, red on error. You always know if the command landed.
+- **Smooth rotation** — Deferred API calls mean the display updates instantly while the light catches up. No lag, no jitter.
+
+### Improvements
+
+- **Fixed segment numbering** — Segment indices now display 1–15 in the UI, matching user expectations.
+- Updated all dependencies to latest stable versions.
+
+---
+
+## What's New / Release Notes (v2.1.1)
+
+**Critical bug fix for accounts with device groups**
+
+- **Fixed crash with Govee group entries** — Accounts with device groups (BaseGroup, SameModeGroup, DreamViewScenic) no longer crash the plugin. The Govee API returns group objects that lack required fields, which caused strict schema validation to reject the entire response and crash the plugin process. Discovery now gracefully skips invalid entries.
+- **Resilient transport layer** — Individual transport failures no longer block device discovery from other transports.
+- **Cached fallback** — If discovery fails, the plugin falls back to cached device data instead of showing an empty dropdown.
 
 ---
 
