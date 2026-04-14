@@ -90,6 +90,56 @@ describe("DeviceService", () => {
     expect(orchestrator.discoverDevices).toHaveBeenCalledTimes(3);
   });
 
+  it("falls back to cached data when discovery throws", async () => {
+    const orchestrator = createOrchestratorMock();
+    const cachedLight = {
+      deviceId: "dev-1",
+      model: "H6001",
+      name: "Living Room",
+      label: "Living Room",
+      value: "dev-1|H6001",
+      controllable: true,
+      retrievable: true,
+      supportedCommands: ["Power"],
+    };
+
+    // First call succeeds and populates cache
+    orchestrator.discoverDevices.mockResolvedValueOnce({
+      lights: [cachedLight],
+      stale: false,
+    });
+
+    const service = new DeviceService(orchestrator as any, {
+      cacheTtlMs: 500,
+    });
+    const first = await service.discover();
+    expect(first).toHaveLength(1);
+
+    // Expire cache
+    vi.advanceTimersByTime(501);
+
+    // Second call throws (simulates Zod ValidationError from group entries)
+    orchestrator.discoverDevices.mockRejectedValueOnce(
+      new Error("API response validation failed"),
+    );
+
+    // Should return cached data instead of crashing
+    const second = await service.discover();
+    expect(second).toHaveLength(1);
+    expect(second[0].deviceId).toBe("dev-1");
+  });
+
+  it("returns empty array when discovery throws with no cache", async () => {
+    const orchestrator = createOrchestratorMock();
+    orchestrator.discoverDevices.mockRejectedValue(
+      new Error("API response validation failed"),
+    );
+
+    const service = new DeviceService(orchestrator as any);
+    const result = await service.discover();
+    expect(result).toEqual([]);
+  });
+
   it("returns cached lights when available", () => {
     const orchestrator = createOrchestratorMock();
     const service = new DeviceService(orchestrator as any);

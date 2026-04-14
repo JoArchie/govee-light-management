@@ -84,6 +84,49 @@ describe("TransportOrchestrator", () => {
     expect(result.stale).toBe(false);
   });
 
+  it("continues discovery when one transport throws (e.g. validation error)", async () => {
+    const validLight = {
+      deviceId: "dev-1",
+      model: "H6001",
+      name: "Living Room",
+      label: "Living Room",
+      value: "dev-1|H6001",
+      controllable: true,
+      retrievable: true,
+      supportedCommands: [],
+    };
+
+    // Primary transport throws (simulates Zod ValidationError from group entries)
+    (primary.discoverDevices as any).mockRejectedValue(
+      new Error("API response validation failed"),
+    );
+    // Secondary transport succeeds
+    (secondary.discoverDevices as any).mockResolvedValue({
+      lights: [validLight],
+      stale: false,
+    } satisfies DeviceDiscoveryResult);
+
+    const result = await orchestrator.discoverDevices();
+
+    // Should still return the lights from the working transport
+    expect(result.lights).toHaveLength(1);
+    expect(result.lights[0].deviceId).toBe("dev-1");
+  });
+
+  it("returns empty when all transports fail", async () => {
+    (primary.discoverDevices as any).mockRejectedValue(
+      new Error("API response validation failed"),
+    );
+    (secondary.discoverDevices as any).mockRejectedValue(
+      new Error("Network timeout"),
+    );
+
+    const result = await orchestrator.discoverDevices();
+
+    expect(result.lights).toHaveLength(0);
+    expect(result.stale).toBe(true);
+  });
+
   it("refreshes transport health and exposes snapshots", async () => {
     const healthPrimary: TransportHealth = {
       descriptor: primary.descriptor,
