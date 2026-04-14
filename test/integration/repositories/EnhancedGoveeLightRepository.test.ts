@@ -4,17 +4,17 @@ import { PluginError, ErrorCategory } from '../../../src/backend/infrastructure/
 import { ApiValidationError } from '../../../src/backend/infrastructure/validation/ApiResponseValidator';
 import { CircuitBreakerOpenError } from '../../../src/backend/infrastructure/resilience/CircuitBreaker';
 
-// Get mocked classes
-const mockGoveeClient = vi.hoisted(() => vi.fn());
+// Get mocked classes — vitest 4 requires function/class syntax for constructors
+const mockGoveeClient = vi.hoisted(() => vi.fn(function () {}));
 
 // Mock the Govee API client module
 vi.mock('@felixgeelhaar/govee-api-client', () => ({
   GoveeClient: mockGoveeClient,
   ColorRgb: {
-    fromHex: vi.fn((hex: string) => ({ toString: () => hex, r: 255, g: 0, b: 0 })),
+    fromHex: vi.fn(function (hex: string) { return { toString: () => hex, r: 255, g: 0, b: 0 }; }),
   },
-  Brightness: vi.fn((level: number) => ({ level })),
-  ColorTemperature: vi.fn((kelvin: number) => ({ kelvin })),
+  Brightness: vi.fn(function (level: number) { return { level }; }),
+  ColorTemperature: vi.fn(function (kelvin: number) { return { kelvin }; }),
 }));
 
 vi.mock('@elgato/streamdeck', () => ({
@@ -72,7 +72,7 @@ describe('EnhancedGoveeLightRepository Integration Tests', () => {
       getServiceStats: vi.fn(() => ({ requests: 0, failures: 0 })),
     };
 
-    mockGoveeClient.mockImplementation(() => mockClient);
+    mockGoveeClient.mockImplementation(function () { return mockClient; });
     repository = new EnhancedGoveeLightRepository('test-api-key');
   });
 
