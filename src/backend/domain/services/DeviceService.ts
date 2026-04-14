@@ -46,7 +46,15 @@ export class DeviceService {
     }
 
     const started = Date.now();
-    const result = await this.orchestrator.discoverDevices();
+    let result: Awaited<ReturnType<TransportOrchestrator["discoverDevices"]>>;
+    try {
+      result = await this.orchestrator.discoverDevices();
+    } catch (error) {
+      this.logger?.error?.("device.discover.failed", error);
+      // Return cached data if available, otherwise empty
+      if (this.cache) return this.cache.lights;
+      return [];
+    }
     const normalized = result.lights.map((light) => this.normalize(light));
 
     const durationMs = Date.now() - started;

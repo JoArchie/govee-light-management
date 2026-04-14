@@ -33,22 +33,31 @@ export class TransportOrchestrator {
   }
 
   async discoverDevices(): Promise<DeviceDiscoveryResult> {
-    const results = await Promise.all(
+    const settled = await Promise.allSettled(
       Object.values(this.transports)
         .filter((transport): transport is ITransport => Boolean(transport))
         .map(async (transport) => transport.discoverDevices()),
     );
 
     const lights = new Map<string, LightItem>();
-    for (const result of results) {
-      for (const light of result.lights) {
-        lights.set(`${light.deviceId}|${light.model}`, light);
+    const fulfilled: DeviceDiscoveryResult[] = [];
+
+    for (const outcome of settled) {
+      if (outcome.status === "fulfilled") {
+        fulfilled.push(outcome.value);
+        for (const light of outcome.value.lights) {
+          lights.set(`${light.deviceId}|${light.model}`, light);
+        }
       }
+      // Rejected transports are silently skipped — CloudTransport already
+      // logs its own errors, and we don't want one transport failure to
+      // block discovery from other transports.
     }
 
     return {
       lights: Array.from(lights.values()),
-      stale: results.every((result) => result.stale),
+      stale:
+        fulfilled.length === 0 || fulfilled.every((result) => result.stale),
     };
   }
 
