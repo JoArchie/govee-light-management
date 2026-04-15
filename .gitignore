@@ -45,4 +45,14 @@ storybook-static
 
 # Local Claude Code settings
 .claude/settings.local.json
+
+# Security/code scanning artifacts
 .nox/
+findings.json
+
+# Runtime logs
+logs/
+
+# Tool-generated directories
+.roady/
+.relicta/
