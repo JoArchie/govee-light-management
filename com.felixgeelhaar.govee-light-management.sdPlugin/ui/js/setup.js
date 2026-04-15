@@ -44,6 +44,68 @@ document.addEventListener("DOMContentLoaded", () => {
     return API_KEY_PATTERN.test(normalizeApiKey(value));
   }
 
+  function toPayload(message) {
+    if (
+      message &&
+      typeof message === "object" &&
+      "payload" in message &&
+      message.payload
+    ) {
+      return message.payload;
+    }
+    return message || {};
+  }
+
+  function sendPluginMessage(client, payload) {
+    if (client && typeof client.sendToPlugin === "function") {
+      client.sendToPlugin(payload);
+      return;
+    }
+
+    // Fallback for older SDPI client builds that only expose `send`.
+    if (client && typeof client.send === "function") {
+      client.send("sendToPlugin", payload);
+      return;
+    }
+
+    console.warn("sendToPlugin is unavailable on streamDeckClient", {
+      event: payload && payload.event,
+    });
+  }
+
+  function subscribePluginMessages(client, onMessage) {
+    const sources = [
+      client && client.sendToPropertyInspector,
+      client && client.message,
+    ].filter(Boolean);
+
+    const subscriptions = [];
+    sources.forEach((source) => {
+      if (source && typeof source.subscribe === "function") {
+        const subscription = source.subscribe((message) => {
+          onMessage(toPayload(message));
+        });
+        subscriptions.push(subscription);
+      }
+    });
+
+    if (subscriptions.length > 0) {
+      return () => {
+        subscriptions.forEach((subscription) => {
+          if (subscription && typeof subscription.unsubscribe === "function") {
+            subscription.unsubscribe();
+          }
+        });
+      };
+    }
+
+    const legacyHandler = (evt) => onMessage(evt.detail || {});
+    document.addEventListener("sdpi:message", legacyHandler);
+    return () => {
+      document.removeEventListener("sdpi:message", legacyHandler);
+    };
+  }
+
   function injectApiKeyActions(client) {
     if (!settingsWrapper || document.getElementById("editApiKeyBtn")) return;
 
@@ -179,7 +241,7 @@ document.addEventListener("DOMContentLoaded", () => {
 				`;
         row.querySelector(".group-delete-btn").addEventListener("click", () => {
           if (confirm("Delete group '" + g.name + "'?")) {
-            sendToPlugin({ event: "deleteGroup", groupId: g.id });
+            sendPluginMessage(client, { event: "deleteGroup", groupId: g.id });
           }
         });
         groupList.appendChild(row);
@@ -219,15 +281,14 @@ document.addEventListener("DOMContentLoaded", () => {
         showStatus("Select lights", true);
         return;
       }
-      sendToPlugin({
+      sendPluginMessage(client, {
         event: "saveGroup",
         group: { name, lightIds: checked.map((cb) => cb.value) },
       });
     });
 
-    // Listen for backend responses via raw WebSocket
-    document.addEventListener("sdpi:message", (evt) => {
-      const p = evt.detail || {};
+    const unsubscribeMessages = subscribePluginMessages(client, (p) => {
+      if (!p || typeof p !== "object") return;
 
       if (p.event === "getDevices" && p.items) {
         // Flatten: items may have children (Lights/Groups optgroups)
@@ -252,7 +313,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (p.success) {
           showStatus("Group created!", false);
           createForm.style.display = "none";
-          sendToPlugin({ event: "getGroups" });
+          sendPluginMessage(client, { event: "getGroups" });
           // Refresh device dropdown to include new group
           document.querySelectorAll("sdpi-select[datasource]").forEach((el) => {
             if (el.refresh) el.refresh();
@@ -265,7 +326,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (p.event === "groupDeleted") {
         if (p.success) {
           showStatus("Deleted", false);
-          sendToPlugin({ event: "getGroups" });
+          sendPluginMessage(client, { event: "getGroups" });
           document.querySelectorAll("sdpi-select[datasource]").forEach((el) => {
             if (el.refresh) el.refresh();
           });
@@ -275,15 +336,19 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
 
+    window.addEventListener("beforeunload", unsubscribeMessages, {
+      once: true,
+    });
+
     // Fetch groups and devices
-    sendToPlugin({ event: "getGroups" });
-    sendToPlugin({ event: "getDevices" });
+    sendPluginMessage(client, { event: "getGroups" });
+    sendPluginMessage(client, { event: "getDevices" });
   }
 
   // ── Device Dropdown Timeout ──
   // If the dropdown stays on "Loading" for too long (backend crashed or
   // API unreachable), show a helpful hint so the user isn't stuck.
-  function watchDeviceDropdown() {
+  function watchDeviceDropdown(client) {
     const TIMEOUT_MS = 15_000;
     const deviceSelect = document.querySelector(
       'sdpi-select[setting="selectedDeviceId"]',
@@ -309,13 +374,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }, TIMEOUT_MS);
 
     // Clear timeout if devices arrive
-    document.addEventListener("sdpi:message", function onMsg(evt) {
-      const p = evt.detail || {};
+    const unsubscribeMessages = subscribePluginMessages(client, (p) => {
+      if (!p || typeof p !== "object") return;
       if (p.event === "getDevices") {
         clearTimeout(timer);
         const hint = document.getElementById("deviceTimeout");
         if (hint) hint.remove();
-        document.removeEventListener("sdpi:message", onMsg);
+        unsubscribeMessages();
       }
     });
   }
@@ -339,7 +404,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     client.getGlobalSettings();
-    watchDeviceDropdown();
+    watchDeviceDropdown(client);
     try {
       initGroupManager(client);
     } catch (error) {

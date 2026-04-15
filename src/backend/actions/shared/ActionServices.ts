@@ -46,14 +46,32 @@ const FLASH_RESULT_MS = 400; // how long success/error flash stays visible
  * but the SDK routes to whichever PI is currently open.
  */
 async function sendToPI(
-  _actionId: string,
+  actionId: string,
   payload: Record<string, unknown>,
 ): Promise<void> {
+  const MAX_ATTEMPTS = 20;
+  const RETRY_DELAY_MS = 25;
+
   try {
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      const currentAction = streamDeck.ui.action;
+      if (currentAction?.id === actionId) {
+        break;
+      }
+
+      if (attempt === MAX_ATTEMPTS - 1) {
+        streamDeck.logger.warn(
+          `PI context not ready or mismatched (expected: ${actionId}, current: ${currentAction?.id ?? "none"})`,
+        );
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+      }
+    }
+
     await streamDeck.ui.sendToPropertyInspector(payload as JsonValue);
   } catch (error) {
     streamDeck.logger.error(
-      `Failed to send to PI (context: ${_actionId}):`,
+      `Failed to send to PI (context: ${actionId}):`,
       error,
     );
   }

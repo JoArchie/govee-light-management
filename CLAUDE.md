@@ -11,7 +11,7 @@ This is an enterprise-grade Stream Deck plugin for managing Govee smart lights. 
 - **Architecture**: Domain-Driven Design with SOLID principles ✅
 - **Type Safety**: Complete TypeScript type safety across entire codebase ✅
 - **Testing**: TDD approach with 258 tests, 80%+ coverage achieved ✅
-- **Build System**: Modern Vite-based tooling with dual frontend/backend builds ✅
+- **Build System**: Rollup backend + Vite frontend/tests ✅
 - **Developer Experience**: Hot reload, automated quality gates, comprehensive test suite ✅
 - **Code Quality**: Zero TypeScript errors, zero linting errors, all tests passing ✅
 - **Phase 1 Enhancement**: ✅ **COMPLETED** - Zod validation, error boundaries, circuit breaker patterns
@@ -23,7 +23,7 @@ This is an enterprise-grade Stream Deck plugin for managing Govee smart lights. 
 
 ### Build and Development
 
-- `npm run build` - Build both backend and frontend using Vite
+- `npm run build` - Build backend using Rollup (outputs to sdPlugin/bin/plugin.js)
 - `npm run dev` - Run both backend and frontend in development mode
 - `npm run watch` - Build backend in watch mode with automatic Stream Deck restart
 - `npm run type-check` - Run TypeScript type checking for both backend and frontend
@@ -529,9 +529,8 @@ The plugin implements a pluggable transport abstraction layer that enables multi
 
 ### Build System
 
-- **Vite**: Modern build system for both backend and frontend
-- **Backend**: Custom Vite configuration (`vite.backend.config.ts`) for plugin compilation
-- **Frontend**: Standard Vite with Vue 3 support (`vite.config.ts`)
+- **Backend**: Rollup (`rollup.config.mjs`) — matches Elgato's official plugin template. Bundles everything (no externals except Node builtins), resolves Node.js exports correctly (browser: false), outputs single `plugin.js` to sdPlugin/bin/
+- **Frontend**: Vite with Vue 3 support (`vite.config.ts`) for Property Inspectors
 - TypeScript compilation with ES2022 modules targeting Stream Deck's Chromium environment
 - Source maps in development mode
 - Automatic plugin file emission and manifest watching
@@ -545,13 +544,12 @@ The plugin implements a pluggable transport abstraction layer that enables multi
 
 ### Build System Evolution
 
-- **Previous**: Rollup-based build system
-- **Current**: Modern Vite-based build system with dual configurations
-  - Faster hot reload and development server
-  - Better TypeScript integration and error reporting
-  - Improved plugin ecosystem and modern tooling
-  - Enhanced build performance for large codebases
-  - Native ESM support with better tree-shaking
+- **Previous**: Vite-based backend build (caused `ws` browser export resolution issue, breaking packaged plugins)
+- **Current**: Rollup backend build matching Elgato's official template
+  - Correct Node.js module resolution (`browser: false`, `exportConditions: ["node"]`)
+  - Packaged `.streamDeckPlugin` files work correctly (no crash-loop)
+  - Single bundled output with no external dependencies
+  - ESM output with `{ "type": "module" }` package.json emitted to bin/
 
 ### UI Components
 
@@ -650,7 +648,7 @@ Uses Stream Deck logger with INFO level for production, comprehensive error hand
 ### Known Technical Debt
 
 - **Repository Stubs**: ✅ Resolved - All repository methods fully implemented in v2.1.0
-- **Build Migration**: ✅ Completed - Successfully migrated from Rollup to Vite
+- **Build Migration**: ✅ Completed - Migrated backend from Vite back to Rollup (fixes packaged plugin crash-loop)
 - **Dead Code**: ✅ Resolved - Removed legacy template files (govee-api.ts, increment-counter.ts, open-product-page.ts)
 - **HSV Duplication**: ✅ Resolved - Extracted shared `color-utils.ts` utility
 - **Memory Leaks**: ✅ Resolved - Added `onWillDisappear` cleanup to all dial actions
@@ -690,7 +688,7 @@ Uses Stream Deck logger with INFO level for production, comprehensive error hand
 
 ### Development Experience
 
-- **Hot Reload**: Fast development cycles with Vite
+- **Hot Reload**: Fast development cycles with Rollup watch + Stream Deck restart
 - **Testing**: Comprehensive test suite with 80% coverage target
 - **Type Checking**: Full TypeScript coverage with strict mode
 - **Developer Tools**: Integrated debugging, linting, and formatting
