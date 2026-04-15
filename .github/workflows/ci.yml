@@ -44,22 +44,22 @@ jobs:
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
         with:
           node-version: ${{ matrix.node-version }}
-          cache: 'npm'  # ✅ Cache npm dependencies
+          cache: "npm" # ✅ Cache npm dependencies
 
-    - name: Install dependencies
-      run: npm ci  # ✅ Faster than npm install, uses package-lock.json
+      - name: Install dependencies
+        run: npm ci # ✅ Faster than npm install, uses package-lock.json
 
-    - name: Run linting
-      run: npm run lint
+      - name: Run linting
+        run: npm run lint
 
-    - name: Check formatting
-      run: npm run format:check
+      - name: Check formatting
+        run: npm run format:check
 
-    - name: Run tests
-      run: npm test
+      - name: Run tests
+        run: npm test
 
-    - name: Run build
-      run: npm run build
+      - name: Run build
+        run: npm run build
 
   # Cross-platform testing (only for PRs to main or on main branch)
   test-cross-platform:
