@@ -16,6 +16,10 @@ const DEFAULT_BAR_BG = "#1F2937"; // dark gray
 
 @action({ UUID: "com.felixgeelhaar.govee-light-management.brightness-dial" })
 export class BrightnessDialAction extends BaseDialAction<BrightnessDialSettings> {
+  private static deviceStateCache = new Map<
+    string,
+    { brightness: number; isOn: boolean }
+  >();
   private brightnessMap = new Map<string, number>();
 
   protected initValueMaps(ctx: string): void {
@@ -35,6 +39,12 @@ export class BrightnessDialAction extends BaseDialAction<BrightnessDialSettings>
     const current = this.brightnessMap.get(ctx) ?? 50;
     const next = clamp(current + ev.payload.ticks * step, 0, 100);
     this.brightnessMap.set(ctx, next);
+    if (settings.selectedDeviceId) {
+      BrightnessDialAction.deviceStateCache.set(settings.selectedDeviceId, {
+        brightness: next,
+        isOn: this.powerMap.get(ctx) ?? true,
+      });
+    }
 
     await this.updateDisplay(ev.action, settings);
 
@@ -73,18 +83,34 @@ export class BrightnessDialAction extends BaseDialAction<BrightnessDialSettings>
     ctx: string,
     settings: BrightnessDialSettings,
   ): Promise<void> {
+    const deviceId = settings.selectedDeviceId;
+    if (deviceId) {
+      const cached = BrightnessDialAction.deviceStateCache.get(deviceId);
+      if (cached) {
+        this.powerMap.set(ctx, cached.isOn);
+        this.brightnessMap.set(ctx, cached.brightness);
+      }
+    }
+
     const apiKey = await this.services.getApiKey(settings);
-    if (!apiKey || !settings.selectedDeviceId) return;
+    if (!apiKey || !deviceId) return;
 
     try {
       await this.services.ensureServices(apiKey);
       const target = await this.services.resolveTarget(settings);
       if (target?.type === "light" && target.light) {
-        await this.services.syncLightState(target.light);
+        const synced = await this.services.syncLightState(target.light);
+        if (!synced) {
+          return;
+        }
         this.powerMap.set(ctx, target.light.isOn);
         if (target.light.brightness) {
           this.brightnessMap.set(ctx, target.light.brightness.level);
         }
+        BrightnessDialAction.deviceStateCache.set(deviceId, {
+          brightness: this.brightnessMap.get(ctx) ?? 50,
+          isOn: this.powerMap.get(ctx) ?? true,
+        });
       }
     } catch {
       // Best effort - keep defaults
@@ -98,11 +124,13 @@ export class BrightnessDialAction extends BaseDialAction<BrightnessDialSettings>
     const ctx = action.id || "default";
     const brightness = this.brightnessMap.get(ctx) ?? 50;
     const isOn = this.powerMap.get(ctx) ?? true;
+    const title = isOn ? `${brightness}%` : "Off";
 
     await action.setFeedback({
       label: "Brightness",
-      value: isOn ? `${brightness}%` : "Off",
+      value: title,
       bar: { value: isOn ? brightness : 0 },
     });
+    await action.setTitle(title);
   }
 }

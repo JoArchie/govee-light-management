@@ -29,6 +29,7 @@ export interface LightItem {
       range: {
         min: number;
         max: number;
+        precision?: number;
       };
     };
   };

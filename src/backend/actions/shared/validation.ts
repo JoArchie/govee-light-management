@@ -16,6 +16,22 @@ export function isValidationError(error: unknown): boolean {
 }
 
 /**
+ * Some devices return malformed state payloads for specific fields.
+ * Those failures should not be treated as fatal for UI refresh loops.
+ */
+export function isIgnorableLiveStateError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return (
+    error.message.includes(
+      "Color temperature must be between 1000K and 50000K, got 0K",
+    ) || error.message.includes("ID must be a positive integer")
+  );
+}
+
+/**
  * Valid toggle instance names accepted by the Govee API.
  * Only these are forwarded to the API — all others are rejected.
  */

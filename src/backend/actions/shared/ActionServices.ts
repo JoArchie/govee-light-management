@@ -28,7 +28,7 @@ import { globalSettingsService } from "../../services/GlobalSettingsService";
 import { StreamDeckLightGroupRepository } from "../../infrastructure/repositories/StreamDeckLightGroupRepository";
 import { LightGroupService } from "../../domain/services/LightGroupService";
 import { SegmentColor } from "../../domain/value-objects/SegmentColor";
-import { isValidationError } from "./validation";
+import { isIgnorableLiveStateError, isValidationError } from "./validation";
 
 /** Default timeout for API calls in PI handlers (10 seconds) */
 const PI_HANDLER_TIMEOUT_MS = 10_000;
@@ -38,6 +38,9 @@ const FLASH_SUCCESS = "#22CC66"; // green – command succeeded
 const FLASH_ERROR = "#FF3333"; // red – command failed
 const FLASH_LOADING_DELAY_MS = 250; // only show loading if request is noticeably slow
 const FLASH_RESULT_MS = 400; // how long success/error flash stays visible
+const LIVE_STATE_RETRY_BACKOFF_MS = 30_000;
+const RATE_LIMIT_RETRY_BACKOFF_MS = 60_000;
+const LIVE_STATE_MIN_REFRESH_MS = 3_000;
 
 /**
  * Send a payload to the Property Inspector for the currently visible action.
@@ -135,6 +138,11 @@ export class ActionServices {
     /** Guards concurrent ensureServices calls to prevent interleaving. */
     initPromise?: Promise<void>;
   } = {};
+  private static liveStateBlockedUntil = new Map<string, number>();
+  private static liveStateLogged = new Set<string>();
+  private static lightStateSnapshots = new Map<string, LightState>();
+  private static lightStateSyncedAt = new Map<string, number>();
+  private static liveStateSyncInFlight = new Map<string, Promise<boolean>>();
 
   get lightRepository() {
     return ActionServices._shared.lightRepository;
@@ -147,6 +155,84 @@ export class ActionServices {
   }
   get deviceService() {
     return ActionServices._shared.deviceService;
+  }
+
+  private getLightSnapshotKey(light: Pick<Light, "deviceId" | "model">): string {
+    return `${light.deviceId}|${light.model}`;
+  }
+
+  private hydrateFromSnapshot(light: Light): void {
+    const snapshot = ActionServices.lightStateSnapshots.get(
+      this.getLightSnapshotKey(light),
+    );
+    if (snapshot) {
+      light.updateState(snapshot);
+    }
+  }
+
+  private rememberLightState(light: Light): void {
+    ActionServices.lightStateSnapshots.set(
+      this.getLightSnapshotKey(light),
+      light.state,
+    );
+    ActionServices.lightStateSyncedAt.set(
+      this.getLightSnapshotKey(light),
+      Date.now(),
+    );
+  }
+
+  private getKnownPowerState(light: Pick<Light, "deviceId" | "model">):
+    | boolean
+    | undefined {
+    return ActionServices.lightStateSnapshots.get(this.getLightSnapshotKey(light))
+      ?.isOn;
+  }
+
+  private hasFreshSnapshot(light: Pick<Light, "deviceId" | "model">): boolean {
+    const syncedAt = ActionServices.lightStateSyncedAt.get(
+      this.getLightSnapshotKey(light),
+    );
+    return (
+      typeof syncedAt === "number" &&
+      Date.now() - syncedAt < LIVE_STATE_MIN_REFRESH_MS
+    );
+  }
+
+  private isRateLimitError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    return message.toLowerCase().includes("rate limit exceeded");
+  }
+
+  private isNonRetryableControlError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    const normalized = message.toLowerCase();
+    return (
+      normalized.includes("parameter value out of range") ||
+      normalized.includes("failed to set color temperature: api returned error code 400")
+    );
+  }
+
+  async getLightItem(
+    settings: BaseSettings,
+  ): Promise<import("@shared/types").LightItem | undefined> {
+    const target = this.parseTarget(settings);
+    if (
+      !target ||
+      target.type !== "light" ||
+      !target.deviceId ||
+      !target.model ||
+      !this.deviceService
+    ) {
+      return undefined;
+    }
+
+    const lights =
+      this.deviceService.getCachedLights() ??
+      (await this.deviceService.discover(false));
+    return lights.find(
+      (light) =>
+        light.deviceId === target.deviceId && light.model === target.model,
+    );
   }
 
   /**
@@ -316,6 +402,7 @@ export class ActionServices {
           initialState,
           capabilities,
         );
+        this.hydrateFromSnapshot(light);
         return { type: "light", light };
       }
     }
@@ -741,6 +828,17 @@ export class ActionServices {
   }
 
   /**
+   * Returns true while a dial has a deferred command queued or its success/error
+   * flash is still active. Used to avoid live-state refreshes fighting with
+   * immediate user feedback.
+   */
+  isDialInteractionActive(contextId: string): boolean {
+    return (
+      this.dialTimers.has(contextId) || this.restoreTimers.has(contextId)
+    );
+  }
+
+  /**
    * Show a spinner on a key while an async operation runs.
    * Returns a function to stop the spinner.
    */
@@ -784,6 +882,7 @@ export class ActionServices {
             command,
             value,
           );
+          this.rememberLightState(target.light);
         } else if (target.type === "group" && target.group) {
           await this.lightControlService!.controlGroup(
             target.group,
@@ -793,7 +892,10 @@ export class ActionServices {
         }
       } catch (error) {
         // Don't retry on validation errors - these are likely API issues
-        if (isValidationError(error)) {
+        if (
+          isValidationError(error) ||
+          this.isNonRetryableControlError(error)
+        ) {
           throw error;
         }
         if (attempt < maxRetries) {
@@ -860,16 +962,79 @@ export class ActionServices {
     return this.lightRepository.getToggleState(light, instance);
   }
 
-  async syncLightState(light: Light): Promise<void> {
-    if (!this.lightRepository) {
+  async syncLightState(light: Light): Promise<boolean> {
+    const lightRepository = this.lightRepository;
+    if (!lightRepository) {
       throw new Error("Light repository not initialized");
     }
-    await this.lightRepository.getLightState(light);
+    this.hydrateFromSnapshot(light);
+    if (this.hasFreshSnapshot(light)) {
+      return true;
+    }
+    if (this.isLiveStateTemporarilyBlocked(light, "full-state")) {
+      return false;
+    }
+
+    const snapshotKey = this.getLightSnapshotKey(light);
+    const inFlight = ActionServices.liveStateSyncInFlight.get(snapshotKey);
+    if (inFlight) {
+      await inFlight;
+      this.hydrateFromSnapshot(light);
+      return this.hasFreshSnapshot(light);
+    }
+
+    const syncPromise = (async () => {
+      try {
+        await lightRepository.getLightState(light);
+        this.clearLiveStateBlock(light, "full-state");
+        this.rememberLightState(light);
+        return true;
+      } catch (error) {
+        if (this.handleIgnorableLiveStateError(light, error, "full-state")) {
+          return false;
+        }
+        if (this.isRateLimitError(error)) {
+          this.blockLiveState(
+            light,
+            "full-state",
+            RATE_LIMIT_RETRY_BACKOFF_MS,
+            error,
+          );
+          return false;
+        }
+        throw error;
+      } finally {
+        ActionServices.liveStateSyncInFlight.delete(snapshotKey);
+      }
+    })();
+
+    ActionServices.liveStateSyncInFlight.set(snapshotKey, syncPromise);
+
+    const synced = await syncPromise;
+    this.hydrateFromSnapshot(light);
+    return synced || this.hasFreshSnapshot(light);
   }
 
   async getLivePowerState(light: Light): Promise<boolean | undefined> {
+    this.hydrateFromSnapshot(light);
+
+    if (this.lightRepository) {
+      try {
+        const synced = await this.syncLightState(light);
+        if (synced) {
+          return light.isOn;
+        }
+      } catch {
+        // Fall through to transport power-state lookup below.
+      }
+    }
+
     if (!this.deviceService) {
-      return undefined;
+      return this.getKnownPowerState(light);
+    }
+
+    if (this.isLiveStateTemporarilyBlocked(light, "power-state")) {
+      return this.getKnownPowerState(light);
     }
 
     try {
@@ -885,13 +1050,33 @@ export class ActionServices {
         isOnline: result.state.isOnline,
         transport: result.transport,
       });
+      if (typeof result.state.powerState === "boolean") {
+        light.updateState({
+          isOn: result.state.powerState,
+          isOnline: result.state.isOnline,
+        });
+        this.rememberLightState(light);
+      }
+      this.clearLiveStateBlock(light, "power-state");
       return result.state.powerState;
     } catch (error) {
+      if (this.handleIgnorableLiveStateError(light, error, "power-state")) {
+        return this.getKnownPowerState(light);
+      }
+      if (this.isRateLimitError(error)) {
+        this.blockLiveState(
+          light,
+          "power-state",
+          RATE_LIMIT_RETRY_BACKOFF_MS,
+          error,
+        );
+        return this.getKnownPowerState(light);
+      }
       streamDeck.logger.warn(
         `Failed to get live power state for ${light.name}, using cached state:`,
         error,
       );
-      return undefined;
+      return this.getKnownPowerState(light);
     }
   }
 
@@ -965,5 +1150,60 @@ export class ActionServices {
       throw new Error("Light repository not initialized");
     }
     return this.lightRepository.getToggleFeatures(deviceId);
+  }
+
+  private getLiveStateKey(light: Light, operation: string): string {
+    return `${light.deviceId}|${light.model}|${operation}`;
+  }
+
+  private isLiveStateTemporarilyBlocked(
+    light: Light,
+    operation: string,
+  ): boolean {
+    const blockedUntil = ActionServices.liveStateBlockedUntil.get(
+      this.getLiveStateKey(light, operation),
+    );
+    return typeof blockedUntil === "number" && blockedUntil > Date.now();
+  }
+
+  private clearLiveStateBlock(light: Light, operation: string): void {
+    const key = this.getLiveStateKey(light, operation);
+    ActionServices.liveStateBlockedUntil.delete(key);
+    ActionServices.liveStateLogged.delete(key);
+  }
+
+  private blockLiveState(
+    light: Light,
+    operation: string,
+    retryAfterMs: number,
+    error: unknown,
+  ): void {
+    const logKey = this.getLiveStateKey(light, operation);
+    ActionServices.liveStateBlockedUntil.set(logKey, Date.now() + retryAfterMs);
+    if (!ActionServices.liveStateLogged.has(logKey)) {
+      ActionServices.liveStateLogged.add(logKey);
+      streamDeck.logger.warn("light.live-state.temporarily-disabled", {
+        deviceId: light.deviceId,
+        model: light.model,
+        name: light.name,
+        operation,
+        retryAfterMs,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private handleIgnorableLiveStateError(
+    light: Light,
+    error: unknown,
+    operation: string,
+  ): boolean {
+    if (!isIgnorableLiveStateError(error)) {
+      return false;
+    }
+
+    this.blockLiveState(light, operation, LIVE_STATE_RETRY_BACKOFF_MS, error);
+
+    return true;
   }
 }

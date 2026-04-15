@@ -358,9 +358,10 @@ export class EnhancedGoveeLightRepository implements ILightRepository {
           }
 
           // Extract color temperature if available
-          const colorTemperature = validatedState.getColorTemperature?.() as
-            | ColorTemperature
-            | undefined;
+          const colorTemperature = this.safeGetColorTemperature(
+            validatedState as { getColorTemperature?(): ColorTemperature | undefined },
+            light.name,
+          );
           if (colorTemperature) {
             newState.colorTemperature = colorTemperature;
             newState.color = undefined;
@@ -636,5 +637,20 @@ export class EnhancedGoveeLightRepository implements ILightRepository {
     this.apiCircuitBreaker.reset();
     this.deviceCircuitBreakers.forEach((breaker) => breaker.reset());
     streamDeck.logger.info("All circuit breakers reset");
+  }
+
+  private safeGetColorTemperature(
+    state: { getColorTemperature?(): ColorTemperature | undefined },
+    lightName: string,
+  ): ColorTemperature | undefined {
+    try {
+      return state.getColorTemperature?.();
+    } catch (error) {
+      streamDeck.logger.warn(
+        `Ignoring invalid color temperature in state response for ${lightName}`,
+        error,
+      );
+      return undefined;
+    }
   }
 }

@@ -19,6 +19,7 @@ const DEFAULT_BAR_BG =
 
 @action({ UUID: "com.felixgeelhaar.govee-light-management.colorhue-dial" })
 export class ColorHueDialAction extends BaseDialAction<ColorHueDialSettings> {
+  private static deviceStateCache = new Map<string, { hue: number; isOn: boolean }>();
   private hueMap = new Map<string, number>();
 
   protected initValueMaps(ctx: string): void {
@@ -38,6 +39,12 @@ export class ColorHueDialAction extends BaseDialAction<ColorHueDialSettings> {
     const current = this.hueMap.get(ctx) ?? 0;
     const next = (((current + ev.payload.ticks * step) % 360) + 360) % 360;
     this.hueMap.set(ctx, next);
+    if (settings.selectedDeviceId) {
+      ColorHueDialAction.deviceStateCache.set(settings.selectedDeviceId, {
+        hue: next,
+        isOn: this.powerMap.get(ctx) ?? true,
+      });
+    }
 
     await this.updateDisplay(ev.action, settings);
 
@@ -74,18 +81,34 @@ export class ColorHueDialAction extends BaseDialAction<ColorHueDialSettings> {
     ctx: string,
     settings: ColorHueDialSettings,
   ): Promise<void> {
+    const deviceId = settings.selectedDeviceId;
+    if (deviceId) {
+      const cached = ColorHueDialAction.deviceStateCache.get(deviceId);
+      if (cached) {
+        this.powerMap.set(ctx, cached.isOn);
+        this.hueMap.set(ctx, cached.hue);
+      }
+    }
+
     const apiKey = await this.services.getApiKey(settings);
-    if (!apiKey || !settings.selectedDeviceId) return;
+    if (!apiKey || !deviceId) return;
 
     try {
       await this.services.ensureServices(apiKey);
       const target = await this.services.resolveTarget(settings);
       if (target?.type === "light" && target.light) {
-        await this.services.syncLightState(target.light);
+        const synced = await this.services.syncLightState(target.light);
+        if (!synced) {
+          return;
+        }
         this.powerMap.set(ctx, target.light.isOn);
         if (target.light.color) {
           this.hueMap.set(ctx, rgbToHue(target.light.color));
         }
+        ColorHueDialAction.deviceStateCache.set(deviceId, {
+          hue: this.hueMap.get(ctx) ?? 0,
+          isOn: this.powerMap.get(ctx) ?? true,
+        });
       }
     } catch {
       // Best effort - keep defaults
@@ -99,11 +122,13 @@ export class ColorHueDialAction extends BaseDialAction<ColorHueDialSettings> {
     const ctx = action.id || "default";
     const hue = this.hueMap.get(ctx) ?? 0;
     const isOn = this.powerMap.get(ctx) ?? true;
+    const title = isOn ? `${hue} deg` : "Off";
 
     await action.setFeedback({
       label: "Color",
       value: isOn ? `${hue}°` : "Off",
       bar: { value: isOn ? Math.round((hue / 360) * 100) : 0 },
     });
+    await action.setTitle(title);
   }
 }

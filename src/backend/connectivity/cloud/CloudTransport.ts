@@ -78,6 +78,9 @@ export class CloudTransport implements ITransport {
           device.capabilities.map((c) => c.instance),
         );
         const capTypes = new Set(device.capabilities.map((c) => c.type));
+        const colorTemperatureRange = this.extractColorTemperatureRange(
+          device.capabilities,
+        );
 
         return {
           deviceId: device.deviceId,
@@ -88,11 +91,24 @@ export class CloudTransport implements ITransport {
           controllable: device.controllable,
           retrievable: device.retrievable,
           supportedCommands: [...device.supportedCmds],
+          properties: colorTemperatureRange
+            ? {
+                colorTem: {
+                  range: {
+                    min: colorTemperatureRange.min,
+                    max: colorTemperatureRange.max,
+                    precision: colorTemperatureRange.precision,
+                  },
+                },
+              }
+            : undefined,
           capabilities: {
             power: true,
             brightness: capInstances.has("brightness"),
             color: capInstances.has("colorRgb"),
-            colorTemperature: capInstances.has("colorTemInKelvin"),
+            colorTemperature:
+              capInstances.has("colorTemperatureK") ||
+              capInstances.has("colorTemInKelvin"),
             scenes: capInstances.has("lightScene"),
             segmentedColor: capInstances.has("segmentedColorRgb"),
             musicMode: capInstances.has("musicMode"),
@@ -123,7 +139,7 @@ export class CloudTransport implements ITransport {
     const power = state.getPowerState();
     const brightness = state.getBrightness();
     const color = state.getColor();
-    const temperature = state.getColorTemperature();
+    const temperature = this.safeGetColorTemperature(state, deviceId, model);
 
     const lightState: LightState = {
       deviceId,
@@ -224,5 +240,61 @@ export class CloudTransport implements ITransport {
   private async getApiKey(): Promise<string | undefined> {
     const settings = await globalSettingsService.getApiKey();
     return settings;
+  }
+
+  private safeGetColorTemperature(
+    state: { getColorTemperature(): ColorTemperature | undefined },
+    deviceId: string,
+    model: string,
+  ): ColorTemperature | undefined {
+    try {
+      return state.getColorTemperature();
+    } catch (error) {
+      streamDeck.logger?.warn("cloud.state.invalid_color_temperature", {
+        deviceId,
+        model,
+        error,
+      });
+      return undefined;
+    }
+  }
+
+  private extractColorTemperatureRange(
+    capabilities: ReadonlyArray<{
+      type: string;
+      instance: string;
+      parameters?: {
+        range?: { min: number; max: number; precision?: number };
+        fields?: Array<{
+          fieldName: string;
+          range?: { min: number; max: number; precision?: number };
+        }>;
+      };
+    }>,
+  ): { min: number; max: number; precision?: number } | undefined {
+    for (const capability of capabilities) {
+      if (
+        capability.instance === "colorTemperatureK" &&
+        capability.parameters?.range
+      ) {
+        return capability.parameters.range;
+      }
+    }
+
+    for (const capability of capabilities) {
+      const fields = capability.parameters?.fields;
+      if (!Array.isArray(fields)) {
+        continue;
+      }
+
+      const colorTemperatureField = fields.find(
+        (field) => field.fieldName === "colorTemperatureK" && field.range,
+      );
+      if (colorTemperatureField?.range) {
+        return colorTemperatureField.range;
+      }
+    }
+
+    return undefined;
   }
 }

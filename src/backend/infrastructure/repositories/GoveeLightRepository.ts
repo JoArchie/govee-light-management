@@ -17,14 +17,17 @@ import { MusicModeMapper } from "../mappers/MusicModeMapper";
 import { MusicModeConfig } from "../../domain/value-objects/MusicModeConfig";
 import {
   isValidationError,
+  isIgnorableLiveStateError,
   VALID_TOGGLE_INSTANCES,
 } from "../../actions/shared/validation";
 import streamDeck from "@elgato/streamdeck";
 
 export class GoveeLightRepository implements ILightRepository {
   private client: GoveeClient;
+  private readonly apiKey: string;
 
   constructor(apiKey: string, enableRetries = true) {
+    this.apiKey = apiKey;
     this.client = new GoveeClient({
       apiKey,
       enableRetries,
@@ -330,7 +333,10 @@ export class GoveeLightRepository implements ILightRepository {
       }
 
       // Extract color temperature if available
-      const colorTemperature = deviceState.getColorTemperature();
+      const colorTemperature = this.safeGetColorTemperature(
+        deviceState,
+        light.name,
+      );
       if (colorTemperature) {
         newState.colorTemperature = colorTemperature;
         newState.color = undefined;
@@ -343,6 +349,13 @@ export class GoveeLightRepository implements ILightRepository {
           `State query response validation failed for ${light.name} - using cached state`,
         );
         return;
+      }
+      if (isIgnorableLiveStateError(error)) {
+        const recovered = await this.tryRecoverStateFromRawCapabilities(light);
+        if (recovered) {
+          return;
+        }
+        throw error;
       }
       streamDeck.logger.error(
         `Failed to get state for light ${light.name}:`,
@@ -724,5 +737,115 @@ export class GoveeLightRepository implements ILightRepository {
    */
   getServiceStats() {
     return this.client.getServiceStats();
+  }
+
+  private safeGetColorTemperature(
+    deviceState: { getColorTemperature(): ColorTemperature | undefined },
+    lightName: string,
+  ): ColorTemperature | undefined {
+    try {
+      return deviceState.getColorTemperature();
+    } catch (error) {
+      streamDeck.logger.warn(
+        `Ignoring invalid color temperature in state response for ${lightName}`,
+        error,
+      );
+      return undefined;
+    }
+  }
+
+  private async tryRecoverStateFromRawCapabilities(
+    light: Light,
+  ): Promise<boolean> {
+    try {
+      const response = await fetch("https://openapi.api.govee.com/router/api/v1/device/state", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Govee-API-Key": this.apiKey,
+        },
+        body: JSON.stringify({
+          requestId: crypto.randomUUID(),
+          payload: {
+            sku: light.model,
+            device: light.deviceId,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        return false;
+      }
+
+      const payload = (await response.json()) as {
+        data?: { capabilities?: Array<Record<string, unknown>> };
+        payload?: { capabilities?: Array<Record<string, unknown>> };
+      };
+      const capabilities =
+        payload.data?.capabilities ?? payload.payload?.capabilities;
+      if (!Array.isArray(capabilities)) {
+        return false;
+      }
+
+      const nextState: Partial<LightState> = {};
+      let recovered = false;
+
+      for (const capability of capabilities) {
+        const instance = capability.instance;
+        const rawState =
+          typeof capability.state === "object" && capability.state !== null
+            ? (capability.state as { value?: unknown }).value
+            : undefined;
+
+        if (instance === "powerSwitch") {
+          nextState.isOn =
+            rawState === 1 || rawState === true || rawState === "on";
+          recovered = true;
+        } else if (instance === "brightness" && typeof rawState === "number") {
+          nextState.brightness = new Brightness(rawState);
+          recovered = true;
+        } else if (instance === "colorRgb" && typeof rawState === "number") {
+          nextState.color = ColorRgb.fromObject({
+            r: Math.floor(rawState / 65536) & 0xff,
+            g: Math.floor(rawState / 256) & 0xff,
+            b: rawState & 0xff,
+          });
+          nextState.colorTemperature = undefined;
+          recovered = true;
+        } else if (
+          instance === "colorTemperatureK" &&
+          typeof rawState === "number" &&
+          rawState >= 1000 &&
+          rawState <= 50000
+        ) {
+          nextState.colorTemperature = new ColorTemperature(rawState);
+          nextState.color = undefined;
+          recovered = true;
+        }
+      }
+
+      if (!recovered) {
+        return false;
+      }
+
+      if (typeof nextState.isOn !== "boolean") {
+        nextState.isOn = light.isOn;
+      }
+      if (typeof nextState.isOnline !== "boolean") {
+        nextState.isOnline = true;
+      }
+
+      light.updateState(nextState);
+      streamDeck.logger.warn(
+        `Recovered partial live state from raw capabilities for ${light.name}`,
+      );
+      return true;
+    } catch (error) {
+      streamDeck.logger.warn(
+        `Failed raw capability fallback for ${light.name}`,
+        error,
+      );
+      return false;
+    }
   }
 }
