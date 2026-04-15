@@ -6,8 +6,11 @@
     "moduleResolution": "Bundler",
     "noImplicitOverride": true,
     "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "useDefineForClassFields": false,
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["node"],
+    "skipLibCheck": true,
     "paths": {
       "@/*": ["./src/*"],
       "@shared/*": ["./src/shared/*"]

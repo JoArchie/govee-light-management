@@ -13,11 +13,16 @@ function startRollupBuild() {
     buildProcess.kill();
   }
 
-  console.log("Starting Rollup backend build...");
+  console.log("Starting Rollup backend build (dev mode with sourcemaps)...");
 
+  // Set ROLLUP_WATCH so dev builds stay unminified with sourcemaps
   buildProcess = spawn("npm", ["run", "build"], {
     stdio: "inherit",
     shell: true,
+    env: {
+      ...process.env,
+      ROLLUP_WATCH: "1",
+    },
   });
 
   buildProcess.on("close", (code) => {

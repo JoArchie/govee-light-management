@@ -44,6 +44,9 @@ const FLASH_RESULT_MS = 400; // how long success/error flash stays visible
  * Uses the public SDK API (streamDeck.ui.sendToPropertyInspector) which tracks
  * the active PI internally. The actionId parameter is accepted for logging
  * but the SDK routes to whichever PI is currently open.
+ *
+ * Throws if the context doesn't match after max attempts, ensuring we never
+ * send payloads to the wrong PI.
  */
 async function sendToPI(
   actionId: string,
@@ -52,20 +55,26 @@ async function sendToPI(
   const MAX_ATTEMPTS = 20;
   const RETRY_DELAY_MS = 25;
 
+  let contextMatched = false;
+
   try {
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       const currentAction = streamDeck.ui.action;
       if (currentAction?.id === actionId) {
+        contextMatched = true;
         break;
       }
 
-      if (attempt === MAX_ATTEMPTS - 1) {
-        streamDeck.logger.warn(
-          `PI context not ready or mismatched (expected: ${actionId}, current: ${currentAction?.id ?? "none"})`,
-        );
-      } else {
+      if (attempt < MAX_ATTEMPTS - 1) {
         await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
       }
+    }
+
+    if (!contextMatched) {
+      streamDeck.logger.warn(
+        `PI context mismatch after ${MAX_ATTEMPTS} attempts (expected: ${actionId}, current: ${streamDeck.ui.action?.id ?? "none"}) - not sending payload`,
+      );
+      return;
     }
 
     await streamDeck.ui.sendToPropertyInspector(payload as JsonValue);
