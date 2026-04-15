@@ -65,6 +65,9 @@ document.addEventListener("DOMContentLoaded", () => {
     settingsWrapper.insertBefore(item, settingsWrapper.firstChild);
   }
 
+  // Keep a reference to the latest global settings so we can merge, not replace.
+  let cachedGlobalSettings = {};
+
   // ── API Key Validation ──
   connectElem.addEventListener("click", async () => {
     const candidateKey = normalizeApiKey(apiKeyElem.value);
@@ -90,7 +93,9 @@ document.addEventListener("DOMContentLoaded", () => {
         },
       );
       if (res.ok) {
+        // Merge with existing global settings to preserve light groups etc.
         SDPIComponents.streamDeckClient.setGlobalSettings({
+          ...cachedGlobalSettings,
           apiKey: candidateKey,
         });
         showPanel(false);
@@ -98,11 +103,15 @@ document.addEventListener("DOMContentLoaded", () => {
           if (el.refresh) el.refresh();
         });
       } else {
-        failedElem.textContent = "Failed to connect, please try again.";
+        failedElem.textContent =
+          res.status === 401
+            ? "Invalid API key. Please check and try again."
+            : "Failed to connect, please try again.";
         failedElem.classList.remove("hidden");
       }
     } catch {
-      failedElem.textContent = "Failed to connect, please try again.";
+      failedElem.textContent =
+        "Could not reach Govee servers. Check your internet connection.";
       failedElem.classList.remove("hidden");
     }
 
@@ -317,7 +326,8 @@ document.addEventListener("DOMContentLoaded", () => {
     injectApiKeyActions(client);
 
     client.didReceiveGlobalSettings.subscribe((msg) => {
-      const apiKey = msg.payload?.settings?.apiKey;
+      cachedGlobalSettings = msg.payload?.settings || {};
+      const apiKey = cachedGlobalSettings.apiKey;
       showPanel(!hasValidApiKey(apiKey));
     });
 
