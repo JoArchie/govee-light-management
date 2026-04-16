@@ -3,10 +3,10 @@
 <div align="center">
 
 ![Stream Deck Plugin](https://img.shields.io/badge/Stream%20Deck-Plugin-blue?style=flat-square&logo=elgato)
-![Version](https://img.shields.io/badge/version-1.0.0-green?style=flat-square)
+![Version](https://img.shields.io/badge/version-2.1.3-green?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.6+-blue?style=flat-square&logo=typescript)
-![Node.js](https://img.shields.io/badge/Node.js-18+-green?style=flat-square&logo=node.js)
+![Node.js](https://img.shields.io/badge/Node.js-20+-green?style=flat-square&logo=node.js)
 
 **Enterprise-grade Stream Deck plugin for managing Govee smart lights with advanced group functionality**
 
@@ -17,18 +17,21 @@
 ## Features
 
 ### 🎛️ **Individual Light Control**
+
 - Toggle lights on/off with visual state indicators
 - Adjust brightness, color, and color temperature
 - Real-time state synchronization with your lights
 - Support for all Govee light models
 
 ### 👥 **Advanced Group Management**
+
 - **Create** custom light groups with intuitive interface
 - **Edit** group names and modify included lights
 - **Delete** groups with confirmation prompts
 - **Visual indicators** for group states (●/○/◐)
 
 ### 🎛️ **Stream Deck+ Encoder Support**
+
 - **Brightness Dial** - Adjust light brightness (1-100%) with tactile dial control
 - **Color Temperature Dial** - Control warm/cool white (2000K-9000K) with gradient feedback
 - **Color Hue Dial** - Full-spectrum color control (0-360°) with rainbow gradient
@@ -37,12 +40,14 @@
 - **Power Toggle** - Press any dial to toggle light power on/off
 
 ### 🎨 **Professional UI**
+
 - Custom Stream Deck dark theme with SDPI framework
 - Responsive form controls and accessibility compliance
 - Intuitive Property Inspector interface
 - Real-time status updates and error handling
 
 ### 🏗️ **Enterprise Architecture**
+
 - Domain-driven design (DDD) with clean architecture
 - Comprehensive TypeScript implementation
 - Robust error handling and state management
@@ -51,7 +56,7 @@
 ## Demo
 
 > 📸 **Screenshots coming soon!** We're working on capturing the perfect screenshots to showcase the plugin in action.
-> 
+>
 > For now, check out the [Usage](#usage) section below for detailed instructions on how to use each feature.
 
 ## Installation
@@ -59,15 +64,17 @@
 ### Prerequisites
 
 - [Stream Deck Software](https://www.elgato.com/en/gaming/downloads) (v6.0 or later)
-- [Node.js](https://nodejs.org/) (v18.0 or later)
+- [Node.js](https://nodejs.org/) (v20.0 or later)
 - Govee API Key (obtainable from [Govee Developer API](https://developer.govee.com/))
 
 ### Option 1: Install from Stream Deck Store
-*(Coming soon)*
+
+_(Coming soon)_
 
 ### Option 2: Manual Installation
 
 1. **Download the latest release**
+
    ```bash
    # Clone the repository
    git clone https://github.com/felixgeelhaar/govee-light-management.git
@@ -75,12 +82,14 @@
    ```
 
 2. **Install dependencies and build**
+
    ```bash
    npm install
    npm run build
    ```
 
 3. **Install the plugin**
+
    ```bash
    # Install using Stream Deck CLI
    streamdeck install com.felixgeelhaar.govee-light-management.sdPlugin
@@ -199,16 +208,19 @@
 ### Advanced Features
 
 #### Real-time State Monitoring
+
 - Buttons automatically update to reflect current light states
 - Group indicators show combined state of all lights
 - Error states are clearly communicated
 
 #### API Key Management
+
 - API keys are securely stored in Stream Deck settings
 - Validation occurs before attempting API calls
 - Clear error messages for authentication issues
 
 #### Testing Groups
+
 - Use "Test Group" button to verify group functionality
 - Performs quick blink test on all group lights
 - Confirms connectivity and group integrity
@@ -227,14 +239,9 @@ npm install -g @elgato/cli
 
 ### Development Workflow
 
+Use the normal repo quality checks while developing:
+
 ```bash
-# Start development with auto-rebuild
-npm run watch
-
-# Run tests
-npm test
-npm run test:coverage
-
 # Run linting
 npm run lint
 npm run lint:fix
@@ -242,36 +249,170 @@ npm run lint:fix
 # Type checking
 npm run type-check
 
+# Run tests
+npm test
+npm run test:coverage
+
 # Format code
 npm run format
+npm run format:check
+```
+
+For active plugin development, use either a manual rebuild loop or watch mode.
+
+#### Manual rebuild loop
+
+```bash
+npm run dev:build
+npm run dev:restart
+```
+
+#### Watch mode
+
+```bash
+npm run watch
+```
+
+Then in another terminal:
+
+```bash
+node scripts/patch-dev-build.mjs
+npm run dev:restart
+```
+
+### Separate DEV Plugin Workflow
+
+The repository supports running a separate DEV version of the plugin alongside the normal installed release version.
+
+This means:
+
+- you do not need to uninstall or delete the release plugin every time you want to work on the plugin locally
+- the development build is linked as a separate Stream Deck plugin
+- the release build stays untouched
+
+The DEV plugin uses a separate UUID and display name at build time only. Source files stay in production form.
+
+#### One-time setup
+
+```bash
+# Enable developer mode in Stream Deck
+streamdeck dev
+
+# Build and link the DEV plugin
+npm run dev:link
+
+# Start or restart the DEV plugin
+npm run dev:restart
+```
+
+#### Day-to-day DEV workflow
+
+After making code changes:
+
+```bash
+npm run dev:build
+npm run dev:restart
+```
+
+This rebuilds the plugin, creates a DEV copy of the `.sdPlugin` bundle, patches the DEV UUID and manifest metadata, and restarts the DEV plugin in Stream Deck.
+
+#### What the DEV workflow does
+
+The DEV build process:
+
+- builds the normal plugin output
+- copies it to a separate folder:
+  `com.felixgeelhaar.govee-light-management.dev.sdPlugin`
+- changes the plugin UUID to:
+  `com.felixgeelhaar.govee-light-management.dev`
+- changes the plugin name and category so it appears separately in Stream Deck
+- keeps the release plugin installed and usable
+
+#### Useful DEV commands
+
+```bash
+# Build release output, then create DEV plugin output
+npm run dev:build
+
+# Link the DEV plugin into Stream Deck
+npm run dev:link
+
+# Restart the DEV plugin
+npm run dev:restart
+
+# Unlink the DEV plugin
+streamdeck unlink com.felixgeelhaar.govee-light-management.dev
+
+# Stop the DEV plugin
+streamdeck stop com.felixgeelhaar.govee-light-management.dev
 ```
 
 #### Stream Deck CLI Workflow
 
-The project ships with helper scripts that wrap the official Stream Deck CLI so you can exercise the plugin directly inside Stream Deck while developing:
+This project uses the official Stream Deck CLI for local development and packaging.
 
 ```bash
-# Enable developer mode in the Stream Deck desktop app (run once)
+# Enable developer mode
+streamdeck dev
+
+# Validate the release plugin
+streamdeck validate com.felixgeelhaar.govee-light-management.sdPlugin
+
+# Pack the release plugin
+streamdeck pack com.felixgeelhaar.govee-light-management.sdPlugin -o dist
+```
+
+Or with the repo scripts:
+
+```bash
 npm run streamdeck:dev
-
-# Link the local plugin bundle into Stream Deck's plugins directory
-npm run streamdeck:link
-
-# Rebuild and restart the plugin after code changes
-npm run build:backend
-npm run streamdeck:restart
-
-# Stop the plugin when you no longer need it running
-npm run streamdeck:stop
-
-# Validate the plugin bundle before packaging/distribution
 npm run streamdeck:validate
-
-# Create a .streamDeckPlugin package for installation
 npm run streamdeck:pack
 ```
 
-> ℹ️ The `link` command creates a symlink from `com.felixgeelhaar.govee-light-management.sdPlugin` into Stream Deck's plugin directory. After linking, you only need to call `streamdeck:restart` each time you rebuild the backend or property inspector.
+### Release Workflow
+
+When preparing a real release build:
+
+```bash
+npm run lint
+npm run type-check
+npm test
+npm run build
+streamdeck validate com.felixgeelhaar.govee-light-management.sdPlugin
+streamdeck pack com.felixgeelhaar.govee-light-management.sdPlugin -o dist
+```
+
+Install the packaged release plugin from:
+
+```text
+dist/com.felixgeelhaar.govee-light-management.streamDeckPlugin
+```
+
+### Recommended Workflow Summary
+
+#### For normal development
+
+```bash
+npm run dev:build
+npm run dev:restart
+```
+
+#### For code quality checks
+
+```bash
+npm run lint
+npm run type-check
+npm test
+```
+
+#### For packaging a release
+
+```bash
+npm run build
+streamdeck validate com.felixgeelhaar.govee-light-management.sdPlugin
+npm run streamdeck:pack
+```
 
 ### Project Structure
 
@@ -323,6 +464,7 @@ npm run test:server
 This plugin uses the [@felixgeelhaar/govee-api-client](https://www.npmjs.com/package/@felixgeelhaar/govee-api-client) library for Govee API interactions.
 
 **Supported Operations:**
+
 - Get device list
 - Get device state
 - Control device power
@@ -331,6 +473,7 @@ This plugin uses the [@felixgeelhaar/govee-api-client](https://www.npmjs.com/pac
 - Set color temperature (2000K-9000K)
 
 **Rate Limiting:**
+
 - Respects Govee API rate limits (100 requests/minute)
 - Implements exponential backoff for failed requests
 - Queues multiple operations to prevent API throttling
@@ -340,21 +483,25 @@ This plugin uses the [@felixgeelhaar/govee-api-client](https://www.npmjs.com/pac
 ### Common Issues
 
 **Plugin not appearing in Stream Deck**
+
 - Ensure Stream Deck software is v6.0 or later
 - Restart Stream Deck completely after installation
 - Check plugin is properly built: `npm run build`
 
 **API Key not working**
+
 - Verify API key from [Govee Developer Console](https://developer.govee.com/)
 - Ensure API key has proper permissions
 - Check network connectivity and firewall settings
 
 **Lights not responding**
+
 - Verify lights are online in Govee Home app
 - Check if lights support API control (newer models)
 - Ensure lights are on same network as computer
 
 **Group operations failing**
+
 - Verify all lights in group are online
 - Check for API rate limiting (too many requests)
 - Ensure group hasn't been deleted by another device
@@ -362,6 +509,7 @@ This plugin uses the [@felixgeelhaar/govee-api-client](https://www.npmjs.com/pac
 ### Debug Logging
 
 Enable debug logging in Stream Deck Console:
+
 1. Open Stream Deck software
 2. Help → Open Stream Deck Console
 3. Filter by "govee-light-management"
@@ -391,6 +539,7 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 ## Roadmap
 
 ### v1.0.0 (Current)
+
 - [x] Individual light control with multiple modes
 - [x] Advanced group management
 - [x] Stream Deck+ encoder support (Brightness, Color Temp, Color Hue)
@@ -398,6 +547,7 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 - [x] Enterprise-grade architecture (DDD)
 
 ### v1.1.0 (Next Release)
+
 - [ ] Scene management and automation
 - [ ] Scheduled actions and timers
 - [ ] Integration with Stream Deck Multi Actions
@@ -405,6 +555,7 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 - [ ] Additional encoder actions (Saturation, Effect Speed)
 
 ### v1.2.0 (Future)
+
 - [ ] Support for Govee DIY lights
 - [ ] Music sync integration
 - [ ] Custom effect creation
@@ -412,6 +563,7 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 - [ ] Multi-encoder synchronization
 
 ### v2.0.0 (Long-term)
+
 - [ ] Multi-platform support (Windows/macOS/Linux)
 - [ ] Web interface for advanced configuration
 - [ ] Plugin SDK for third-party extensions

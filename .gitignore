@@ -56,3 +56,6 @@ logs/
 # Tool-generated directories
 .roady/
 .relicta/
+
+# Dev
+com.felixgeelhaar.govee-light-management.dev.sdPlugin/
