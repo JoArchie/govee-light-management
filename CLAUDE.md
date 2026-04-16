@@ -287,7 +287,7 @@ This release adds comprehensive support for advanced Govee light features throug
 - **Purpose**: Clean separation between domain layer (business logic) and API client (external dependency)
 - **Placeholder Classes**: Temporary implementations matching expected v3.1.0+ API structure
 - **Future Migration**: When govee-api-client v3.1.0+ is released, simply replace placeholder classes with actual imports
-- **Repository Integration**: All mappers ready for use in `EnhancedGoveeLightRepository` methods (currently marked with TODOs)
+- **Repository Integration**: Mappers are wired into `GoveeLightRepository` (scene/music/segment methods)
 - **Scene Filtering**: SceneService uses SceneMapper.isSupported() to filter available scenes, preventing users from seeing unsupported options (movie, reading)
 
 #### Stream Deck Actions (v1.1.0)

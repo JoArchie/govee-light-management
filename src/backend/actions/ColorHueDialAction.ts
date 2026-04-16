@@ -81,7 +81,10 @@ export class ColorHueDialAction extends BaseDialAction<ColorHueDialSettings> {
       await this.services.ensureServices(apiKey);
       const target = await this.services.resolveTarget(settings);
       if (target?.type === "light" && target.light) {
-        await this.services.syncLightState(target.light);
+        const synced = await this.services.syncLightState(target.light);
+        if (!synced) {
+          return;
+        }
         this.powerMap.set(ctx, target.light.isOn);
         if (target.light.color) {
           this.hueMap.set(ctx, rgbToHue(target.light.color));
@@ -99,11 +102,13 @@ export class ColorHueDialAction extends BaseDialAction<ColorHueDialSettings> {
     const ctx = action.id || "default";
     const hue = this.hueMap.get(ctx) ?? 0;
     const isOn = this.powerMap.get(ctx) ?? true;
+    const title = isOn ? `${hue} deg` : "Off";
 
     await action.setFeedback({
       label: "Color",
       value: isOn ? `${hue}°` : "Off",
       bar: { value: isOn ? Math.round((hue / 360) * 100) : 0 },
     });
+    await action.setTitle(title);
   }
 }

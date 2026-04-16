@@ -78,9 +78,15 @@ export class BrightnessDialAction extends BaseDialAction<BrightnessDialSettings>
 
     try {
       await this.services.ensureServices(apiKey);
+      // resolveTarget hydrates the domain Light from the shared state
+      // snapshot, so a fresh snapshot renders immediately without a
+      // network round-trip.
       const target = await this.services.resolveTarget(settings);
       if (target?.type === "light" && target.light) {
-        await this.services.syncLightState(target.light);
+        const synced = await this.services.syncLightState(target.light);
+        if (!synced) {
+          return;
+        }
         this.powerMap.set(ctx, target.light.isOn);
         if (target.light.brightness) {
           this.brightnessMap.set(ctx, target.light.brightness.level);
@@ -98,11 +104,13 @@ export class BrightnessDialAction extends BaseDialAction<BrightnessDialSettings>
     const ctx = action.id || "default";
     const brightness = this.brightnessMap.get(ctx) ?? 50;
     const isOn = this.powerMap.get(ctx) ?? true;
+    const title = isOn ? `${brightness}%` : "Off";
 
     await action.setFeedback({
       label: "Brightness",
-      value: isOn ? `${brightness}%` : "Off",
+      value: title,
       bar: { value: isOn ? brightness : 0 },
     });
+    await action.setTitle(title);
   }
 }

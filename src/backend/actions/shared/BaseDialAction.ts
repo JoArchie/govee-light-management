@@ -27,8 +27,17 @@ export type BaseDialSettings = BaseSettings & {
 export abstract class BaseDialAction<
   TSettings extends BaseDialSettings,
 > extends SingletonAction<TSettings> {
+  private static readonly LIVE_SYNC_INTERVAL_MS = 3000;
+
   protected services = new ActionServices();
   protected powerMap = new Map<string, boolean>();
+  private visibleActions = new Map<
+    string,
+    DialAction<TSettings & JsonObject>
+  >();
+  private settingsMap = new Map<string, TSettings>();
+  private liveSyncTimers = new Map<string, ReturnType<typeof setInterval>>();
+  private liveSyncInFlight = new Set<string>();
 
   // ── Lifecycle ──────────────────────────────────────────────────
 
@@ -36,12 +45,14 @@ export abstract class BaseDialAction<
     const ctx = ev.action.id;
     if (!this.powerMap.has(ctx)) this.powerMap.set(ctx, true);
     this.initValueMaps(ctx);
-
-    await this.syncLiveState(ctx, ev.payload.settings);
-    await this.updateDisplay(
+    this.visibleActions.set(
+      ctx,
       ev.action as DialAction<TSettings & JsonObject>,
-      ev.payload.settings,
     );
+    this.settingsMap.set(ctx, ev.payload.settings);
+
+    await this.refreshVisibleDial(ctx);
+    this.startLiveSync(ctx);
   }
 
   override async onWillDisappear(
@@ -50,16 +61,23 @@ export abstract class BaseDialAction<
     const ctx = ev.action.id;
     this.powerMap.delete(ctx);
     this.cleanupValueMaps(ctx);
+    this.visibleActions.delete(ctx);
+    this.settingsMap.delete(ctx);
+    this.stopLiveSync(ctx);
+    this.liveSyncInFlight.delete(ctx);
     this.services.cleanupDialTimers(ctx);
   }
 
   override async onDidReceiveSettings(
     ev: DidReceiveSettingsEvent<TSettings>,
   ): Promise<void> {
-    await this.updateDisplay(
+    const ctx = ev.action.id;
+    this.visibleActions.set(
+      ctx,
       ev.action as DialAction<TSettings & JsonObject>,
-      ev.payload.settings,
     );
+    this.settingsMap.set(ctx, ev.payload.settings);
+    await this.refreshVisibleDial(ctx);
   }
 
   // ── Dial press / touch → power toggle ─────────────────────────
@@ -175,5 +193,54 @@ export abstract class BaseDialAction<
     _ev: SendToPluginEvent<JsonValue, TSettings>,
   ): Promise<void> {
     // No-op by default
+  }
+
+  protected getCurrentSettings(ctx: string, fallback: TSettings): TSettings {
+    return this.settingsMap.get(ctx) ?? fallback;
+  }
+
+  private startLiveSync(ctx: string): void {
+    this.stopLiveSync(ctx);
+    this.liveSyncTimers.set(
+      ctx,
+      setInterval(() => {
+        void this.refreshVisibleDial(ctx);
+      }, BaseDialAction.LIVE_SYNC_INTERVAL_MS),
+    );
+  }
+
+  private stopLiveSync(ctx: string): void {
+    const timer = this.liveSyncTimers.get(ctx);
+    if (timer) clearInterval(timer);
+    this.liveSyncTimers.delete(ctx);
+  }
+
+  private async refreshVisibleDial(ctx: string): Promise<void> {
+    const action = this.visibleActions.get(ctx);
+    const settings = this.settingsMap.get(ctx);
+    if (!action || !settings) {
+      return;
+    }
+
+    if (
+      this.liveSyncInFlight.has(ctx) ||
+      this.services.isDialInteractionActive(ctx)
+    ) {
+      return;
+    }
+
+    this.liveSyncInFlight.add(ctx);
+
+    try {
+      await this.syncLiveState(ctx, settings);
+      await this.updateDisplay(action, settings);
+    } catch (error) {
+      streamDeck.logger.warn("dial.live-sync.failed", {
+        context: ctx,
+        error,
+      });
+    } finally {
+      this.liveSyncInFlight.delete(ctx);
+    }
   }
 }

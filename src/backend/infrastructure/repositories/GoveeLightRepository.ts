@@ -16,9 +16,11 @@ import { SceneMapper } from "../mappers/SceneMapper";
 import { MusicModeMapper } from "../mappers/MusicModeMapper";
 import { MusicModeConfig } from "../../domain/value-objects/MusicModeConfig";
 import {
+  isIgnorableLiveStateError,
   isValidationError,
   VALID_TOGGLE_INSTANCES,
 } from "../../actions/shared/validation";
+import { safeGetColorTemperature } from "../utils/deviceStateUtils";
 import streamDeck from "@elgato/streamdeck";
 
 export class GoveeLightRepository implements ILightRepository {
@@ -329,8 +331,8 @@ export class GoveeLightRepository implements ILightRepository {
         newState.colorTemperature = undefined;
       }
 
-      // Extract color temperature if available
-      const colorTemperature = deviceState.getColorTemperature();
+      // Extract color temperature if available (tolerates malformed 0K payloads)
+      const colorTemperature = safeGetColorTemperature(deviceState, light.name);
       if (colorTemperature) {
         newState.colorTemperature = colorTemperature;
         newState.color = undefined;
@@ -343,6 +345,18 @@ export class GoveeLightRepository implements ILightRepository {
           `State query response validation failed for ${light.name} - using cached state`,
         );
         return;
+      }
+      // Malformed payloads (e.g. 0K color temperature, invalid ID payloads)
+      // propagate so that ActionServices.syncLightState can apply its backoff
+      // policy. Log at debug to avoid flooding the error log on the
+      // 30-second retry cadence — the WARN banner from ActionServices
+      // already surfaces the condition once.
+      if (isIgnorableLiveStateError(error)) {
+        streamDeck.logger.debug(
+          `Ignorable live-state payload from ${light.name}, bubbling for backoff:`,
+          error,
+        );
+        throw error;
       }
       streamDeck.logger.error(
         `Failed to get state for light ${light.name}:`,
