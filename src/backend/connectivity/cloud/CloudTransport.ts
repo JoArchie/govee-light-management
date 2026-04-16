@@ -107,9 +107,16 @@ export class CloudTransport implements ITransport {
             power: true,
             brightness: capInstances.has("brightness"),
             color: capInstances.has("colorRgb"),
+            // A device can advertise its Kelvin range as either a top-level
+            // `colorTemperatureK` instance or nested inside the `fields` of
+            // another capability (seen on some scene-capable devices).
+            // If a range was discovered via either path, treat that as proof
+            // of color-temperature support; otherwise the UI would hide
+            // color-temp controls even though the range metadata exists.
             colorTemperature:
               capInstances.has("colorTemperatureK") ||
-              capInstances.has("colorTemInKelvin"),
+              capInstances.has("colorTemInKelvin") ||
+              colorTemperatureRange !== undefined,
             scenes: capInstances.has("lightScene"),
             segmentedColor: capInstances.has("segmentedColorRgb"),
             musicMode: capInstances.has("musicMode"),

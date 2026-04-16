@@ -102,6 +102,9 @@ describe("CloudTransport.discoverDevices", () => {
       max: 6000,
       precision: 100,
     });
+    // When a range is discovered via nested fields, the capability must
+    // still be advertised as supported so the UI does not hide it.
+    expect(lights[0]?.capabilities?.colorTemperature).toBe(true);
   });
 
   it("omits the colorTem properties block when no capability advertises a range", async () => {

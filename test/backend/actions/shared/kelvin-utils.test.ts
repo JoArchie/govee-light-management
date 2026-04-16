@@ -21,7 +21,9 @@ describe("normalizeKelvin", () => {
   });
 
   it("snaps to the device precision step", () => {
-    // 3000 + 22 should round up to the nearest 50K step (3050).
+    // 3022 is 22K into the step beginning at 3000, below the midpoint (25K),
+    // so it rounds down to 3000. 3030 is above the midpoint, so it rounds up
+    // to 3050.
     expect(normalizeKelvin(3022, range(2700, 6500, 50))).toBe(3000);
     expect(normalizeKelvin(3030, range(2700, 6500, 50))).toBe(3050);
   });

@@ -1,8 +1,16 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ColorTemperature } from "@felixgeelhaar/govee-api-client";
-import { safeGetColorTemperature } from "../../../src/backend/infrastructure/utils/deviceStateUtils";
+import { streamDeck } from "@elgato/streamdeck";
+import {
+  __resetSafeGetColorTemperatureLogGate,
+  safeGetColorTemperature,
+} from "../../../src/backend/infrastructure/utils/deviceStateUtils";
 
 describe("safeGetColorTemperature", () => {
+  beforeEach(() => {
+    __resetSafeGetColorTemperatureLogGate();
+  });
+
   it("returns the color temperature when the reader succeeds", () => {
     const expected = new ColorTemperature(4000);
     const reader = { getColorTemperature: () => expected };
@@ -41,5 +49,43 @@ describe("safeGetColorTemperature", () => {
     });
     safeGetColorTemperature({ getColorTemperature: spy }, "Bedroom");
     expect(spy).toHaveBeenCalled();
+  });
+
+  it("only warns once per context to avoid spamming the log from the 3s refresh loop", () => {
+    const reader = {
+      getColorTemperature: () => {
+        throw new Error("Color temperature must be between 1000K and 50000K, got 0K");
+      },
+    };
+
+    // Spies — the streamDeck mock in setup.ts provides vi.fn() for these.
+    const warn = vi.mocked(streamDeck.logger.warn);
+    const debug = vi.mocked(streamDeck.logger.debug);
+    warn.mockClear();
+    debug.mockClear();
+
+    safeGetColorTemperature(reader, "Desk");
+    safeGetColorTemperature(reader, "Desk");
+    safeGetColorTemperature(reader, "Desk");
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(debug).toHaveBeenCalledTimes(2);
+  });
+
+  it("logs a warning independently per context", () => {
+    const reader = {
+      getColorTemperature: () => {
+        throw new Error("bad");
+      },
+    };
+
+    const warn = vi.mocked(streamDeck.logger.warn);
+    warn.mockClear();
+
+    safeGetColorTemperature(reader, "Desk");
+    safeGetColorTemperature(reader, "Hallway");
+    safeGetColorTemperature(reader, "Desk"); // already warned
+
+    expect(warn).toHaveBeenCalledTimes(2);
   });
 });
