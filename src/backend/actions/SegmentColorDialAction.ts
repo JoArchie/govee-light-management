@@ -26,7 +26,18 @@ const DEFAULT_BAR_BG =
   UUID: "com.felixgeelhaar.govee-light-management.segment-color-dial",
 })
 export class SegmentColorDialAction extends BaseDialAction<SegmentColorDialSettings> {
-  private static deviceStateCache = new Map<string, { hue: number; isOn: boolean }>();
+  /**
+   * Govee's cloud API does not expose per-segment color state, so the
+   * last selected hue is remembered in this static cache keyed by
+   * `deviceId|segmentIndex`. This lets the dial restore the user's
+   * prior hue when it reappears on a different page/context, since
+   * `ActionServices.lightStateSnapshots` (which caches whole-light
+   * state) cannot answer segment-level queries.
+   */
+  private static segmentHueCache = new Map<
+    string,
+    { hue: number; isOn: boolean }
+  >();
   private hueMap = new Map<string, number>();
 
   protected initValueMaps(ctx: string): void {
@@ -60,7 +71,7 @@ export class SegmentColorDialAction extends BaseDialAction<SegmentColorDialSetti
     this.hueMap.set(ctx, next);
     const cacheKey = this.getCacheKey(settings);
     if (cacheKey) {
-      SegmentColorDialAction.deviceStateCache.set(cacheKey, {
+      SegmentColorDialAction.segmentHueCache.set(cacheKey, {
         hue: next,
         isOn: this.powerMap.get(ctx) ?? true,
       });
@@ -95,12 +106,6 @@ export class SegmentColorDialAction extends BaseDialAction<SegmentColorDialSetti
     settings: SegmentColorDialSettings,
     hue: number,
   ): Promise<void> {
-    streamDeck.logger.info("segment.dial.apply.request", {
-      selectedDeviceId: settings.selectedDeviceId ?? null,
-      segmentIndex: settings.segmentIndex ?? 1,
-      hue,
-      saturation: settings.saturation ?? 100,
-    });
     const apiKey = await this.services.getApiKey(settings);
     if (!apiKey || !settings.selectedDeviceId) {
       streamDeck.logger.warn(
@@ -117,12 +122,9 @@ export class SegmentColorDialAction extends BaseDialAction<SegmentColorDialSetti
       throw new Error("Could not resolve target device");
     }
     if (!target.light.supportsSegmentedColor()) {
-      streamDeck.logger.warn("segment.dial.unsupported-device", {
-        selectedDeviceId: settings.selectedDeviceId,
-        deviceId: target.light.deviceId,
-        model: target.light.model,
-        name: target.light.name,
-      });
+      streamDeck.logger.warn(
+        `Segment color: selected light ${target.light.name} (${target.light.model}) does not support segmented color`,
+      );
       throw new Error("Selected light does not support segmented color");
     }
 
@@ -130,24 +132,16 @@ export class SegmentColorDialAction extends BaseDialAction<SegmentColorDialSetti
     const color = hsvToRgb(hue, saturation, 100);
     // UI stores 1-based index (1–15), translate to 0-based (0–14) for the API
     const segmentIndex = clamp((settings.segmentIndex ?? 1) - 1, 0, 14);
-    streamDeck.logger.info("segment.dial.apply.command", {
+    streamDeck.logger.trace("segment.dial.apply", {
       deviceId: target.light.deviceId,
       model: target.light.model,
-      name: target.light.name,
       segmentIndex,
       hue,
       saturation,
-      color: color.toObject(),
     });
     await this.services.setSegmentColors(target.light, [
       SegmentColor.create(segmentIndex, color),
     ]);
-    streamDeck.logger.info("segment.dial.apply.success", {
-      deviceId: target.light.deviceId,
-      model: target.light.model,
-      name: target.light.name,
-      segmentIndex,
-    });
   }
 
   private async applyCurrentSegmentColor(
@@ -176,7 +170,7 @@ export class SegmentColorDialAction extends BaseDialAction<SegmentColorDialSetti
   ): Promise<void> {
     const cacheKey = this.getCacheKey(settings);
     if (cacheKey) {
-      const cached = SegmentColorDialAction.deviceStateCache.get(cacheKey);
+      const cached = SegmentColorDialAction.segmentHueCache.get(cacheKey);
       if (cached) {
         this.powerMap.set(ctx, cached.isOn);
         this.hueMap.set(ctx, cached.hue);
@@ -194,7 +188,7 @@ export class SegmentColorDialAction extends BaseDialAction<SegmentColorDialSetti
         if (isOn !== undefined) {
           this.powerMap.set(ctx, isOn);
           if (cacheKey) {
-            SegmentColorDialAction.deviceStateCache.set(cacheKey, {
+            SegmentColorDialAction.segmentHueCache.set(cacheKey, {
               hue: this.hueMap.get(ctx) ?? 0,
               isOn,
             });
@@ -215,7 +209,9 @@ export class SegmentColorDialAction extends BaseDialAction<SegmentColorDialSetti
     const isOn = this.powerMap.get(ctx) ?? true;
     // Display 1-based segment number to match the UI
     const segmentDisplay = settings.segmentIndex ?? 1;
-    const title = isOn ? `S${segmentDisplay}\n${hue}` : `S${segmentDisplay}\nOff`;
+    const title = isOn
+      ? `S${segmentDisplay}\n${hue}`
+      : `S${segmentDisplay}\nOff`;
 
     await action.setFeedback({
       label: `Segment ${segmentDisplay}`,

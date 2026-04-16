@@ -17,6 +17,7 @@ import {
   TransportKind,
 } from "../types";
 import { globalSettingsService } from "../../services/GlobalSettingsService";
+import { safeGetColorTemperature } from "../../infrastructure/utils/deviceStateUtils";
 
 interface ClientFactory {
   create(apiKey: string): GoveeClient;
@@ -139,7 +140,10 @@ export class CloudTransport implements ITransport {
     const power = state.getPowerState();
     const brightness = state.getBrightness();
     const color = state.getColor();
-    const temperature = this.safeGetColorTemperature(state, deviceId, model);
+    const temperature = safeGetColorTemperature(
+      state,
+      `${deviceId} (${model})`,
+    );
 
     const lightState: LightState = {
       deviceId,
@@ -240,23 +244,6 @@ export class CloudTransport implements ITransport {
   private async getApiKey(): Promise<string | undefined> {
     const settings = await globalSettingsService.getApiKey();
     return settings;
-  }
-
-  private safeGetColorTemperature(
-    state: { getColorTemperature(): ColorTemperature | undefined },
-    deviceId: string,
-    model: string,
-  ): ColorTemperature | undefined {
-    try {
-      return state.getColorTemperature();
-    } catch (error) {
-      streamDeck.logger?.warn("cloud.state.invalid_color_temperature", {
-        deviceId,
-        model,
-        error,
-      });
-      return undefined;
-    }
   }
 
   private extractColorTemperatureRange(

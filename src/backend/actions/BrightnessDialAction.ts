@@ -16,10 +16,6 @@ const DEFAULT_BAR_BG = "#1F2937"; // dark gray
 
 @action({ UUID: "com.felixgeelhaar.govee-light-management.brightness-dial" })
 export class BrightnessDialAction extends BaseDialAction<BrightnessDialSettings> {
-  private static deviceStateCache = new Map<
-    string,
-    { brightness: number; isOn: boolean }
-  >();
   private brightnessMap = new Map<string, number>();
 
   protected initValueMaps(ctx: string): void {
@@ -39,12 +35,6 @@ export class BrightnessDialAction extends BaseDialAction<BrightnessDialSettings>
     const current = this.brightnessMap.get(ctx) ?? 50;
     const next = clamp(current + ev.payload.ticks * step, 0, 100);
     this.brightnessMap.set(ctx, next);
-    if (settings.selectedDeviceId) {
-      BrightnessDialAction.deviceStateCache.set(settings.selectedDeviceId, {
-        brightness: next,
-        isOn: this.powerMap.get(ctx) ?? true,
-      });
-    }
 
     await this.updateDisplay(ev.action, settings);
 
@@ -83,20 +73,14 @@ export class BrightnessDialAction extends BaseDialAction<BrightnessDialSettings>
     ctx: string,
     settings: BrightnessDialSettings,
   ): Promise<void> {
-    const deviceId = settings.selectedDeviceId;
-    if (deviceId) {
-      const cached = BrightnessDialAction.deviceStateCache.get(deviceId);
-      if (cached) {
-        this.powerMap.set(ctx, cached.isOn);
-        this.brightnessMap.set(ctx, cached.brightness);
-      }
-    }
-
     const apiKey = await this.services.getApiKey(settings);
-    if (!apiKey || !deviceId) return;
+    if (!apiKey || !settings.selectedDeviceId) return;
 
     try {
       await this.services.ensureServices(apiKey);
+      // resolveTarget hydrates the domain Light from the shared state
+      // snapshot, so a fresh snapshot renders immediately without a
+      // network round-trip.
       const target = await this.services.resolveTarget(settings);
       if (target?.type === "light" && target.light) {
         const synced = await this.services.syncLightState(target.light);
@@ -107,10 +91,6 @@ export class BrightnessDialAction extends BaseDialAction<BrightnessDialSettings>
         if (target.light.brightness) {
           this.brightnessMap.set(ctx, target.light.brightness.level);
         }
-        BrightnessDialAction.deviceStateCache.set(deviceId, {
-          brightness: this.brightnessMap.get(ctx) ?? 50,
-          isOn: this.powerMap.get(ctx) ?? true,
-        });
       }
     } catch {
       // Best effort - keep defaults

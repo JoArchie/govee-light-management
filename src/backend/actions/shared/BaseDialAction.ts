@@ -31,7 +31,10 @@ export abstract class BaseDialAction<
 
   protected services = new ActionServices();
   protected powerMap = new Map<string, boolean>();
-  private visibleActions = new Map<string, DialAction<TSettings & JsonObject>>();
+  private visibleActions = new Map<
+    string,
+    DialAction<TSettings & JsonObject>
+  >();
   private settingsMap = new Map<string, TSettings>();
   private liveSyncTimers = new Map<string, ReturnType<typeof setInterval>>();
   private liveSyncInFlight = new Set<string>();

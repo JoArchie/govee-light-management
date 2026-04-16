@@ -157,7 +157,9 @@ export class ActionServices {
     return ActionServices._shared.deviceService;
   }
 
-  private getLightSnapshotKey(light: Pick<Light, "deviceId" | "model">): string {
+  private getLightSnapshotKey(
+    light: Pick<Light, "deviceId" | "model">,
+  ): string {
     return `${light.deviceId}|${light.model}`;
   }
 
@@ -181,11 +183,12 @@ export class ActionServices {
     );
   }
 
-  private getKnownPowerState(light: Pick<Light, "deviceId" | "model">):
-    | boolean
-    | undefined {
-    return ActionServices.lightStateSnapshots.get(this.getLightSnapshotKey(light))
-      ?.isOn;
+  private getKnownPowerState(
+    light: Pick<Light, "deviceId" | "model">,
+  ): boolean | undefined {
+    return ActionServices.lightStateSnapshots.get(
+      this.getLightSnapshotKey(light),
+    )?.isOn;
   }
 
   private hasFreshSnapshot(light: Pick<Light, "deviceId" | "model">): boolean {
@@ -208,7 +211,9 @@ export class ActionServices {
     const normalized = message.toLowerCase();
     return (
       normalized.includes("parameter value out of range") ||
-      normalized.includes("failed to set color temperature: api returned error code 400")
+      normalized.includes(
+        "failed to set color temperature: api returned error code 400",
+      )
     );
   }
 
@@ -833,9 +838,7 @@ export class ActionServices {
    * immediate user feedback.
    */
   isDialInteractionActive(contextId: string): boolean {
-    return (
-      this.dialTimers.has(contextId) || this.restoreTimers.has(contextId)
-    );
+    return this.dialTimers.has(contextId) || this.restoreTimers.has(contextId);
   }
 
   /**
