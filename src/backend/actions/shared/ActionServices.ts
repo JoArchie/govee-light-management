@@ -494,6 +494,7 @@ export class ActionServices {
         value: string;
         children?: Array<{ label: string; value: string }>;
       }> = [];
+      const deviceDebugMap: Record<string, unknown> = {};
 
       // Add lights (with timeout to prevent hanging)
       if (this.deviceService) {
@@ -503,10 +504,23 @@ export class ActionServices {
             PI_HANDLER_TIMEOUT_MS,
             "Device discovery",
           );
-          const lightItems = lights.map((light) => ({
-            label: `${light.label ?? light.name} (${light.model})`,
-            value: `light:${light.deviceId}|${light.model}`,
-          }));
+          const lightItems = lights.map((light) => {
+            const value = `light:${light.deviceId}|${light.model}`;
+            deviceDebugMap[value] = {
+              device: light.deviceId,
+              model: light.model,
+              name: light.name,
+              controllable: light.controllable,
+              retrievable: light.retrievable,
+              supportedCommands: light.supportedCommands,
+              capabilities: light.capabilities,
+              properties: light.properties,
+            };
+            return {
+              label: `${light.label ?? light.name} (${light.model})`,
+              value,
+            };
+          });
 
           if (lightItems.length > 0) {
             items.push({
@@ -550,6 +564,7 @@ export class ActionServices {
       await sendToPI(actionId, {
         event: "getDevices",
         items,
+        deviceDebugMap,
       });
     } catch (error) {
       streamDeck.logger.error("Failed to fetch devices:", error);

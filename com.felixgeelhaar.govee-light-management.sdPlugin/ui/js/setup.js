@@ -17,6 +17,10 @@ document.addEventListener("DOMContentLoaded", () => {
     colorTemp: document.getElementById("tempItem"),
   };
   const hasConditionalItems = Object.values(conditionalItems).some(Boolean);
+  let deviceDebugMap = {};
+  let latestSettings = {};
+  let debugRefreshTimers = [];
+  let debugPollInterval = null;
 
   function showPanel(isSetup) {
     if (isSetup) {
@@ -71,6 +75,236 @@ document.addEventListener("DOMContentLoaded", () => {
     console.warn("sendToPlugin is unavailable on streamDeckClient", {
       event: payload && payload.event,
     });
+  }
+
+  function syncSelectedDeviceFromDom() {
+    const deviceSelect = document.querySelector(
+      'sdpi-select[setting="selectedDeviceId"]',
+    );
+    if (!deviceSelect) return;
+
+    const shadowSelect =
+      deviceSelect.shadowRoot &&
+      deviceSelect.shadowRoot.querySelector("select");
+    const value =
+      deviceSelect.value ||
+      deviceSelect.getAttribute("value") ||
+      deviceSelect.getAttribute("default-value") ||
+      (shadowSelect && shadowSelect.value) ||
+      (shadowSelect &&
+        shadowSelect.selectedOptions &&
+        shadowSelect.selectedOptions[0] &&
+        shadowSelect.selectedOptions[0].value);
+    if (typeof value === "string" && value.trim()) {
+      latestSettings = {
+        ...latestSettings,
+        selectedDeviceId: value,
+      };
+    }
+  }
+
+  function scheduleDebugRefresh() {
+    debugRefreshTimers.forEach((timer) => clearTimeout(timer));
+    debugRefreshTimers = [];
+
+    [0, 100, 300, 1000].forEach((delay) => {
+      const timer = setTimeout(() => {
+        syncSelectedDeviceFromDom();
+        renderDebugInfo();
+      }, delay);
+      debugRefreshTimers.push(timer);
+    });
+  }
+
+  function startDebugPolling() {
+    if (debugPollInterval) {
+      clearInterval(debugPollInterval);
+    }
+
+    debugPollInterval = setInterval(() => {
+      const previousValue = latestSettings?.selectedDeviceId;
+      syncSelectedDeviceFromDom();
+      if (!previousValue || latestSettings?.selectedDeviceId !== previousValue) {
+        renderDebugInfo();
+      }
+    }, 500);
+  }
+
+  function getSelectedDeviceDebug() {
+    syncSelectedDeviceFromDom();
+    const selectedDeviceId = latestSettings?.selectedDeviceId;
+
+    if (!selectedDeviceId || typeof selectedDeviceId !== "string") {
+      return null;
+    }
+
+    if (!selectedDeviceId.startsWith("light:")) {
+      return {
+        selection: selectedDeviceId,
+        message: "Debug device data is only available for individual lights.",
+      };
+    }
+
+    const match = deviceDebugMap[selectedDeviceId];
+    if (!match) {
+      return {
+        selection: selectedDeviceId,
+        message: "Selected light metadata is not loaded yet.",
+      };
+    }
+
+    return match;
+  }
+
+  function renderDebugInfo() {
+    const debugValue = document.getElementById("deviceDebugValue");
+    if (!debugValue) return;
+
+    const data = getSelectedDeviceDebug();
+    if (!data) {
+      debugValue.innerHTML =
+        '<div style="color:#999;">Select a light to inspect device metadata.</div>';
+      return;
+    }
+
+    if (data.message) {
+      debugValue.innerHTML = `
+        <div style="display:grid;gap:6px;">
+          <div><strong>Selection:</strong> ${escapeHtml(data.selection ?? "Unknown")}</div>
+          <div style="color:#999;">${escapeHtml(data.message)}</div>
+        </div>
+      `;
+      return;
+    }
+
+    const capabilities = Object.entries(data.capabilities ?? {})
+      .map(
+        ([key, enabled]) =>
+          `<span style="${pillStyle(Boolean(enabled))}">${escapeHtml(formatKey(key))}</span>`,
+      )
+      .join("");
+
+    const commands = (data.supportedCommands ?? [])
+      .map(
+        (command) =>
+          `<span style="${tagStyle}">${escapeHtml(command)}</span>`,
+      )
+      .join("");
+
+    debugValue.innerHTML = `
+      <div style="display:grid;gap:10px;">
+        <div style="display:grid;gap:4px;">
+          ${renderMetaRow("Name", data.name)}
+          ${renderMetaRow("Device", data.device, {
+            copyValue: data.device,
+            copyLabel: "Click to copy device ID",
+          })}
+          ${renderMetaRow("Model", data.model, {
+            copyValue: data.model,
+            copyLabel: "Click to copy model",
+          })}
+        </div>
+        <div style="display:grid;gap:4px;">
+          ${renderMetaRow("Controllable", formatBoolean(data.controllable))}
+          ${renderMetaRow("Retrievable", formatBoolean(data.retrievable))}
+        </div>
+        <div style="display:grid;gap:6px;">
+          <div style="font-weight:600;">Capabilities</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;">
+            ${capabilities || '<span style="color:#999;">None</span>'}
+          </div>
+        </div>
+        <div style="display:grid;gap:6px;">
+          <div style="font-weight:600;">Supported Commands</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;">
+            ${commands || '<span style="color:#999;">None</span>'}
+          </div>
+        </div>
+      </div>
+    `;
+
+    bindCopyButtons(debugValue);
+  }
+
+  function renderMetaRow(label, value, options = {}) {
+    const valueContent =
+      options.copyValue && value
+        ? `<span
+            class="metadata-copy-value"
+            data-copy="${escapeHtmlAttr(options.copyValue)}"
+            aria-label="${escapeHtmlAttr(options.copyLabel || `Copy ${label}`)}"
+            title="${escapeHtmlAttr(options.copyLabel || `Copy ${label}`)}"
+            style="display:inline-block;padding:1px 4px;border-radius:4px;cursor:pointer;transition:background-color 120ms ease,color 120ms ease;"
+          >${escapeHtml(value ?? "Unknown")}</span>`
+        : "";
+
+    return `<div style="display:grid;grid-template-columns:92px 1fr;gap:8px;align-items:start;"><div style="color:#999;">${escapeHtml(label)}</div><div style="word-break:break-word;">${valueContent || `<span>${escapeHtml(value ?? "Unknown")}</span>`}</div></div>`;
+  }
+
+  function bindCopyButtons(container) {
+    container.querySelectorAll(".metadata-copy-value").forEach((element) => {
+      element.addEventListener("mouseenter", () => {
+        element.style.backgroundColor = "#3a3a3a";
+        element.style.color = "#ffffff";
+      });
+
+      element.addEventListener("mouseleave", () => {
+        element.style.backgroundColor = "transparent";
+        element.style.color = "";
+      });
+
+      element.addEventListener("click", async () => {
+        const value = element.getAttribute("data-copy");
+        if (!value) return;
+
+        try {
+          await navigator.clipboard.writeText(value);
+          const originalText = element.textContent;
+          const originalTitle = element.getAttribute("title");
+          element.textContent = "Copied";
+          element.setAttribute("title", "Copied");
+          setTimeout(() => {
+            element.textContent = originalText;
+            if (originalTitle) {
+              element.setAttribute("title", originalTitle);
+            }
+          }, 1200);
+        } catch (error) {
+          console.warn("Failed to copy metadata value", error);
+        }
+      });
+    });
+  }
+
+  function formatBoolean(value) {
+    return value ? "Yes" : "No";
+  }
+
+  function formatKey(value) {
+    return String(value)
+      .replace(/([A-Z])/g, " $1")
+      .replace(/^./, (char) => char.toUpperCase())
+      .trim();
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function escapeHtmlAttr(value) {
+    return escapeHtml(value);
+  }
+
+  const tagStyle =
+    "display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;background:#3a3a3a;color:#e6e6e6;font-size:11px;line-height:1.5;";
+
+  function pillStyle(enabled) {
+    return `display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;font-size:11px;line-height:1.5;background:${enabled ? "#1f5f3a" : "#4a2f2f"};color:${enabled ? "#d8ffe6" : "#ffdede"};`;
   }
 
   function subscribePluginMessages(client, onMessage) {
@@ -131,6 +365,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
     item.appendChild(button);
     settingsWrapper.insertBefore(item, settingsWrapper.firstChild);
+
+    const debugItem = document.createElement("sdpi-item");
+    debugItem.setAttribute("label", "Metadata");
+    debugItem.innerHTML = `
+      <details class="sdpi-item-value" id="deviceDebugDetails">
+        <summary>Selected device metadata</summary>
+        <pre id="deviceDebugValue" style="margin-top:8px;white-space:pre-wrap;word-break:break-word;max-height:220px;overflow:auto;">Select a light to inspect device metadata.</pre>
+      </details>
+    `;
+    settingsWrapper.appendChild(debugItem, item.nextSibling);
+    scheduleDebugRefresh();
   }
 
   // Keep a reference to the latest global settings so we can merge, not replace.
@@ -299,6 +544,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (p.event === "getDevices" && p.items) {
         // Flatten: items may have children (Lights/Groups optgroups)
         devices = [];
+        deviceDebugMap = p.deviceDebugMap || {};
         (p.items || []).forEach((item) => {
           if (item.children) {
             // Only include lights for group creation (not groups)
@@ -309,6 +555,7 @@ document.addEventListener("DOMContentLoaded", () => {
             devices.push(item);
           }
         });
+        scheduleDebugRefresh();
       }
 
       if (p.event === "groupsReceived" && p.groups) {
@@ -361,6 +608,14 @@ document.addEventListener("DOMContentLoaded", () => {
     );
     if (!deviceSelect) return;
 
+    const rerenderDebug = () => {
+      syncSelectedDeviceFromDom();
+      renderDebugInfo();
+    };
+
+    deviceSelect.addEventListener("change", rerenderDebug);
+    deviceSelect.addEventListener("input", rerenderDebug);
+
     const timer = setTimeout(() => {
       // Check if the dropdown is still empty / loading
       const hasOptions =
@@ -386,6 +641,7 @@ document.addEventListener("DOMContentLoaded", () => {
         clearTimeout(timer);
         const hint = document.getElementById("deviceTimeout");
         if (hint) hint.remove();
+        scheduleDebugRefresh();
         unsubscribeMessages();
       }
     });
@@ -404,13 +660,25 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (hasConditionalItems) {
       client.didReceiveSettings.subscribe((msg) => {
-        const mode = msg.payload?.settings?.controlMode;
+        latestSettings = msg.payload?.settings || {};
+        const mode = latestSettings?.controlMode;
         if (mode) updateConditionalVisibility(mode);
+        scheduleDebugRefresh();
+      });
+    } else {
+      client.didReceiveSettings.subscribe((msg) => {
+        latestSettings = msg.payload?.settings || {};
+        scheduleDebugRefresh();
       });
     }
 
+    if (client && typeof client.getSettings === "function") {
+      client.getSettings();
+    }
     client.getGlobalSettings();
     watchDeviceDropdown(client);
+    startDebugPolling();
+    scheduleDebugRefresh();
     try {
       initGroupManager(client);
     } catch (error) {
@@ -437,6 +705,19 @@ document.addEventListener("DOMContentLoaded", () => {
       showPanel(true);
     }
   }, 3000);
+
+  window.addEventListener(
+    "beforeunload",
+    () => {
+      debugRefreshTimers.forEach((timer) => clearTimeout(timer));
+      debugRefreshTimers = [];
+      if (debugPollInterval) {
+        clearInterval(debugPollInterval);
+        debugPollInterval = null;
+      }
+    },
+    { once: true },
+  );
 
   updateConditionalVisibility("toggle");
 });
