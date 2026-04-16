@@ -79,21 +79,27 @@ document.addEventListener("DOMContentLoaded", () => {
       client && client.message,
     ].filter(Boolean);
 
+    // Track { source, handler } pairs for proper cleanup.
+    // SDPI client subscribe(handler) returns undefined, so we can't rely on
+    // subscription.unsubscribe() - we must call source.unsubscribe(handler).
     const subscriptions = [];
+
     sources.forEach((source) => {
       if (source && typeof source.subscribe === "function") {
-        const subscription = source.subscribe((message) => {
+        const handler = (message) => {
           onMessage(toPayload(message));
-        });
-        subscriptions.push(subscription);
+        };
+        source.subscribe(handler);
+        subscriptions.push({ source, handler });
       }
     });
 
     if (subscriptions.length > 0) {
       return () => {
-        subscriptions.forEach((subscription) => {
-          if (subscription && typeof subscription.unsubscribe === "function") {
-            subscription.unsubscribe();
+        subscriptions.forEach(({ source, handler }) => {
+          // SDPI client: unsubscribe(handler) to remove the specific handler
+          if (source && typeof source.unsubscribe === "function") {
+            source.unsubscribe(handler);
           }
         });
       };
