@@ -17,6 +17,10 @@ document.addEventListener("DOMContentLoaded", () => {
     colorTemp: document.getElementById("tempItem"),
   };
   const hasConditionalItems = Object.values(conditionalItems).some(Boolean);
+  let latestSettings = {};
+  let selectedDeviceDebug = null;
+  let selectedDeviceDebugId = "";
+  let pendingDeviceDebugId = "";
 
   function showPanel(isSetup) {
     if (isSetup) {
@@ -71,6 +75,241 @@ document.addEventListener("DOMContentLoaded", () => {
     console.warn("sendToPlugin is unavailable on streamDeckClient", {
       event: payload && payload.event,
     });
+  }
+
+  function getSelectedDeviceId() {
+    const selectedDeviceId = latestSettings?.selectedDeviceId;
+    return typeof selectedDeviceId === "string" ? selectedDeviceId : "";
+  }
+
+  function isDebugExpanded() {
+    const details = document.getElementById("deviceDebugDetails");
+    return Boolean(details && details.open);
+  }
+
+  function resetSelectedDeviceDebug(selectedDeviceId) {
+    if (selectedDeviceDebugId === selectedDeviceId) return;
+    selectedDeviceDebug = null;
+    selectedDeviceDebugId = selectedDeviceId;
+    pendingDeviceDebugId = "";
+  }
+
+  function requestSelectedDeviceDebug(client, force = false) {
+    const selectedDeviceId = getSelectedDeviceId();
+
+    if (!selectedDeviceId || !selectedDeviceId.startsWith("light:")) {
+      pendingDeviceDebugId = "";
+      return;
+    }
+
+    if (!isDebugExpanded()) {
+      return;
+    }
+
+    if (!force) {
+      const alreadyLoaded =
+        selectedDeviceDebugId === selectedDeviceId &&
+        selectedDeviceDebug !== null;
+      const alreadyPending = pendingDeviceDebugId === selectedDeviceId;
+      if (alreadyLoaded || alreadyPending) {
+        return;
+      }
+    }
+
+    resetSelectedDeviceDebug(selectedDeviceId);
+    pendingDeviceDebugId = selectedDeviceId;
+    sendPluginMessage(client, {
+      event: "getDeviceDebug",
+      selectedDeviceId,
+    });
+  }
+
+  function getSelectedDeviceDebug() {
+    const selectedDeviceId = getSelectedDeviceId();
+
+    if (!selectedDeviceId) {
+      return null;
+    }
+
+    if (!selectedDeviceId.startsWith("light:")) {
+      return {
+        selection: selectedDeviceId,
+        message: "Debug device data is only available for individual lights.",
+      };
+    }
+
+    if (!isDebugExpanded()) {
+      return {
+        selection: selectedDeviceId,
+        message: "Expand this panel to load device metadata.",
+      };
+    }
+
+    if (pendingDeviceDebugId === selectedDeviceId) {
+      return {
+        selection: selectedDeviceId,
+        message: "Loading selected light metadata…",
+      };
+    }
+
+    if (
+      selectedDeviceDebugId !== selectedDeviceId ||
+      selectedDeviceDebug === null
+    ) {
+      return {
+        selection: selectedDeviceId,
+        message: "Selected light metadata is not loaded yet.",
+      };
+    }
+
+    return selectedDeviceDebug;
+  }
+
+  function renderDebugInfo() {
+    const debugValue = document.getElementById("deviceDebugValue");
+    if (!debugValue) return;
+
+    const data = getSelectedDeviceDebug();
+    if (!data) {
+      debugValue.innerHTML =
+        '<div class="metadata-empty">Select a light to inspect device metadata.</div>';
+      return;
+    }
+
+    if (data.message) {
+      debugValue.innerHTML = `
+        <div class="metadata-panel">
+          <div class="metadata-message"><strong>Selection:</strong> ${escapeHtml(data.selection ?? "Unknown")}</div>
+          <div class="metadata-empty">${escapeHtml(data.message)}</div>
+        </div>
+      `;
+      return;
+    }
+
+    const capabilities = Object.entries(data.capabilities ?? {})
+      .map(
+        ([key, enabled]) =>
+          `<span class="${capabilityClass(Boolean(enabled))}">${escapeHtml(formatKey(key))}</span>`,
+      )
+      .join("");
+
+    const commands = (data.supportedCommands ?? [])
+      .map(
+        (command) =>
+          `<span class="metadata-tag">${escapeHtml(command)}</span>`,
+      )
+      .join("");
+
+    debugValue.innerHTML = `
+      <div class="metadata-panel">
+        <div class="metadata-section">
+          ${renderMetaRow("Name", data.name)}
+          ${renderMetaRow("Device", data.device, {
+            copyValue: data.device,
+            copyLabel: "Click to copy device ID",
+          })}
+          ${renderMetaRow("Model", data.model, {
+            copyValue: data.model,
+            copyLabel: "Click to copy model",
+          })}
+        </div>
+        <div class="metadata-section">
+          ${renderMetaRow("Controllable", formatBoolean(data.controllable))}
+          ${renderMetaRow("Retrievable", formatBoolean(data.retrievable))}
+        </div>
+        <div class="metadata-section">
+          <div class="metadata-heading">Capabilities</div>
+          <div class="metadata-tags">
+            ${capabilities || '<span class="metadata-empty">None</span>'}
+          </div>
+        </div>
+        <div class="metadata-section">
+          <div class="metadata-heading">Supported Commands</div>
+          <div class="metadata-tags">
+            ${commands || '<span class="metadata-empty">None</span>'}
+          </div>
+        </div>
+      </div>
+    `;
+
+    bindCopyButtons(debugValue);
+  }
+
+  function renderMetaRow(label, value, options = {}) {
+    const valueContent =
+      options.copyValue && value
+        ? `<span
+            class="metadata-copy-value"
+            data-copy="${escapeHtmlAttr(options.copyValue)}"
+            aria-label="${escapeHtmlAttr(options.copyLabel || `Copy ${label}`)}"
+            title="${escapeHtmlAttr(options.copyLabel || `Copy ${label}`)}"
+          >${escapeHtml(value ?? "Unknown")}</span>`
+        : "";
+
+    return `<div class="metadata-row"><div class="metadata-label">${escapeHtml(label)}</div><div class="metadata-value">${valueContent || `<span>${escapeHtml(value ?? "Unknown")}</span>`}</div></div>`;
+  }
+
+  function bindCopyButtons(container) {
+    container.querySelectorAll(".metadata-copy-value").forEach((element) => {
+      element.addEventListener("mouseenter", () => {
+        element.classList.add("is-hover");
+      });
+
+      element.addEventListener("mouseleave", () => {
+        element.classList.remove("is-hover");
+      });
+
+      element.addEventListener("click", async () => {
+        const value = element.getAttribute("data-copy");
+        if (!value) return;
+
+        try {
+          await navigator.clipboard.writeText(value);
+          const originalText = element.textContent;
+          const originalTitle = element.getAttribute("title");
+          element.textContent = "Copied";
+          element.setAttribute("title", "Copied");
+          setTimeout(() => {
+            element.textContent = originalText;
+            if (originalTitle) {
+              element.setAttribute("title", originalTitle);
+            }
+          }, 1200);
+        } catch (error) {
+          console.warn("Failed to copy metadata value", error);
+        }
+      });
+    });
+  }
+
+  function formatBoolean(value) {
+    return value ? "Yes" : "No";
+  }
+
+  function formatKey(value) {
+    return String(value)
+      .replace(/([A-Z])/g, " $1")
+      .replace(/^./, (char) => char.toUpperCase())
+      .trim();
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function escapeHtmlAttr(value) {
+    return escapeHtml(value);
+  }
+
+  function capabilityClass(enabled) {
+    return enabled
+      ? "metadata-tag metadata-tag-enabled"
+      : "metadata-tag metadata-tag-disabled";
   }
 
   function subscribePluginMessages(client, onMessage) {
@@ -131,6 +370,46 @@ document.addEventListener("DOMContentLoaded", () => {
 
     item.appendChild(button);
     settingsWrapper.insertBefore(item, settingsWrapper.firstChild);
+
+    const debugItem = document.createElement("sdpi-item");
+    debugItem.setAttribute("label", "Metadata");
+    debugItem.innerHTML = `
+      <details class="sdpi-item-value metadata-details" id="deviceDebugDetails">
+        <summary>Selected device metadata</summary>
+        <div id="deviceDebugValue" class="metadata-content">
+          <div class="metadata-empty">Select a light to inspect device metadata.</div>
+        </div>
+      </details>
+    `;
+    settingsWrapper.appendChild(debugItem);
+    const debugDetails = debugItem.querySelector("#deviceDebugDetails");
+    if (debugDetails) {
+      debugDetails.addEventListener("toggle", () => {
+        renderDebugInfo();
+        requestSelectedDeviceDebug(client, true);
+      });
+    }
+    renderDebugInfo();
+  }
+
+  function initSharedMessageHandlers(client) {
+    const unsubscribeMessages = subscribePluginMessages(client, (p) => {
+      if (!p || typeof p !== "object") return;
+
+      if (p.event === "deviceDebug") {
+        const currentSelectedDeviceId = getSelectedDeviceId();
+        if (p.selectedDeviceId && p.selectedDeviceId === currentSelectedDeviceId) {
+          selectedDeviceDebugId = p.selectedDeviceId;
+          selectedDeviceDebug = p.device || null;
+          pendingDeviceDebugId = "";
+          renderDebugInfo();
+        }
+      }
+    });
+
+    window.addEventListener("beforeunload", unsubscribeMessages, {
+      once: true,
+    });
   }
 
   // Keep a reference to the latest global settings so we can merge, not replace.
@@ -309,6 +588,8 @@ document.addEventListener("DOMContentLoaded", () => {
             devices.push(item);
           }
         });
+        renderDebugInfo();
+        requestSelectedDeviceDebug(client);
       }
 
       if (p.event === "groupsReceived" && p.groups) {
@@ -361,6 +642,21 @@ document.addEventListener("DOMContentLoaded", () => {
     );
     if (!deviceSelect) return;
 
+    const rerenderDebug = () => {
+      const selectedDeviceId = deviceSelect.value || "";
+      resetSelectedDeviceDebug(selectedDeviceId);
+      latestSettings = {
+        ...latestSettings,
+        selectedDeviceId,
+      };
+      renderDebugInfo();
+      requestSelectedDeviceDebug(client);
+    };
+
+    deviceSelect.addEventListener("valuechange", rerenderDebug);
+    deviceSelect.addEventListener("change", rerenderDebug);
+    deviceSelect.addEventListener("input", rerenderDebug);
+
     const timer = setTimeout(() => {
       // Check if the dropdown is still empty / loading
       const hasOptions =
@@ -386,6 +682,8 @@ document.addEventListener("DOMContentLoaded", () => {
         clearTimeout(timer);
         const hint = document.getElementById("deviceTimeout");
         if (hint) hint.remove();
+        renderDebugInfo();
+        requestSelectedDeviceDebug(client);
         unsubscribeMessages();
       }
     });
@@ -395,6 +693,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function init() {
     const client = SDPIComponents.streamDeckClient;
     injectApiKeyActions(client);
+    initSharedMessageHandlers(client);
 
     client.didReceiveGlobalSettings.subscribe((msg) => {
       cachedGlobalSettings = msg.payload?.settings || {};
@@ -404,13 +703,30 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (hasConditionalItems) {
       client.didReceiveSettings.subscribe((msg) => {
-        const mode = msg.payload?.settings?.controlMode;
+        const nextSettings = msg.payload?.settings || {};
+        resetSelectedDeviceDebug(nextSettings.selectedDeviceId || "");
+        latestSettings = nextSettings;
+        const mode = latestSettings?.controlMode;
         if (mode) updateConditionalVisibility(mode);
+        renderDebugInfo();
+        requestSelectedDeviceDebug(client);
+      });
+    } else {
+      client.didReceiveSettings.subscribe((msg) => {
+        const nextSettings = msg.payload?.settings || {};
+        resetSelectedDeviceDebug(nextSettings.selectedDeviceId || "");
+        latestSettings = nextSettings;
+        renderDebugInfo();
+        requestSelectedDeviceDebug(client);
       });
     }
 
+    if (client && typeof client.getSettings === "function") {
+      client.getSettings();
+    }
     client.getGlobalSettings();
     watchDeviceDropdown(client);
+    renderDebugInfo();
     try {
       initGroupManager(client);
     } catch (error) {

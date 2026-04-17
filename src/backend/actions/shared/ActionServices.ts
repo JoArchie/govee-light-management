@@ -505,10 +505,12 @@ export class ActionServices {
             PI_HANDLER_TIMEOUT_MS,
             "Device discovery",
           );
-          const lightItems = lights.map((light) => ({
-            label: `${light.label ?? light.name} (${light.model})`,
-            value: `light:${light.deviceId}|${light.model}`,
-          }));
+          const lightItems = lights.map((light) => {
+            return {
+              label: `${light.label ?? light.name} (${light.model})`,
+              value: `light:${light.deviceId}|${light.model}`,
+            };
+          });
 
           if (lightItems.length > 0) {
             items.push({
