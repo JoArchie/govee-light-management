@@ -24,7 +24,7 @@ interface CacheEntry {
   stale: boolean;
 }
 
-const DEFAULT_TTL_MS = 15_000;
+const DEFAULT_TTL_MS = 30_000;
 
 export class DeviceService {
   private cache: CacheEntry | null = null;
