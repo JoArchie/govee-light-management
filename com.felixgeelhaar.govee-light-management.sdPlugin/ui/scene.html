@@ -56,17 +56,56 @@
     </div>
 
     <script>
-      document.addEventListener("DOMContentLoaded", () => {
+      function setupDependentRefresh() {
         const deviceSelect = document.getElementById("deviceSelect");
         const sceneSelect = document.getElementById("sceneSelect");
+        const client = window.SDPIComponents?.streamDeckClient;
+        let currentSettings = {};
 
-        // When device changes, refresh the scene list
-        deviceSelect.addEventListener("valuechange", () => {
+        const refreshScenes = () => {
           if (sceneSelect && sceneSelect.refresh) {
             sceneSelect.refresh();
           }
+        };
+
+        const getSelectedDeviceLabel = () => {
+          const nativeSelect = deviceSelect?.shadowRoot?.querySelector("select");
+          return nativeSelect?.selectedOptions?.[0]?.innerText?.trim() || "";
+        };
+
+        const scheduleRefresh = () => {
+          setTimeout(refreshScenes, 0);
+          setTimeout(refreshScenes, 100);
+        };
+
+        if (client?.didReceiveSettings?.subscribe) {
+          client.didReceiveSettings.subscribe((msg) => {
+            currentSettings = msg?.payload?.settings || {};
+            scheduleRefresh();
+          });
+        }
+
+        const persistSelectionAndRefresh = () => {
+          const selectedDeviceId = deviceSelect?.value || "";
+          if (client?.setSettings && selectedDeviceId) {
+            client.setSettings({
+              ...currentSettings,
+              selectedDeviceId,
+              selectedLightName: getSelectedDeviceLabel(),
+            });
+          }
+          scheduleRefresh();
+        };
+
+        ["valuechange", "change", "input"].forEach((eventName) => {
+          deviceSelect.addEventListener(eventName, persistSelectionAndRefresh);
         });
-      });
+
+        scheduleRefresh();
+      }
+
+      document.addEventListener("DOMContentLoaded", setupDependentRefresh);
+      if (document.readyState !== "loading") setupDependentRefresh();
     </script>
   </body>
 </html>

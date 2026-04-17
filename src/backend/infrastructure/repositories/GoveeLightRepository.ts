@@ -607,23 +607,100 @@ export class GoveeLightRepository implements ILightRepository {
       );
       if (!device) return [];
 
+      const extractModeValue = (value: unknown): number | null => {
+        if (typeof value === "number" && Number.isInteger(value) && value > 0) {
+          return value;
+        }
+
+        if (typeof value === "object" && value !== null) {
+          if (
+            "musicMode" in value &&
+            typeof value.musicMode === "number" &&
+            Number.isInteger(value.musicMode) &&
+            value.musicMode > 0
+          ) {
+            return value.musicMode;
+          }
+
+          if (
+            "modeId" in value &&
+            typeof value.modeId === "number" &&
+            Number.isInteger(value.modeId) &&
+            value.modeId > 0
+          ) {
+            return value.modeId;
+          }
+
+          if (
+            "id" in value &&
+            typeof value.id === "number" &&
+            Number.isInteger(value.id) &&
+            value.id > 0
+          ) {
+            return value.id;
+          }
+        }
+
+        return null;
+      };
+
+      const dedupe = new Map<number, { name: string; value: number }>();
+
+      const addOptions = (options: unknown[] | undefined) => {
+        if (!Array.isArray(options)) return;
+        for (const option of options) {
+          if (typeof option !== "object" || option === null) continue;
+          const optionRecord = option as { name?: unknown; value?: unknown };
+          const name =
+            typeof optionRecord.name === "string"
+              ? optionRecord.name.trim()
+              : "";
+          const value = extractModeValue(optionRecord.value);
+          if (!name || value === null) continue;
+          dedupe.set(value, { name, value });
+        }
+      };
+
       for (const cap of device.capabilities) {
-        if (cap.instance === "musicMode") {
-          const params = cap.parameters as any;
-          if (params?.fields) {
-            const modeField = params.fields.find(
-              (f: any) => f.fieldName === "musicMode",
+        if (
+          !cap.type.includes("music_setting") ||
+          cap.instance !== "musicMode"
+        ) {
+          continue;
+        }
+
+        const params = cap.parameters as any;
+
+        // Some devices expose music modes directly on parameters.options.
+        addOptions(params?.options);
+
+        // Others expose them under a field, typically alongside sensitivity.
+        if (Array.isArray(params?.fields)) {
+          const preferredFields = params.fields.filter((field: any) => {
+            const fieldName =
+              typeof field?.fieldName === "string"
+                ? field.fieldName.toLowerCase()
+                : "";
+            return (
+              fieldName === "musicmode" ||
+              fieldName === "modeid" ||
+              fieldName === "mode"
             );
-            if (modeField?.options) {
-              return modeField.options.map((o: any) => ({
-                name: String(o.name),
-                value: Number(o.value),
-              }));
-            }
+          });
+
+          for (const field of preferredFields) {
+            addOptions(field?.options);
+          }
+
+          // Fallback for devices that use a different field name but still
+          // carry enumerable mode options in the first field.
+          for (const field of params.fields) {
+            addOptions(field?.options);
           }
         }
       }
-      return [];
+
+      return Array.from(dedupe.values());
     } catch (error) {
       streamDeck.logger.error("Failed to get music modes:", error);
       return [];
