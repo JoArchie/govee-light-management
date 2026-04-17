@@ -392,6 +392,26 @@ document.addEventListener("DOMContentLoaded", () => {
     renderDebugInfo();
   }
 
+  function initSharedMessageHandlers(client) {
+    const unsubscribeMessages = subscribePluginMessages(client, (p) => {
+      if (!p || typeof p !== "object") return;
+
+      if (p.event === "deviceDebug") {
+        const currentSelectedDeviceId = getSelectedDeviceId();
+        if (p.selectedDeviceId && p.selectedDeviceId === currentSelectedDeviceId) {
+          selectedDeviceDebugId = p.selectedDeviceId;
+          selectedDeviceDebug = p.device || null;
+          pendingDeviceDebugId = "";
+          renderDebugInfo();
+        }
+      }
+    });
+
+    window.addEventListener("beforeunload", unsubscribeMessages, {
+      once: true,
+    });
+  }
+
   // Keep a reference to the latest global settings so we can merge, not replace.
   let cachedGlobalSettings = {};
 
@@ -572,16 +592,6 @@ document.addEventListener("DOMContentLoaded", () => {
         requestSelectedDeviceDebug(client);
       }
 
-      if (p.event === "deviceDebug") {
-        const currentSelectedDeviceId = getSelectedDeviceId();
-        if (p.selectedDeviceId && p.selectedDeviceId === currentSelectedDeviceId) {
-          selectedDeviceDebugId = p.selectedDeviceId;
-          selectedDeviceDebug = p.device || null;
-          pendingDeviceDebugId = "";
-          renderDebugInfo();
-        }
-      }
-
       if (p.event === "groupsReceived" && p.groups) {
         renderGroups(p.groups);
       }
@@ -683,6 +693,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function init() {
     const client = SDPIComponents.streamDeckClient;
     injectApiKeyActions(client);
+    initSharedMessageHandlers(client);
 
     client.didReceiveGlobalSettings.subscribe((msg) => {
       cachedGlobalSettings = msg.payload?.settings || {};
