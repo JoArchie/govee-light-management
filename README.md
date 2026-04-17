@@ -549,39 +549,8 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 
 ## Roadmap
 
-<<<<<<< HEAD
+### v2.1.3 (Current - Released)
 
-### v1.0.0 (Current)
-
-- [x] Individual light control with multiple modes
-- [x] Advanced group management
-- [x] Stream Deck+ encoder support (Brightness, Color Temp, Color Hue)
-- [x] Real-time state synchronization
-- [x] Enterprise-grade architecture (DDD)
-      ||||||| 51acf51
-
-### v1.0.0 (Current)
-
-- [x] Individual light control with multiple modes
-- [x] Advanced group management
-- [x] Stream Deck+ encoder support (Brightness, Color Temp, Color Hue)
-- [x] Real-time state synchronization
-- [x] # Enterprise-grade architecture (DDD)
-
-### v2.1.3 (Current)
-
-> > > > > > > fix/music-toggle-group-support
-
-<<<<<<< HEAD
-
-### v1.1.0 (Next Release)
-
-- [ ] Scene management and automation
-      ||||||| 51acf51
-
-### v1.1.0 (Next Release)
-
-- [ ] # Scene management and automation
 - [x] Individual light control with 8 modes (On/Off, Brightness, Color, Color Temp, Segment, Scene, Music, Toggle)
 - [x] Advanced group management with full dial support
 - [x] Stream Deck+ encoder support (5 dials: Brightness, Color Temp, Color Hue, Saturation, Segment Color)
@@ -592,59 +561,26 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 - [x] Feature toggle control (Nightlight, Gradient, DreamView, Scene Stage)
 - [x] Full group support across all actions and dials
 - [x] Visual feedback system with green/red flash indicators
+- [x] Saturation dial for color intensity control
 
 ### v2.2.0 (Planned)
 
 - [ ] Enhanced color picker with preset colors
-  > > > > > > > fix/music-toggle-group-support
 - [ ] Scheduled actions and timers
 - [ ] Multi-action sequences
 - [ ] Custom effect creation for RGB strips
 - [ ] Device-specific capability detection improvements
 
-<<<<<<< HEAD
-
-### v1.2.0 (Future)
-
-- [ ] Support for Govee DIY lights
-- [ ] Music sync integration
-- [ ] Custom effect creation
-- [ ] Cloud sync for group configurations
-- [ ] Multi-encoder synchronization
-      ||||||| 51acf51
-
-### v1.2.0 (Future)
-
-- [ ] Support for Govee DIY lights
-- [ ] Music sync integration
-- [ ] Custom effect creation
-- [ ] Cloud sync for group configurations
-- [ ] # Multi-encoder synchronization
-
 ### v3.0.0 (Long-term Vision)
 
-> > > > > > > fix/music-toggle-group-support
-
-<<<<<<< HEAD
-
-### v2.0.0 (Long-term)
-
-- [ ] Multi-platform support (Windows/macOS/Linux)
-- [ ] Web interface for advanced configuration
-- [ ] Plugin SDK for third-party extensions
-      ||||||| 51acf51
-
-### v2.0.0 (Long-term)
-
-- [ ] Multi-platform support (Windows/macOS/Linux)
-- [ ] Web interface for advanced configuration
-- [ ] # Plugin SDK for third-party extensions
 - [ ] LAN connectivity for lower latency
 - [ ] WebSocket support for real-time state updates
 - [ ] Cloud sync for group configurations across devices
-  > > > > > > > fix/music-toggle-group-support
 - [ ] Integration with other smart home platforms
 - [ ] Mobile companion app for remote control
+- [ ] Multi-platform support (Windows/macOS/Linux)
+- [ ] Web interface for advanced configuration
+- [ ] Plugin SDK for third-party extensions
 
 ## License
 
