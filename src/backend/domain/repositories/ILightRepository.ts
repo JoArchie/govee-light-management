@@ -108,10 +108,25 @@ export interface ILightRepository {
   ): Promise<import("@felixgeelhaar/govee-api-client").LightScene[]>;
 
   /**
+   * Get available DIY scenes for a specific device
+   */
+  getDiyScenes(
+    light: Light,
+  ): Promise<import("@felixgeelhaar/govee-api-client").DiyScene[]>;
+
+  /**
    * Apply a dynamic LightScene directly (bypasses domain Scene mapper)
    */
   setLightScene(
     light: Light,
     scene: import("@felixgeelhaar/govee-api-client").LightScene,
+  ): Promise<void>;
+
+  /**
+   * Apply a DIY scene directly
+   */
+  setDiyScene(
+    light: Light,
+    scene: import("@felixgeelhaar/govee-api-client").DiyScene,
   ): Promise<void>;
 }

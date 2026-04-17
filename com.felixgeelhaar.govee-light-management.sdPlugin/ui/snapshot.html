@@ -25,6 +25,8 @@
           id="snapshotSelect"
           setting="selectedSnapshot"
           placeholder="Select a device first"
+          datasource="getSnapshots"
+          show-refresh
         ></sdpi-select>
       </sdpi-item>
     </div>
@@ -64,157 +66,114 @@
         const snapshotSelect = document.getElementById("snapshotSelect");
         const client = window.SDPIComponents?.streamDeckClient;
         let currentSettings = {};
-        let requestTimer = null;
-        let lastRequestedDeviceId = "";
-        let lastPopulatedDeviceId = "";
-
-        function toPayload(message) {
-          if (
-            message &&
-            typeof message === "object" &&
-            "payload" in message &&
-            message.payload
-          ) {
-            return message.payload;
-          }
-          return message || {};
-        }
-
-        function sendPluginMessage(payload) {
-          if (client && typeof client.sendToPlugin === "function") {
-            client.sendToPlugin(payload);
-            return;
-          }
-          if (client && typeof client.send === "function") {
-            client.send("sendToPlugin", payload);
-          }
-        }
-
-        function subscribePluginMessages(onMessage) {
-          const sources = [
-            client && client.sendToPropertyInspector,
-            client && client.message,
-          ].filter(Boolean);
-
-          sources.forEach((source) => {
-            if (source && typeof source.subscribe === "function") {
-              source.subscribe((message) => onMessage(toPayload(message)));
-            }
-          });
-        }
+        let refreshTimer = null;
+        let lastDeviceId = "";
 
         function getSelectedDeviceId() {
           return (
-            currentSettings.selectedDeviceId ||
             deviceSelect?.shadowRoot?.querySelector("select")?.value ||
             deviceSelect?.value ||
-            deviceSelect?.getAttribute?.("value") ||
-            deviceSelect?.getAttribute?.("default-value") ||
+            currentSettings.selectedDeviceId ||
             ""
           );
         }
 
-        function setPlaceholder(text) {
-          while (snapshotSelect.children.length > 0) {
-            snapshotSelect.removeChild(snapshotSelect.lastChild);
-          }
-          const placeholder = document.createElement("option");
-          placeholder.value = "";
-          placeholder.textContent = text;
-          placeholder.disabled = true;
-          placeholder.selected = true;
-          snapshotSelect.appendChild(placeholder);
+        function getSelectedDeviceLabel() {
+          const nativeSelect = deviceSelect?.shadowRoot?.querySelector("select");
+          return nativeSelect?.selectedOptions?.[0]?.innerText?.trim() || "";
         }
 
-        function populateSnapshots(items) {
-          lastPopulatedDeviceId = getSelectedDeviceId();
-          if (!items || items.length === 0) {
-            setPlaceholder("No snapshots found for this device");
+        function clearSnapshotSelection() {
+          snapshotSelect.value = "";
+          const nativeSelect =
+            snapshotSelect?.shadowRoot?.querySelector("select");
+          if (nativeSelect) {
+            nativeSelect.value = "";
+          }
+        }
+
+        function queueRefresh(delay = 120) {
+          if (refreshTimer) {
+            clearTimeout(refreshTimer);
+          }
+
+          refreshTimer = setTimeout(() => {
+            refreshTimer = null;
+            if (snapshotSelect?.refresh) {
+              snapshotSelect.refresh();
+            }
+          }, delay);
+        }
+
+        async function persistDeviceSelection(selectedDeviceId) {
+          if (!client?.setSettings) {
             return;
           }
 
-          while (snapshotSelect.children.length > 0) {
-            snapshotSelect.removeChild(snapshotSelect.lastChild);
-          }
+          const nextSettings = {
+            ...currentSettings,
+            selectedDeviceId,
+            selectedLightName: getSelectedDeviceLabel(),
+            selectedSnapshot: "",
+          };
 
-          items.forEach((item) => {
-            const option = document.createElement("option");
-            option.value = item.value;
-            option.textContent = item.label;
-            snapshotSelect.appendChild(option);
-          });
+          currentSettings = nextSettings;
+          clearSnapshotSelection();
+          await client.setSettings(nextSettings);
         }
 
-        function requestSnapshots() {
+        async function syncForCurrentDevice() {
           const selectedDeviceId = getSelectedDeviceId();
           if (!selectedDeviceId) {
-            lastRequestedDeviceId = "";
-            setPlaceholder("Select a device first");
+            lastDeviceId = "";
+            clearSnapshotSelection();
             return;
           }
 
-          if (
-            selectedDeviceId === lastRequestedDeviceId &&
-            selectedDeviceId === lastPopulatedDeviceId
-          ) {
-            return;
+          if (selectedDeviceId !== lastDeviceId) {
+            lastDeviceId = selectedDeviceId;
+            await persistDeviceSelection(selectedDeviceId);
           }
 
-          lastRequestedDeviceId = selectedDeviceId;
-
-          sendPluginMessage({
-            event: "getSnapshots",
-            selectedDeviceId,
-          });
+          queueRefresh();
         }
+
+        window.GoveePI.attachFieldStatus(snapshotSelect, "getSnapshots", {
+          emptyMsg:
+            "No snapshots found. Create one in the Govee mobile app first.",
+          errorMsg:
+            "Couldn't load snapshots. Check your connection and try again.",
+        });
 
         if (client?.didReceiveSettings?.subscribe) {
           client.didReceiveSettings.subscribe((msg) => {
             currentSettings = msg?.payload?.settings || {};
-            if (!currentSettings.selectedDeviceId) {
-              lastRequestedDeviceId = "";
-              lastPopulatedDeviceId = "";
+            const selectedDeviceId =
+              typeof currentSettings.selectedDeviceId === "string"
+                ? currentSettings.selectedDeviceId
+                : "";
+
+            if (!selectedDeviceId) {
+              lastDeviceId = "";
+              clearSnapshotSelection();
+              return;
             }
-            scheduleRequest();
+
+            if (selectedDeviceId !== lastDeviceId) {
+              lastDeviceId = selectedDeviceId;
+              clearSnapshotSelection();
+              queueRefresh();
+            }
           });
-        }
-
-        subscribePluginMessages((payload) => {
-          if (payload?.event === "getSnapshots") {
-            populateSnapshots(payload.items || []);
-          }
-        });
-
-        function scheduleRequest() {
-          if (requestTimer) {
-            clearTimeout(requestTimer);
-          }
-          requestTimer = setTimeout(() => {
-            requestTimer = null;
-            requestSnapshots();
-          }, 120);
         }
 
         ["valuechange", "change", "input"].forEach((eventName) => {
           deviceSelect.addEventListener(eventName, () => {
-            const selectedDeviceId = getSelectedDeviceId();
-            if (selectedDeviceId !== lastRequestedDeviceId) {
-              lastPopulatedDeviceId = "";
-            }
-            if (client?.setSettings && selectedDeviceId) {
-              currentSettings = {
-                ...currentSettings,
-                selectedDeviceId,
-              };
-              client.setSettings({
-                ...currentSettings,
-              });
-            }
-            scheduleRequest();
+            void syncForCurrentDevice();
           });
         });
 
-        scheduleRequest();
+        void syncForCurrentDevice();
       }
 
       document.addEventListener("DOMContentLoaded", setupDependentRefresh);

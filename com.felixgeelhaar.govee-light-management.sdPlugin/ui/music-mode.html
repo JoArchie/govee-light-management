@@ -26,6 +26,8 @@
           id="modeSelect"
           setting="selectedMode"
           placeholder="Select a device first"
+          datasource="getMusicModes"
+          show-refresh
         ></sdpi-select>
       </sdpi-item>
 
@@ -80,157 +82,112 @@
         const modeSelect = document.getElementById("modeSelect");
         const client = window.SDPIComponents?.streamDeckClient;
         let currentSettings = {};
-        let requestTimer = null;
-        let lastRequestedDeviceId = "";
-        let lastPopulatedDeviceId = "";
-
-        function toPayload(message) {
-          if (
-            message &&
-            typeof message === "object" &&
-            "payload" in message &&
-            message.payload
-          ) {
-            return message.payload;
-          }
-          return message || {};
-        }
-
-        function sendPluginMessage(payload) {
-          if (client && typeof client.sendToPlugin === "function") {
-            client.sendToPlugin(payload);
-            return;
-          }
-          if (client && typeof client.send === "function") {
-            client.send("sendToPlugin", payload);
-          }
-        }
-
-        function subscribePluginMessages(onMessage) {
-          const sources = [
-            client && client.sendToPropertyInspector,
-            client && client.message,
-          ].filter(Boolean);
-
-          sources.forEach((source) => {
-            if (source && typeof source.subscribe === "function") {
-              source.subscribe((message) => onMessage(toPayload(message)));
-            }
-          });
-        }
+        let refreshTimer = null;
+        let lastDeviceId = "";
 
         function getSelectedDeviceId() {
           return (
-            currentSettings.selectedDeviceId ||
             deviceSelect?.shadowRoot?.querySelector("select")?.value ||
             deviceSelect?.value ||
-            deviceSelect?.getAttribute?.("value") ||
-            deviceSelect?.getAttribute?.("default-value") ||
+            currentSettings.selectedDeviceId ||
             ""
           );
         }
 
-        function setPlaceholder(text) {
-          while (modeSelect.children.length > 0) {
-            modeSelect.removeChild(modeSelect.lastChild);
-          }
-          const placeholder = document.createElement("option");
-          placeholder.value = "";
-          placeholder.textContent = text;
-          placeholder.disabled = true;
-          placeholder.selected = true;
-          modeSelect.appendChild(placeholder);
+        function getSelectedDeviceLabel() {
+          const nativeSelect = deviceSelect?.shadowRoot?.querySelector("select");
+          return nativeSelect?.selectedOptions?.[0]?.innerText?.trim() || "";
         }
 
-        function populateModes(items) {
-          lastPopulatedDeviceId = getSelectedDeviceId();
-          if (!items || items.length === 0) {
-            setPlaceholder("No music modes found for this device");
+        function clearModeSelection() {
+          modeSelect.value = "";
+          const nativeSelect = modeSelect?.shadowRoot?.querySelector("select");
+          if (nativeSelect) {
+            nativeSelect.value = "";
+          }
+        }
+
+        function queueRefresh(delay = 120) {
+          if (refreshTimer) {
+            clearTimeout(refreshTimer);
+          }
+
+          refreshTimer = setTimeout(() => {
+            refreshTimer = null;
+            if (modeSelect?.refresh) {
+              modeSelect.refresh();
+            }
+          }, delay);
+        }
+
+        async function persistDeviceSelection(selectedDeviceId) {
+          if (!client?.setSettings) {
             return;
           }
 
-          while (modeSelect.children.length > 0) {
-            modeSelect.removeChild(modeSelect.lastChild);
-          }
+          const nextSettings = {
+            ...currentSettings,
+            selectedDeviceId,
+            selectedLightName: getSelectedDeviceLabel(),
+            selectedMode: "",
+          };
 
-          items.forEach((item) => {
-            const option = document.createElement("option");
-            option.value = item.value;
-            option.textContent = item.label;
-            modeSelect.appendChild(option);
-          });
+          currentSettings = nextSettings;
+          clearModeSelection();
+          await client.setSettings(nextSettings);
         }
 
-        function requestModes() {
+        async function syncForCurrentDevice() {
           const selectedDeviceId = getSelectedDeviceId();
           if (!selectedDeviceId) {
-            lastRequestedDeviceId = "";
-            setPlaceholder("Select a device first");
+            lastDeviceId = "";
+            clearModeSelection();
             return;
           }
 
-          if (
-            selectedDeviceId === lastRequestedDeviceId &&
-            selectedDeviceId === lastPopulatedDeviceId
-          ) {
-            return;
+          if (selectedDeviceId !== lastDeviceId) {
+            lastDeviceId = selectedDeviceId;
+            await persistDeviceSelection(selectedDeviceId);
           }
 
-          lastRequestedDeviceId = selectedDeviceId;
-
-          sendPluginMessage({
-            event: "getMusicModes",
-            selectedDeviceId,
-          });
+          queueRefresh();
         }
+
+        window.GoveePI.attachFieldStatus(modeSelect, "getMusicModes", {
+          emptyMsg: "This device doesn't support music modes.",
+          errorMsg:
+            "Couldn't load music modes. Check your connection and try again.",
+        });
 
         if (client?.didReceiveSettings?.subscribe) {
           client.didReceiveSettings.subscribe((msg) => {
             currentSettings = msg?.payload?.settings || {};
-            if (!currentSettings.selectedDeviceId) {
-              lastRequestedDeviceId = "";
-              lastPopulatedDeviceId = "";
+            const selectedDeviceId =
+              typeof currentSettings.selectedDeviceId === "string"
+                ? currentSettings.selectedDeviceId
+                : "";
+
+            if (!selectedDeviceId) {
+              lastDeviceId = "";
+              clearModeSelection();
+              return;
             }
-            scheduleRequest();
+
+            if (selectedDeviceId !== lastDeviceId) {
+              lastDeviceId = selectedDeviceId;
+              clearModeSelection();
+              queueRefresh();
+            }
           });
-        }
-
-        subscribePluginMessages((payload) => {
-          if (payload?.event === "getMusicModes") {
-            populateModes(payload.items || []);
-          }
-        });
-
-        function scheduleRequest() {
-          if (requestTimer) {
-            clearTimeout(requestTimer);
-          }
-          requestTimer = setTimeout(() => {
-            requestTimer = null;
-            requestModes();
-          }, 120);
         }
 
         ["valuechange", "change", "input"].forEach((eventName) => {
           deviceSelect.addEventListener(eventName, () => {
-            const selectedDeviceId = getSelectedDeviceId();
-            if (selectedDeviceId !== lastRequestedDeviceId) {
-              lastPopulatedDeviceId = "";
-            }
-            if (client?.setSettings && selectedDeviceId) {
-              currentSettings = {
-                ...currentSettings,
-                selectedDeviceId,
-              };
-              client.setSettings({
-                ...currentSettings,
-              });
-            }
-            scheduleRequest();
+            void syncForCurrentDevice();
           });
         });
 
-        scheduleRequest();
+        void syncForCurrentDevice();
       }
 
       document.addEventListener("DOMContentLoaded", setupDependentRefresh);

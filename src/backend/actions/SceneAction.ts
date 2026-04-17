@@ -9,12 +9,13 @@ import {
   streamDeck,
 } from "@elgato/streamdeck";
 import type { JsonValue } from "@elgato/utils";
-import { LightScene } from "@felixgeelhaar/govee-api-client";
+import { DiyScene, LightScene } from "@felixgeelhaar/govee-api-client";
 import {
   ActionServices,
   sendToPI,
   type BaseSettings,
 } from "./shared/ActionServices";
+import { buildSceneItems } from "./scene-items";
 
 type SceneSettings = BaseSettings & {
   selectedScene?: string;
@@ -67,24 +68,44 @@ export class SceneAction extends SingletonAction<SceneSettings> {
 
     try {
       const parsed = JSON.parse(settings.selectedScene) as {
+        kind?: "dynamic" | "diy";
         id: number;
         paramId: number;
         name: string;
       };
-      const scene = new LightScene(parsed.id, parsed.paramId, parsed.name);
+      const sceneKind = parsed.kind === "diy" ? "diy" : "dynamic";
       const stopSpinner = this.services.showSpinner(ev.action);
       try {
-        if (target.type === "light" && target.light) {
-          await this.services.applyDynamicScene(target.light, scene);
-        } else if (target.type === "group" && target.group) {
-          for (const light of target.group.getControllableLights()) {
-            try {
-              await this.services.applyDynamicScene(light, scene);
-            } catch (error) {
-              streamDeck.logger.warn(
-                `Scene apply failed for group member ${light.name}:`,
-                error,
-              );
+        if (sceneKind === "diy") {
+          const scene = new DiyScene(parsed.id, parsed.paramId, parsed.name);
+          if (target.type === "light" && target.light) {
+            await this.services.applyDiyScene(target.light, scene);
+          } else if (target.type === "group" && target.group) {
+            for (const light of target.group.getControllableLights()) {
+              try {
+                await this.services.applyDiyScene(light, scene);
+              } catch (error) {
+                streamDeck.logger.warn(
+                  `Scene apply failed for group member ${light.name}:`,
+                  error,
+                );
+              }
+            }
+          }
+        } else {
+          const scene = new LightScene(parsed.id, parsed.paramId, parsed.name);
+          if (target.type === "light" && target.light) {
+            await this.services.applyDynamicScene(target.light, scene);
+          } else if (target.type === "group" && target.group) {
+            for (const light of target.group.getControllableLights()) {
+              try {
+                await this.services.applyDynamicScene(light, scene);
+              } catch (error) {
+                streamDeck.logger.warn(
+                  `Scene apply failed for group member ${light.name}:`,
+                  error,
+                );
+              }
             }
           }
         }
@@ -107,6 +128,14 @@ export class SceneAction extends SingletonAction<SceneSettings> {
       case "getDevices":
         await this.services.handleGetDevices(ev.action.id);
         break;
+      case "getDeviceDebug":
+        await this.services.handleGetDeviceDebug(
+          ev.action.id,
+          typeof ev.payload.selectedDeviceId === "string"
+            ? ev.payload.selectedDeviceId
+            : undefined,
+        );
+        break;
       case "getGroups":
         await this.services.handleGetGroups(ev.action.id);
         break;
@@ -121,7 +150,14 @@ export class SceneAction extends SingletonAction<SceneSettings> {
         break;
       case "getScenes": {
         const settings = await ev.action.getSettings();
-        await this.handleGetScenes(ev.action.id, settings);
+        const selectedDeviceId =
+          typeof ev.payload.selectedDeviceId === "string"
+            ? ev.payload.selectedDeviceId
+            : settings.selectedDeviceId;
+        await this.handleGetScenes(ev.action.id, {
+          ...settings,
+          selectedDeviceId,
+        });
         break;
       }
     }
@@ -133,14 +169,24 @@ export class SceneAction extends SingletonAction<SceneSettings> {
   ): Promise<void> {
     const deviceId = settings.selectedDeviceId;
     if (!deviceId) {
-      await sendToPI(actionId, { event: "getScenes", items: [] });
+      await sendToPI(actionId, {
+        event: "getScenes",
+        items: [],
+        status: "empty",
+        message: "Select a device to load its scenes.",
+      });
       return;
     }
 
     try {
       const apiKey = await this.services.getApiKey(settings ?? {});
       if (!apiKey) {
-        await sendToPI(actionId, { event: "getScenes", items: [] });
+        await sendToPI(actionId, {
+          event: "getScenes",
+          items: [],
+          status: "error",
+          message: "Missing API key — reconnect in the API Key panel.",
+        });
         return;
       }
 
@@ -161,21 +207,44 @@ export class SceneAction extends SingletonAction<SceneSettings> {
       }
 
       if (!queryLight) {
-        await sendToPI(actionId, { event: "getScenes", items: [] });
+        await sendToPI(actionId, {
+          event: "getScenes",
+          items: [],
+          status: "error",
+          message:
+            "Selected device could not be resolved. Try refreshing devices.",
+        });
         return;
       }
 
-      const scenes = await this.services.getDynamicScenes(queryLight);
+      const [dynamicScenes, diyScenes] = await Promise.all([
+        this.services.getDynamicScenes(queryLight),
+        this.services.getDiyScenes(queryLight),
+      ]);
+      const items = buildSceneItems(dynamicScenes, diyScenes);
+      if (items.length === 0) {
+        await sendToPI(actionId, {
+          event: "getScenes",
+          items: [],
+          status: "empty",
+          message:
+            "This device has no dynamic or DIY scenes available. Create scenes in the Govee mobile app first.",
+        });
+        return;
+      }
       await sendToPI(actionId, {
         event: "getScenes",
-        items: scenes.map((s) => ({
-          label: s.name,
-          value: JSON.stringify({ id: s.id, paramId: s.paramId, name: s.name }),
-        })),
+        status: "ok",
+        items,
       });
     } catch (error) {
       streamDeck.logger.error("Failed to fetch scenes:", error);
-      await sendToPI(actionId, { event: "getScenes", items: [] });
+      await sendToPI(actionId, {
+        event: "getScenes",
+        items: [],
+        status: "error",
+        message: "Failed to load scenes. Check your connection and retry.",
+      });
     }
   }
 

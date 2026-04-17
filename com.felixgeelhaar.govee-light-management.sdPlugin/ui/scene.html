@@ -57,51 +57,113 @@
 
     <script>
       function setupDependentRefresh() {
+        if (window.__goveeSceneDependentRefreshSetup) {
+          return;
+        }
+        window.__goveeSceneDependentRefreshSetup = true;
+
         const deviceSelect = document.getElementById("deviceSelect");
         const sceneSelect = document.getElementById("sceneSelect");
         const client = window.SDPIComponents?.streamDeckClient;
         let currentSettings = {};
+        let refreshTimer = null;
+        let lastDeviceId = "";
 
-        const refreshScenes = () => {
-          if (sceneSelect && sceneSelect.refresh) {
-            sceneSelect.refresh();
-          }
-        };
+        function getSelectedDeviceId() {
+          return (
+            deviceSelect?.shadowRoot?.querySelector("select")?.value ||
+            deviceSelect?.value ||
+            currentSettings.selectedDeviceId ||
+            ""
+          );
+        }
 
-        const getSelectedDeviceLabel = () => {
+        function getSelectedDeviceLabel() {
           const nativeSelect = deviceSelect?.shadowRoot?.querySelector("select");
           return nativeSelect?.selectedOptions?.[0]?.innerText?.trim() || "";
-        };
+        }
 
-        const scheduleRefresh = () => {
-          setTimeout(refreshScenes, 0);
-          setTimeout(refreshScenes, 100);
-        };
+        function clearSceneSelection() {
+          sceneSelect.value = "";
+          const nativeSelect = sceneSelect?.shadowRoot?.querySelector("select");
+          if (nativeSelect) {
+            nativeSelect.value = "";
+          }
+        }
+
+        function queueRefresh(delay = 120) {
+          if (refreshTimer) {
+            clearTimeout(refreshTimer);
+          }
+
+          refreshTimer = setTimeout(() => {
+            refreshTimer = null;
+            if (sceneSelect?.refresh) {
+              sceneSelect.refresh();
+            }
+          }, delay);
+        }
+
+        async function syncForCurrentDevice() {
+          const selectedDeviceId = getSelectedDeviceId();
+          if (!selectedDeviceId) {
+            lastDeviceId = "";
+            clearSceneSelection();
+            return;
+          }
+
+          if (selectedDeviceId !== lastDeviceId && client?.setSettings) {
+            lastDeviceId = selectedDeviceId;
+            currentSettings = {
+              ...currentSettings,
+              selectedDeviceId,
+              selectedLightName: getSelectedDeviceLabel(),
+              selectedScene: "",
+            };
+            clearSceneSelection();
+            await client.setSettings(currentSettings);
+          } else {
+            lastDeviceId = selectedDeviceId;
+          }
+
+          queueRefresh();
+        }
+
+        window.GoveePI.attachFieldStatus(sceneSelect, "getScenes", {
+          emptyMsg: "This device has no dynamic scenes available.",
+          errorMsg:
+            "Couldn't load scenes. Check your connection and try again.",
+        });
 
         if (client?.didReceiveSettings?.subscribe) {
           client.didReceiveSettings.subscribe((msg) => {
             currentSettings = msg?.payload?.settings || {};
-            scheduleRefresh();
+            const selectedDeviceId =
+              typeof currentSettings.selectedDeviceId === "string"
+                ? currentSettings.selectedDeviceId
+                : "";
+
+            if (!selectedDeviceId) {
+              lastDeviceId = "";
+              clearSceneSelection();
+              return;
+            }
+
+            if (selectedDeviceId !== lastDeviceId) {
+              lastDeviceId = selectedDeviceId;
+              clearSceneSelection();
+              queueRefresh();
+            }
           });
         }
 
-        const persistSelectionAndRefresh = () => {
-          const selectedDeviceId = deviceSelect?.value || "";
-          if (client?.setSettings && selectedDeviceId) {
-            client.setSettings({
-              ...currentSettings,
-              selectedDeviceId,
-              selectedLightName: getSelectedDeviceLabel(),
-            });
-          }
-          scheduleRefresh();
-        };
-
         ["valuechange", "change", "input"].forEach((eventName) => {
-          deviceSelect.addEventListener(eventName, persistSelectionAndRefresh);
+          deviceSelect.addEventListener(eventName, () => {
+            void syncForCurrentDevice();
+          });
         });
 
-        scheduleRefresh();
+        void syncForCurrentDevice();
       }
 
       document.addEventListener("DOMContentLoaded", setupDependentRefresh);

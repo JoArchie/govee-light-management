@@ -5,6 +5,7 @@ import {
   Brightness,
   GoveeDevice,
   LightScene,
+  DiyScene,
   Snapshot,
   MusicMode,
   SegmentColor as ApiSegmentColor,
@@ -410,6 +411,26 @@ export class GoveeLightRepository implements ILightRepository {
     }
   }
 
+  async setDiyScene(light: Light, scene: DiyScene): Promise<void> {
+    try {
+      await this.client.setDiyScene(light.deviceId, light.model, scene);
+    } catch (error) {
+      if (isValidationError(error)) {
+        streamDeck.logger.warn(
+          `DIY scene command sent but response validation failed for ${light.name}`,
+        );
+        return;
+      }
+      streamDeck.logger.error(
+        `Failed to set DIY scene for ${light.name}:`,
+        error,
+      );
+      throw new Error(
+        `Failed to set DIY scene: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
   async getDynamicScenes(light: Light): Promise<LightScene[]> {
     try {
       return await this.client.getDynamicScenes(light.deviceId, light.model);
@@ -426,6 +447,26 @@ export class GoveeLightRepository implements ILightRepository {
       );
       throw new Error(
         `Failed to get dynamic scenes: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  async getDiyScenes(light: Light): Promise<DiyScene[]> {
+    try {
+      return await this.client.getDiyScenes(light.deviceId, light.model);
+    } catch (error) {
+      if (isValidationError(error)) {
+        streamDeck.logger.warn(
+          `DIY scenes fetch validation failed for ${light.name}`,
+        );
+        return [];
+      }
+      streamDeck.logger.error(
+        `Failed to get DIY scenes for ${light.name}:`,
+        error,
+      );
+      throw new Error(
+        `Failed to get DIY scenes: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
   }

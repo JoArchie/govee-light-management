@@ -17,6 +17,10 @@ document.addEventListener("DOMContentLoaded", () => {
     colorTemp: document.getElementById("tempItem"),
   };
   const hasConditionalItems = Object.values(conditionalItems).some(Boolean);
+  let latestSettings = {};
+  let selectedDeviceDebug = null;
+  let selectedDeviceDebugId = "";
+  let pendingDeviceDebugId = "";
 
   function showPanel(isSetup) {
     if (isSetup) {
@@ -71,6 +75,241 @@ document.addEventListener("DOMContentLoaded", () => {
     console.warn("sendToPlugin is unavailable on streamDeckClient", {
       event: payload && payload.event,
     });
+  }
+
+  function getSelectedDeviceId() {
+    const selectedDeviceId = latestSettings?.selectedDeviceId;
+    return typeof selectedDeviceId === "string" ? selectedDeviceId : "";
+  }
+
+  function isDebugExpanded() {
+    const details = document.getElementById("deviceDebugDetails");
+    return Boolean(details && details.open);
+  }
+
+  function resetSelectedDeviceDebug(selectedDeviceId) {
+    if (selectedDeviceDebugId === selectedDeviceId) return;
+    selectedDeviceDebug = null;
+    selectedDeviceDebugId = selectedDeviceId;
+    pendingDeviceDebugId = "";
+  }
+
+  function requestSelectedDeviceDebug(client, force = false) {
+    const selectedDeviceId = getSelectedDeviceId();
+
+    if (!selectedDeviceId || !selectedDeviceId.startsWith("light:")) {
+      pendingDeviceDebugId = "";
+      return;
+    }
+
+    if (!isDebugExpanded()) {
+      return;
+    }
+
+    if (!force) {
+      const alreadyLoaded =
+        selectedDeviceDebugId === selectedDeviceId &&
+        selectedDeviceDebug !== null;
+      const alreadyPending = pendingDeviceDebugId === selectedDeviceId;
+      if (alreadyLoaded || alreadyPending) {
+        return;
+      }
+    }
+
+    resetSelectedDeviceDebug(selectedDeviceId);
+    pendingDeviceDebugId = selectedDeviceId;
+    sendPluginMessage(client, {
+      event: "getDeviceDebug",
+      selectedDeviceId,
+    });
+  }
+
+  function getSelectedDeviceDebug() {
+    const selectedDeviceId = getSelectedDeviceId();
+
+    if (!selectedDeviceId) {
+      return null;
+    }
+
+    if (!selectedDeviceId.startsWith("light:")) {
+      return {
+        selection: selectedDeviceId,
+        message: "Debug device data is only available for individual lights.",
+      };
+    }
+
+    if (!isDebugExpanded()) {
+      return {
+        selection: selectedDeviceId,
+        message: "Expand this panel to load device metadata.",
+      };
+    }
+
+    if (pendingDeviceDebugId === selectedDeviceId) {
+      return {
+        selection: selectedDeviceId,
+        message: "Loading selected light metadata…",
+      };
+    }
+
+    if (
+      selectedDeviceDebugId !== selectedDeviceId ||
+      selectedDeviceDebug === null
+    ) {
+      return {
+        selection: selectedDeviceId,
+        message: "Selected light metadata is not loaded yet.",
+      };
+    }
+
+    return selectedDeviceDebug;
+  }
+
+  function renderDebugInfo() {
+    const debugValue = document.getElementById("deviceDebugValue");
+    if (!debugValue) return;
+
+    const data = getSelectedDeviceDebug();
+    if (!data) {
+      debugValue.innerHTML =
+        '<div class="metadata-empty">Select a light to inspect device metadata.</div>';
+      return;
+    }
+
+    if (data.message) {
+      debugValue.innerHTML = `
+        <div class="metadata-panel">
+          <div class="metadata-message"><strong>Selection:</strong> ${escapeHtml(data.selection ?? "Unknown")}</div>
+          <div class="metadata-empty">${escapeHtml(data.message)}</div>
+        </div>
+      `;
+      return;
+    }
+
+    const capabilities = Object.entries(data.capabilities ?? {})
+      .map(
+        ([key, enabled]) =>
+          `<span class="${capabilityClass(Boolean(enabled))}">${escapeHtml(formatKey(key))}</span>`,
+      )
+      .join("");
+
+    const commands = (data.supportedCommands ?? [])
+      .map(
+        (command) =>
+          `<span class="metadata-tag">${escapeHtml(command)}</span>`,
+      )
+      .join("");
+
+    debugValue.innerHTML = `
+      <div class="metadata-panel">
+        <div class="metadata-section">
+          ${renderMetaRow("Name", data.name)}
+          ${renderMetaRow("Device", data.device, {
+            copyValue: data.device,
+            copyLabel: "Click to copy device ID",
+          })}
+          ${renderMetaRow("Model", data.model, {
+            copyValue: data.model,
+            copyLabel: "Click to copy model",
+          })}
+        </div>
+        <div class="metadata-section">
+          ${renderMetaRow("Controllable", formatBoolean(data.controllable))}
+          ${renderMetaRow("Retrievable", formatBoolean(data.retrievable))}
+        </div>
+        <div class="metadata-section">
+          <div class="metadata-heading">Capabilities</div>
+          <div class="metadata-tags">
+            ${capabilities || '<span class="metadata-empty">None</span>'}
+          </div>
+        </div>
+        <div class="metadata-section">
+          <div class="metadata-heading">Supported Commands</div>
+          <div class="metadata-tags">
+            ${commands || '<span class="metadata-empty">None</span>'}
+          </div>
+        </div>
+      </div>
+    `;
+
+    bindCopyButtons(debugValue);
+  }
+
+  function renderMetaRow(label, value, options = {}) {
+    const valueContent =
+      options.copyValue && value
+        ? `<span
+            class="metadata-copy-value"
+            data-copy="${escapeHtmlAttr(options.copyValue)}"
+            aria-label="${escapeHtmlAttr(options.copyLabel || `Copy ${label}`)}"
+            title="${escapeHtmlAttr(options.copyLabel || `Copy ${label}`)}"
+          >${escapeHtml(value ?? "Unknown")}</span>`
+        : "";
+
+    return `<div class="metadata-row"><div class="metadata-label">${escapeHtml(label)}</div><div class="metadata-value">${valueContent || `<span>${escapeHtml(value ?? "Unknown")}</span>`}</div></div>`;
+  }
+
+  function bindCopyButtons(container) {
+    container.querySelectorAll(".metadata-copy-value").forEach((element) => {
+      element.addEventListener("mouseenter", () => {
+        element.classList.add("is-hover");
+      });
+
+      element.addEventListener("mouseleave", () => {
+        element.classList.remove("is-hover");
+      });
+
+      element.addEventListener("click", async () => {
+        const value = element.getAttribute("data-copy");
+        if (!value) return;
+
+        try {
+          await navigator.clipboard.writeText(value);
+          const originalText = element.textContent;
+          const originalTitle = element.getAttribute("title");
+          element.textContent = "Copied";
+          element.setAttribute("title", "Copied");
+          setTimeout(() => {
+            element.textContent = originalText;
+            if (originalTitle) {
+              element.setAttribute("title", originalTitle);
+            }
+          }, 1200);
+        } catch (error) {
+          console.warn("Failed to copy metadata value", error);
+        }
+      });
+    });
+  }
+
+  function formatBoolean(value) {
+    return value ? "Yes" : "No";
+  }
+
+  function formatKey(value) {
+    return String(value)
+      .replace(/([A-Z])/g, " $1")
+      .replace(/^./, (char) => char.toUpperCase())
+      .trim();
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function escapeHtmlAttr(value) {
+    return escapeHtml(value);
+  }
+
+  function capabilityClass(enabled) {
+    return enabled
+      ? "metadata-tag metadata-tag-enabled"
+      : "metadata-tag metadata-tag-disabled";
   }
 
   function subscribePluginMessages(client, onMessage) {
@@ -131,6 +370,46 @@ document.addEventListener("DOMContentLoaded", () => {
 
     item.appendChild(button);
     settingsWrapper.insertBefore(item, settingsWrapper.firstChild);
+
+    const debugItem = document.createElement("sdpi-item");
+    debugItem.setAttribute("label", "Metadata");
+    debugItem.innerHTML = `
+      <details class="sdpi-item-value metadata-details" id="deviceDebugDetails">
+        <summary>Selected device metadata</summary>
+        <div id="deviceDebugValue" class="metadata-content">
+          <div class="metadata-empty">Select a light to inspect device metadata.</div>
+        </div>
+      </details>
+    `;
+    settingsWrapper.appendChild(debugItem);
+    const debugDetails = debugItem.querySelector("#deviceDebugDetails");
+    if (debugDetails) {
+      debugDetails.addEventListener("toggle", () => {
+        renderDebugInfo();
+        requestSelectedDeviceDebug(client, true);
+      });
+    }
+    renderDebugInfo();
+  }
+
+  function initSharedMessageHandlers(client) {
+    const unsubscribeMessages = subscribePluginMessages(client, (p) => {
+      if (!p || typeof p !== "object") return;
+
+      if (p.event === "deviceDebug") {
+        const currentSelectedDeviceId = getSelectedDeviceId();
+        if (p.selectedDeviceId && p.selectedDeviceId === currentSelectedDeviceId) {
+          selectedDeviceDebugId = p.selectedDeviceId;
+          selectedDeviceDebug = p.device || null;
+          pendingDeviceDebugId = "";
+          renderDebugInfo();
+        }
+      }
+    });
+
+    window.addEventListener("beforeunload", unsubscribeMessages, {
+      once: true,
+    });
   }
 
   // Keep a reference to the latest global settings so we can merge, not replace.
@@ -309,6 +588,8 @@ document.addEventListener("DOMContentLoaded", () => {
             devices.push(item);
           }
         });
+        renderDebugInfo();
+        requestSelectedDeviceDebug(client);
       }
 
       if (p.event === "groupsReceived" && p.groups) {
@@ -351,9 +632,11 @@ document.addEventListener("DOMContentLoaded", () => {
     sendPluginMessage(client, { event: "getDevices" });
   }
 
-  // ── Device Dropdown Timeout ──
-  // If the dropdown stays on "Loading" for too long (backend crashed or
-  // API unreachable), show a helpful hint so the user isn't stuck.
+  // ── Device Dropdown Status ──
+  // Wires the Device dropdown to the shared attachFieldStatus helper so
+  // explicit backend errors ("Missing API key", "Failed to load devices") are
+  // surfaced, plus a 15s fallback hint if the backend never responds at all
+  // (e.g. plugin crashed).
   function watchDeviceDropdown(client) {
     const TIMEOUT_MS = 15_000;
     const deviceSelect = document.querySelector(
@@ -361,40 +644,182 @@ document.addEventListener("DOMContentLoaded", () => {
     );
     if (!deviceSelect) return;
 
+    const rerenderDebug = () => {
+      const selectedDeviceId = deviceSelect.value || "";
+      resetSelectedDeviceDebug(selectedDeviceId);
+      latestSettings = {
+        ...latestSettings,
+        selectedDeviceId,
+      };
+      renderDebugInfo();
+      requestSelectedDeviceDebug(client);
+    };
+
+    deviceSelect.addEventListener("valuechange", rerenderDebug);
+    deviceSelect.addEventListener("change", rerenderDebug);
+    deviceSelect.addEventListener("input", rerenderDebug);
+
+    attachFieldStatus(client, deviceSelect, "getDevices", {
+      emptyMsg:
+        "No devices found. Add lights in the Govee mobile app, then refresh.",
+      errorMsg:
+        "Failed to load devices. Check your API key and connection, then refresh.",
+    });
+
+    // Fallback: if no getDevices response arrives at all (plugin crashed,
+    // message lost), show a hint after the timeout window.
     const timer = setTimeout(() => {
-      // Check if the dropdown is still empty / loading
       const hasOptions =
         deviceSelect.querySelectorAll("option").length > 0 ||
         deviceSelect.value;
       if (hasOptions) return;
-
-      // Insert a hint below the dropdown
       if (document.getElementById("deviceTimeout")) return;
       const hint = document.createElement("div");
       hint.id = "deviceTimeout";
-      hint.style.cssText =
-        "color:#FF6B6B;font-size:12px;padding:6px 0;line-height:1.4";
+      hint.className = "field-hint error";
       hint.textContent =
         "Devices didn't load. Check your API key, try the refresh button, or restart the Stream Deck app.";
       deviceSelect.parentNode.insertBefore(hint, deviceSelect.nextSibling);
     }, TIMEOUT_MS);
 
-    // Clear timeout if devices arrive
     const unsubscribeMessages = subscribePluginMessages(client, (p) => {
       if (!p || typeof p !== "object") return;
       if (p.event === "getDevices") {
         clearTimeout(timer);
         const hint = document.getElementById("deviceTimeout");
         if (hint) hint.remove();
+        renderDebugInfo();
+        requestSelectedDeviceDebug(client);
         unsubscribeMessages();
       }
     });
   }
 
+  // ── Field Status Hints ──
+  // Attaches an inline hint element below a dependent dropdown and updates it
+  // based on backend responses. Used to distinguish "empty because no device
+  // selected" (default placeholder) from "empty because device has no items"
+  // or "empty because the backend errored". Shared across all PIs.
+  function attachFieldStatus(client, selectEl, event, opts) {
+    if (!selectEl || !event) return () => {};
+    const { emptyMsg, errorMsg, timeoutMs = 15_000 } = opts || {};
+    const parent = selectEl.parentNode;
+    if (!parent) return () => {};
+
+    const hint = document.createElement("div");
+    hint.className = "field-hint info hidden";
+    hint.setAttribute("data-field-hint", event);
+    parent.insertBefore(hint, selectEl.nextSibling);
+
+    let timer = null;
+
+    function show(text, kind) {
+      hint.textContent = text;
+      hint.className = `field-hint ${kind}`;
+    }
+    function hide() {
+      hint.textContent = "";
+      hint.className = "field-hint info hidden";
+    }
+
+    function armTimeout() {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        // Only show the timeout hint if the dropdown is still empty
+        const hasOptions =
+          selectEl.querySelectorAll("option").length > 0 || selectEl.value;
+        if (!hasOptions && errorMsg) {
+          show(
+            "Request timed out. Check your connection, API key, or Stream Deck plugin state.",
+            "error",
+          );
+        }
+      }, timeoutMs);
+    }
+
+    const unsubscribe = subscribePluginMessages(client, (p) => {
+      if (!p || typeof p !== "object" || p.event !== event) return;
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      const status = p.status;
+      const message = typeof p.message === "string" ? p.message : null;
+      const items = Array.isArray(p.items) ? p.items : [];
+
+      if (status === "error") {
+        show(message || errorMsg || "Failed to load options.", "error");
+        return;
+      }
+      if (status === "empty") {
+        show(message || emptyMsg || "No options available.", "info");
+        return;
+      }
+      if (items.length === 0 && status === "ok") {
+        // Backend explicitly said ok but list is empty (rare; treat as empty)
+        show(message || emptyMsg || "No options available.", "info");
+        return;
+      }
+      if (items.length > 0) {
+        hide();
+        return;
+      }
+      // No status field (legacy): keep hint hidden — placeholder does its job.
+    });
+
+    return {
+      armTimeout,
+      hide,
+      dispose: () => {
+        if (timer) clearTimeout(timer);
+        unsubscribe();
+        if (hint.parentNode) hint.parentNode.removeChild(hint);
+      },
+    };
+  }
+
+  // ── Ready Queue ──
+  // Per-PI scripts can call GoveePI.ready(fn) to receive the SDPI client
+  // once it's initialized. Handles both "registered before ready" and
+  // "registered after ready" cases.
+  const readyQueue = [];
+  let readyClient = null;
+  function fireReady(client) {
+    readyClient = client;
+    while (readyQueue.length) {
+      const fn = readyQueue.shift();
+      try {
+        fn(client);
+      } catch (error) {
+        console.warn("GoveePI.ready callback failed", error);
+      }
+    }
+  }
+
+  window.GoveePI = window.GoveePI || {};
+  window.GoveePI.ready = function (fn) {
+    if (typeof fn !== "function") return;
+    if (readyClient) fn(readyClient);
+    else readyQueue.push(fn);
+  };
+  window.GoveePI.attachFieldStatus = function (selectEl, event, opts) {
+    if (!readyClient) {
+      // Defer until ready
+      let handle = null;
+      const pending = { dispose: () => handle && handle.dispose() };
+      window.GoveePI.ready((client) => {
+        handle = attachFieldStatus(client, selectEl, event, opts);
+      });
+      return pending;
+    }
+    return attachFieldStatus(readyClient, selectEl, event, opts);
+  };
+
   // ── Initialize ──
   function init() {
     const client = SDPIComponents.streamDeckClient;
     injectApiKeyActions(client);
+    initSharedMessageHandlers(client);
 
     client.didReceiveGlobalSettings.subscribe((msg) => {
       cachedGlobalSettings = msg.payload?.settings || {};
@@ -404,18 +829,36 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (hasConditionalItems) {
       client.didReceiveSettings.subscribe((msg) => {
-        const mode = msg.payload?.settings?.controlMode;
+        const nextSettings = msg.payload?.settings || {};
+        resetSelectedDeviceDebug(nextSettings.selectedDeviceId || "");
+        latestSettings = nextSettings;
+        const mode = latestSettings?.controlMode;
         if (mode) updateConditionalVisibility(mode);
+        renderDebugInfo();
+        requestSelectedDeviceDebug(client);
+      });
+    } else {
+      client.didReceiveSettings.subscribe((msg) => {
+        const nextSettings = msg.payload?.settings || {};
+        resetSelectedDeviceDebug(nextSettings.selectedDeviceId || "");
+        latestSettings = nextSettings;
+        renderDebugInfo();
+        requestSelectedDeviceDebug(client);
       });
     }
 
+    if (client && typeof client.getSettings === "function") {
+      client.getSettings();
+    }
     client.getGlobalSettings();
     watchDeviceDropdown(client);
+    renderDebugInfo();
     try {
       initGroupManager(client);
     } catch (error) {
       console.warn("Failed to initialize group manager", error);
     }
+    fireReady(client);
   }
 
   const check = setInterval(() => {
