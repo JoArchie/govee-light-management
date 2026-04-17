@@ -3,10 +3,10 @@
 <div align="center">
 
 ![Stream Deck Plugin](https://img.shields.io/badge/Stream%20Deck-Plugin-blue?style=flat-square&logo=elgato)
-![Version](https://img.shields.io/badge/version-1.0.0-green?style=flat-square)
+![Version](https://img.shields.io/badge/version-2.1.3-green?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.6+-blue?style=flat-square&logo=typescript)
-![Node.js](https://img.shields.io/badge/Node.js-18+-green?style=flat-square&logo=node.js)
+![Node.js](https://img.shields.io/badge/Node.js-20+-green?style=flat-square&logo=node.js)
 
 **Enterprise-grade Stream Deck plugin for managing Govee smart lights with advanced group functionality**
 
@@ -17,42 +17,58 @@
 ## Features
 
 ### 🎛️ **Individual Light Control**
+
 - Toggle lights on/off with visual state indicators
 - Adjust brightness, color, and color temperature
 - Real-time state synchronization with your lights
 - Support for all Govee light models
 
 ### 👥 **Advanced Group Management**
+
 - **Create** custom light groups with intuitive interface
 - **Edit** group names and modify included lights
 - **Delete** groups with confirmation prompts
 - **Visual indicators** for group states (●/○/◐)
 
 ### 🎛️ **Stream Deck+ Encoder Support**
+
 - **Brightness Dial** - Adjust light brightness (1-100%) with tactile dial control
 - **Color Temperature Dial** - Control warm/cool white (2000K-9000K) with gradient feedback
 - **Color Hue Dial** - Full-spectrum color control (0-360°) with rainbow gradient
+- **Saturation Dial** - Control color intensity from pure white to full saturation (0-100%)
+- **Segment Color Dial** - Per-segment color control on RGB IC light strips
 - **Visual Feedback** - Real-time bar indicators with custom gradients
 - **Configurable Steps** - Customize sensitivity for each dial action
 - **Power Toggle** - Press any dial to toggle light power on/off
+- **Group Support** - All dials work with light groups for room-wide control
 
 ### 🎨 **Professional UI**
+
 - Custom Stream Deck dark theme with SDPI framework
 - Responsive form controls and accessibility compliance
 - Intuitive Property Inspector interface
 - Real-time status updates and error handling
 
 ### 🏗️ **Enterprise Architecture**
+
 - Domain-driven design (DDD) with clean architecture
 - Comprehensive TypeScript implementation
 - Robust error handling and state management
 - WebSocket communication for real-time updates
 
-## Demo
+## Dials Demo
 
-> 📸 **Screenshots coming soon!** We're working on capturing the perfect screenshots to showcase the plugin in action.
-> 
-> For now, check out the [Usage](#usage) section below for detailed instructions on how to use each feature.
+Check out the **[Stream Deck+ Dials Guide](docs/DIALS_GUIDE.md)** for comprehensive documentation with real-world scenarios, configuration tips, and troubleshooting.
+
+**Quick overview:**
+
+- **Brightness Dial** - Dim/brighten your lights with tactile control
+- **Color Temperature Dial** - Switch from warm to cool white
+- **Color Hue Dial** - Paint your room with any color (360°)
+- **Saturation Dial** - Control color intensity (white ↔ vibrant)
+- **Segment Color Dial** - Per-segment RGB strip control
+
+📸 **Screenshots and demo videos** available in the [Gallery](docs/gallery/)
 
 ## Installation
 
@@ -63,11 +79,13 @@
 - Govee API Key (obtainable from [Govee Developer API](https://developer.govee.com/))
 
 ### Option 1: Install from Stream Deck Store
-*(Coming soon)*
+
+_(Coming soon)_
 
 ### Option 2: Manual Installation
 
 1. **Download the latest release**
+
    ```bash
    # Clone the repository
    git clone https://github.com/felixgeelhaar/govee-light-management.git
@@ -75,12 +93,14 @@
    ```
 
 2. **Install dependencies and build**
+
    ```bash
    npm install
    npm run build
    ```
 
 3. **Install the plugin**
+
    ```bash
    # Install using Stream Deck CLI
    streamdeck install com.felixgeelhaar.govee-light-management.sdPlugin
@@ -199,16 +219,19 @@
 ### Advanced Features
 
 #### Real-time State Monitoring
+
 - Buttons automatically update to reflect current light states
 - Group indicators show combined state of all lights
 - Error states are clearly communicated
 
 #### API Key Management
+
 - API keys are securely stored in Stream Deck settings
 - Validation occurs before attempting API calls
 - Clear error messages for authentication issues
 
 #### Testing Groups
+
 - Use "Test Group" button to verify group functionality
 - Performs quick blink test on all group lights
 - Confirms connectivity and group integrity
@@ -323,6 +346,7 @@ npm run test:server
 This plugin uses the [@felixgeelhaar/govee-api-client](https://www.npmjs.com/package/@felixgeelhaar/govee-api-client) library for Govee API interactions.
 
 **Supported Operations:**
+
 - Get device list
 - Get device state
 - Control device power
@@ -331,6 +355,7 @@ This plugin uses the [@felixgeelhaar/govee-api-client](https://www.npmjs.com/pac
 - Set color temperature (2000K-9000K)
 
 **Rate Limiting:**
+
 - Respects Govee API rate limits (100 requests/minute)
 - Implements exponential backoff for failed requests
 - Queues multiple operations to prevent API throttling
@@ -340,21 +365,25 @@ This plugin uses the [@felixgeelhaar/govee-api-client](https://www.npmjs.com/pac
 ### Common Issues
 
 **Plugin not appearing in Stream Deck**
+
 - Ensure Stream Deck software is v6.0 or later
 - Restart Stream Deck completely after installation
 - Check plugin is properly built: `npm run build`
 
 **API Key not working**
+
 - Verify API key from [Govee Developer Console](https://developer.govee.com/)
 - Ensure API key has proper permissions
 - Check network connectivity and firewall settings
 
 **Lights not responding**
+
 - Verify lights are online in Govee Home app
 - Check if lights support API control (newer models)
 - Ensure lights are on same network as computer
 
 **Group operations failing**
+
 - Verify all lights in group are online
 - Check for API rate limiting (too many requests)
 - Ensure group hasn't been deleted by another device
@@ -362,6 +391,7 @@ This plugin uses the [@felixgeelhaar/govee-api-client](https://www.npmjs.com/pac
 ### Debug Logging
 
 Enable debug logging in Stream Deck Console:
+
 1. Open Stream Deck software
 2. Help → Open Stream Deck Console
 3. Filter by "govee-light-management"
@@ -390,32 +420,34 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 
 ## Roadmap
 
-### v1.0.0 (Current)
-- [x] Individual light control with multiple modes
-- [x] Advanced group management
-- [x] Stream Deck+ encoder support (Brightness, Color Temp, Color Hue)
-- [x] Real-time state synchronization
-- [x] Enterprise-grade architecture (DDD)
+### v2.1.3 (Current)
 
-### v1.1.0 (Next Release)
-- [ ] Scene management and automation
+- [x] Individual light control with 8 modes (On/Off, Brightness, Color, Color Temp, Segment, Scene, Music, Toggle)
+- [x] Advanced group management with full dial support
+- [x] Stream Deck+ encoder support (5 dials: Brightness, Color Temp, Color Hue, Saturation, Segment Color)
+- [x] Real-time state synchronization with live state sync on appear
+- [x] Enterprise-grade architecture (Domain-Driven Design)
+- [x] Scene management with device-specific scene discovery
+- [x] Music-reactive lighting with adjustable sensitivity
+- [x] Feature toggle control (Nightlight, Gradient, DreamView, Scene Stage)
+- [x] Full group support across all actions and dials
+- [x] Visual feedback system with green/red flash indicators
+
+### v2.2.0 (Planned)
+
+- [ ] Enhanced color picker with preset colors
 - [ ] Scheduled actions and timers
-- [ ] Integration with Stream Deck Multi Actions
-- [ ] Enhanced color picker with presets
-- [ ] Additional encoder actions (Saturation, Effect Speed)
+- [ ] Multi-action sequences
+- [ ] Custom effect creation for RGB strips
+- [ ] Device-specific capability detection improvements
 
-### v1.2.0 (Future)
-- [ ] Support for Govee DIY lights
-- [ ] Music sync integration
-- [ ] Custom effect creation
-- [ ] Cloud sync for group configurations
-- [ ] Multi-encoder synchronization
+### v3.0.0 (Long-term Vision)
 
-### v2.0.0 (Long-term)
-- [ ] Multi-platform support (Windows/macOS/Linux)
-- [ ] Web interface for advanced configuration
-- [ ] Plugin SDK for third-party extensions
+- [ ] LAN connectivity for lower latency
+- [ ] WebSocket support for real-time state updates
+- [ ] Cloud sync for group configurations across devices
 - [ ] Integration with other smart home platforms
+- [ ] Mobile companion app for remote control
 
 ## License
 
