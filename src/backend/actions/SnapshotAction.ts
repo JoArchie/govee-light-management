@@ -9,41 +9,38 @@ import {
   streamDeck,
 } from "@elgato/streamdeck";
 import type { JsonValue } from "@elgato/utils";
-import { LightScene } from "@felixgeelhaar/govee-api-client";
+import { Snapshot } from "@felixgeelhaar/govee-api-client";
 import {
   ActionServices,
   sendToPI,
   type BaseSettings,
 } from "./shared/ActionServices";
 
-type SceneSettings = BaseSettings & {
-  selectedScene?: string;
-  sceneId?: number;
-  sceneParamId?: number;
-  sceneName?: string;
+type SnapshotSettings = BaseSettings & {
+  selectedSnapshot?: string;
 };
 
-@action({ UUID: "com.felixgeelhaar.govee-light-management.scene" })
-export class SceneAction extends SingletonAction<SceneSettings> {
+@action({ UUID: "com.felixgeelhaar.govee-light-management.snapshot" })
+export class SnapshotAction extends SingletonAction<SnapshotSettings> {
   private services = new ActionServices();
 
   override async onWillAppear(
-    ev: WillAppearEvent<SceneSettings>,
+    ev: WillAppearEvent<SnapshotSettings>,
   ): Promise<void> {
     await ev.action.setTitle(this.getTitle(ev.payload.settings));
   }
 
-  override onWillDisappear(_ev: WillDisappearEvent<SceneSettings>): void {
+  override onWillDisappear(_ev: WillDisappearEvent<SnapshotSettings>): void {
     // No state to clean up
   }
 
   override async onDidReceiveSettings(
-    ev: DidReceiveSettingsEvent<SceneSettings>,
+    ev: DidReceiveSettingsEvent<SnapshotSettings>,
   ): Promise<void> {
     await ev.action.setTitle(this.getTitle(ev.payload.settings));
   }
 
-  override async onKeyDown(ev: KeyDownEvent<SceneSettings>): Promise<void> {
+  override async onKeyDown(ev: KeyDownEvent<SnapshotSettings>): Promise<void> {
     const { settings } = ev.payload;
 
     const apiKey = await this.services.getApiKey(settings);
@@ -54,37 +51,43 @@ export class SceneAction extends SingletonAction<SceneSettings> {
 
     await this.services.ensureServices(apiKey);
     const target = await this.services.resolveTarget(settings);
+
     if (!target) {
       await ev.action.showAlert();
       return;
     }
 
-    if (!settings.selectedScene) {
-      streamDeck.logger.warn("Scene action: no scene selected");
+    if (!settings.selectedSnapshot) {
+      streamDeck.logger.warn("Snapshot action: no snapshot selected");
       await ev.action.showAlert();
       return;
     }
 
     try {
-      const parsed = JSON.parse(settings.selectedScene) as {
+      const parsed = JSON.parse(settings.selectedSnapshot) as {
         id: number;
         paramId: number;
         name: string;
       };
-      const scene = new LightScene(parsed.id, parsed.paramId, parsed.name);
+      const snapshot = new Snapshot(parsed.id, parsed.paramId, parsed.name);
+
       const stopSpinner = this.services.showSpinner(ev.action);
       try {
         if (target.type === "light" && target.light) {
-          await this.services.applyDynamicScene(target.light, scene);
+          await this.services.applySnapshot(target.light, snapshot);
         } else if (target.type === "group" && target.group) {
-          for (const light of target.group.getControllableLights()) {
+          // Apply snapshot to each light in the group.
+          // Groups don't have a single-call path for snapshots,
+          // so iterate the members sequentially.
+          for (const member of target.group.lights) {
             try {
-              await this.services.applyDynamicScene(light, scene);
+              await this.services.applySnapshot(member, snapshot);
             } catch (error) {
               streamDeck.logger.warn(
-                `Scene apply failed for group member ${light.name}:`,
+                `Snapshot apply failed for group member ${member.name}:`,
                 error,
               );
+              // Continue to next light — don't fail the whole group
             }
           }
         }
@@ -93,13 +96,13 @@ export class SceneAction extends SingletonAction<SceneSettings> {
       }
       await ev.action.showOk();
     } catch (error) {
-      streamDeck.logger.error("Failed to apply scene:", error);
+      streamDeck.logger.error("Failed to apply snapshot:", error);
       await ev.action.showAlert();
     }
   }
 
   override async onSendToPlugin(
-    ev: SendToPluginEvent<JsonValue, SceneSettings>,
+    ev: SendToPluginEvent<JsonValue, SnapshotSettings>,
   ): Promise<void> {
     if (!(ev.payload instanceof Object) || !("event" in ev.payload)) return;
 
@@ -119,28 +122,28 @@ export class SceneAction extends SingletonAction<SceneSettings> {
       case "refreshState":
         await this.services.handleRefreshState();
         break;
-      case "getScenes": {
+      case "getSnapshots": {
         const settings = await ev.action.getSettings();
-        await this.handleGetScenes(ev.action.id, settings);
+        await this.handleGetSnapshots(ev.action.id, settings);
         break;
       }
     }
   }
 
-  private async handleGetScenes(
+  private async handleGetSnapshots(
     actionId: string,
-    settings: SceneSettings,
+    settings: SnapshotSettings,
   ): Promise<void> {
     const deviceId = settings.selectedDeviceId;
     if (!deviceId) {
-      await sendToPI(actionId, { event: "getScenes", items: [] });
+      await sendToPI(actionId, { event: "getSnapshots", items: [] });
       return;
     }
 
     try {
       const apiKey = await this.services.getApiKey(settings ?? {});
       if (!apiKey) {
-        await sendToPI(actionId, { event: "getScenes", items: [] });
+        await sendToPI(actionId, { event: "getSnapshots", items: [] });
         return;
       }
 
@@ -149,9 +152,7 @@ export class SceneAction extends SingletonAction<SceneSettings> {
         selectedDeviceId: deviceId,
       });
 
-      // For groups, fetch scenes from the first controllable member.
-      // Lights within a group typically share the same model and
-      // therefore expose the same scene catalogue.
+      // For groups, fetch snapshots from the first controllable member.
       let queryLight;
       if (target?.type === "light" && target.light) {
         queryLight = target.light;
@@ -161,28 +162,32 @@ export class SceneAction extends SingletonAction<SceneSettings> {
       }
 
       if (!queryLight) {
-        await sendToPI(actionId, { event: "getScenes", items: [] });
+        await sendToPI(actionId, { event: "getSnapshots", items: [] });
         return;
       }
 
-      const scenes = await this.services.getDynamicScenes(queryLight);
+      const snapshots = await this.services.getSnapshots(queryLight);
       await sendToPI(actionId, {
-        event: "getScenes",
-        items: scenes.map((s) => ({
+        event: "getSnapshots",
+        items: snapshots.map((s) => ({
           label: s.name,
-          value: JSON.stringify({ id: s.id, paramId: s.paramId, name: s.name }),
+          value: JSON.stringify({
+            id: s.id,
+            paramId: s.paramId,
+            name: s.name,
+          }),
         })),
       });
     } catch (error) {
-      streamDeck.logger.error("Failed to fetch scenes:", error);
-      await sendToPI(actionId, { event: "getScenes", items: [] });
+      streamDeck.logger.error("Failed to fetch snapshots:", error);
+      await sendToPI(actionId, { event: "getSnapshots", items: [] });
     }
   }
 
-  private getTitle(settings: SceneSettings): string {
-    if (!settings.selectedScene) return "";
+  private getTitle(settings: SnapshotSettings): string {
+    if (!settings.selectedSnapshot) return "";
     try {
-      const parsed = JSON.parse(settings.selectedScene);
+      const parsed = JSON.parse(settings.selectedSnapshot);
       return parsed.name || "";
     } catch {
       return "";

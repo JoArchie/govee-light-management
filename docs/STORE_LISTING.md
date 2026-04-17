@@ -1,6 +1,6 @@
-# Elgato Marketplace Store Listing — v2.1.0
+# Elgato Marketplace Store Listing — v2.1.3
 
-Use this content when submitting v2.1.0 to the Elgato Maker Console.
+Use this content when submitting v2.1.3 to the Elgato Maker Console.
 
 ---
 
@@ -14,7 +14,7 @@ Control your Govee smart lights from Stream Deck
 
 Control your Govee smart lights directly from Stream Deck — no phone, no app switching, no delay.
 
-Govee Light Management gives you **12 purpose-built actions** across keypads and Stream Deck+ dials. Toggle power, set brightness, pick colors, apply scenes, activate music-reactive lighting, and paint individual segments on your RGB IC strips. Every action syncs live state from your lights so the display always matches reality.
+Govee Light Management gives you **13 purpose-built actions** across keypads and Stream Deck+ dials. Toggle power, set brightness, pick colors, apply scenes, activate music-reactive lighting, and paint individual segments on your RGB IC strips. Every action syncs live state from your lights so the display always matches reality. Full group support means control entire rooms with a single button or dial.
 
 ### Keypad Actions (8)
 
@@ -27,14 +27,15 @@ Govee Light Management gives you **12 purpose-built actions** across keypads and
 - **Music Mode** _(new)_ — Activate audio-reactive lighting. Choose from device-specific modes (Rhythm, Energic, Spectrum, Rolling) with adjustable sensitivity. Your lights pulse and change color in sync with sound.
 - **Feature Toggle** _(new)_ — One-tap control for Nightlight, Gradient, DreamView, and Scene Stage. Features are auto-filtered by device capability so you never see options your light doesn't support.
 
-### Stream Deck+ Dial Actions (4)
+### Stream Deck+ Dial Actions (5)
 
 - **Brightness Dial** — Rotate to scrub brightness from 0 to 100%. Press to toggle power. The touchscreen bar shows your current level with a purple-to-blue gradient.
 - **Color Hue Dial** — Rotate through the full 360° color wheel. Press to toggle power. A rainbow gradient bar tracks your position with a white indicator dot.
 - **Color Temperature Dial** — Rotate from warm amber (2000K) to cool blue (9000K). Press to toggle power. The warm-to-cool gradient bar shows exactly where you are.
+- **Saturation Dial** — Rotate to control color intensity from pure white (0%) to full saturation (100%). Press to toggle power. Perfect companion to the Hue dial for precise color control.
 - **Segment Color Dial** — Rotate to select a hue, then the color is applied to your chosen segment. Press to toggle power. Ideal for fine-tuning individual segments on RGB IC strips.
 
-All dial actions feature **live state sync on appear**, deferred API calls (so the display updates instantly while the light catches up), and **visual flash feedback** (green for success, red for error).
+All dial actions feature **live state sync on appear**, deferred API calls (so the display updates instantly while the light catches up), **visual flash feedback** (green for success, red for error), and **full group support** (control entire light groups with a single dial).
 
 ### Setup
 
@@ -54,6 +55,29 @@ The API key is entered once and shared across all actions. No accounts, no serve
 ### Compatibility
 
 Works with all Govee lights that support the Govee Developer API, including LED strips, bulbs, light bars, floor lamps, and RGB IC strip lights. Supports Stream Deck, Stream Deck MK.2, Stream Deck XL, Stream Deck Mini, Stream Deck Neo, Stream Deck Pedal, and Stream Deck+.
+
+---
+
+## What's New / Release Notes (v2.1.3)
+
+**Comprehensive group support and Saturation dial — now all dials work with groups**
+
+### New Features
+
+- **Saturation Dial** — New Stream Deck+ encoder action. Rotate to control color intensity from pure white (0%) to full saturation (100%). Perfect companion to the Hue dial for precise color control.
+- **Full Group Support for Dials** — All 5 dial actions now work seamlessly with light groups:
+  - Select a group in the property inspector
+  - Dial reads and controls the combined group state
+  - Live state sync works for groups (shows average brightness, etc.)
+  - Press to toggle power on entire group
+- **Group Support for Music Mode** — Music mode actions now work with light groups
+- **Group Support for Feature Toggle** — Feature toggle actions now work with light groups (toggle nightlight, gradient, dreamview, scene stage on entire groups)
+
+### Improvements
+
+- **Enhanced group compatibility** — All group-capable actions now consistently handle both individual lights and light groups
+- **Consistent UI/UX** — Same intuitive property inspector workflow whether controlling single light or group
+- **Better state reporting** — Group state indicators more accurately reflect combined light states
 
 ---
 
@@ -99,9 +123,10 @@ Upload from `docs/gallery/` (all 1920x1080):
 | -------------------- | ----------------------------------------------- |
 | `1-hero.png`         | Hero — "Tactile smart light control"            |
 | `2-actions.png`      | All 8 keypad actions grid                       |
-| `3-dials.png`        | Stream Deck+ dial layouts                       |
+| `3-dials.png`        | Stream Deck+ dial layouts (5 dials)             |
 | `4-setup.png`        | 3-step setup walkthrough                        |
 | `5-v21-features.png` | New in v2.1 — Scene, Music Mode, Feature Toggle |
+| `6-dials-guide.png`  | Dial features — Brightness, Temp, Hue, Sat, Seg |
 
 ---
 

@@ -1,6 +1,6 @@
 {
   "Name": "Govee Light Management",
-  "Version": "2.1.3.0",
+  "Version": "2.1.4.0",
   "Author": "Felix Geelhaar",
   "URL": "https://github.com/felixgeelhaar/govee-light-management",
   "SupportURL": "https://github.com/felixgeelhaar/govee-light-management/issues",
@@ -85,6 +85,20 @@
       "States": [
         {
           "Image": "imgs/actions/scene/key",
+          "TitleAlignment": "bottom"
+        }
+      ]
+    },
+    {
+      "Name": "Snapshot",
+      "UUID": "com.felixgeelhaar.govee-light-management.snapshot",
+      "Icon": "imgs/actions/snapshot/icon",
+      "Tooltip": "Recall a saved snapshot preset on a Govee light",
+      "PropertyInspectorPath": "ui/snapshot.html",
+      "Controllers": ["Keypad"],
+      "States": [
+        {
+          "Image": "imgs/actions/snapshot/key",
           "TitleAlignment": "bottom"
         }
       ]

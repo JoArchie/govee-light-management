@@ -52,7 +52,7 @@ export class MusicModeAction extends SingletonAction<MusicModeSettings> {
 
     await this.services.ensureServices(apiKey);
     const target = await this.services.resolveTarget(settings);
-    if (!target || target.type !== "light" || !target.light) {
+    if (!target) {
       await ev.action.showAlert();
       return;
     }
@@ -74,7 +74,20 @@ export class MusicModeAction extends SingletonAction<MusicModeSettings> {
       );
       const stopSpinner = this.services.showSpinner(ev.action);
       try {
-        await this.services.applyMusicModeRaw(target.light, musicMode);
+        if (target.type === "light" && target.light) {
+          await this.services.applyMusicModeRaw(target.light, musicMode);
+        } else if (target.type === "group" && target.group) {
+          for (const light of target.group.getControllableLights()) {
+            try {
+              await this.services.applyMusicModeRaw(light, musicMode);
+            } catch (error) {
+              streamDeck.logger.warn(
+                `Music mode apply failed for group member ${light.name}:`,
+                error,
+              );
+            }
+          }
+        }
       } finally {
         stopSpinner();
       }
@@ -133,8 +146,19 @@ export class MusicModeAction extends SingletonAction<MusicModeSettings> {
 
       await this.services.ensureServices(apiKey);
 
-      // Query device capabilities for music modes
-      const modes = await this.services.getMusicModes(deviceId);
+      // For groups, query music modes from the first controllable member.
+      const target = await this.services.resolveTarget({
+        selectedDeviceId: deviceId,
+      });
+      let queryDeviceId = deviceId;
+      if (target?.type === "group" && target.group) {
+        const first = target.group.getControllableLights()[0];
+        if (first) {
+          queryDeviceId = `light:${first.deviceId}|${first.model}`;
+        }
+      }
+
+      const modes = await this.services.getMusicModes(queryDeviceId);
       await sendToPI(actionId, {
         event: "getMusicModes",
         items: modes.map((m) => ({

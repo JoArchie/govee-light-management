@@ -15,6 +15,7 @@ import {
   ColorRgb,
   ColorTemperature,
   LightScene,
+  Snapshot,
   MusicMode,
 } from "@felixgeelhaar/govee-api-client";
 
@@ -977,6 +978,20 @@ export class ActionServices {
     await this.lightRepository.setLightScene(light, scene);
   }
 
+  async getSnapshots(light: Light): Promise<Snapshot[]> {
+    if (!this.lightRepository) {
+      throw new Error("Light repository not initialized");
+    }
+    return this.lightRepository.getSnapshots(light);
+  }
+
+  async applySnapshot(light: Light, snapshot: Snapshot): Promise<void> {
+    if (!this.lightRepository) {
+      throw new Error("Light repository not initialized");
+    }
+    await this.lightRepository.applySnapshot(light, snapshot);
+  }
+
   async toggleFeatureRaw(
     light: Light,
     instance: string,
@@ -1317,6 +1332,25 @@ export class ActionServices {
     }
     await this.prepareForSolidColor(light);
     ActionServices.preparedForSolidColor.add(key);
+  }
+
+  /**
+   * Convenience wrapper that handles both single-light and group targets.
+   * For groups, iterates the controllable lights and prepares each one.
+   * Replaces the per-action `if (target.type === "light")` check so
+   * call sites can pass the target directly.
+   */
+  async ensurePreparedForTarget(
+    contextId: string,
+    target: DeviceTarget,
+  ): Promise<void> {
+    if (target.type === "light" && target.light) {
+      await this.ensurePreparedForSolidColor(contextId, target.light);
+    } else if (target.type === "group" && target.group) {
+      for (const light of target.group.getControllableLights()) {
+        await this.ensurePreparedForSolidColor(contextId, light);
+      }
+    }
   }
 
   /**
