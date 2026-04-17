@@ -131,6 +131,46 @@ describe('ColorPaletteService', () => {
     });
   });
 
+  describe('Persistence', () => {
+    it('should load recent colors from storage', () => {
+      service.loadRecentColors([
+        { hex: '#FF0000', name: 'Red' },
+        { hex: '#00FF00', name: 'Green' },
+      ]);
+      const recent = service.getRecentColors();
+      expect(recent).toHaveLength(2);
+      expect(recent[0].hex).toBe('#FF0000');
+      expect(recent[1].hex).toBe('#00FF00');
+    });
+
+    it('should export recent colors for persistence', () => {
+      service.addRecentColor({ hex: '#FF0000', name: 'Red' });
+      service.addRecentColor({ hex: '#00FF00', name: 'Green' });
+      const exported = service.exportRecentColors();
+      expect(exported).toHaveLength(2);
+      expect(exported[0]).toEqual({ hex: '#00FF00', name: 'Green' });
+      expect(exported[1]).toEqual({ hex: '#FF0000', name: 'Red' });
+    });
+
+    it('should filter invalid colors when loading', () => {
+      service.loadRecentColors([
+        { hex: '#FF0000', name: 'Red' },
+        { hex: 'invalid', name: 'Bad' },
+        { hex: '#00FF00', name: 'Green' },
+      ]);
+      expect(service.getRecentColors()).toHaveLength(2);
+    });
+
+    it('should limit loaded colors to max', () => {
+      const manyColors = Array.from({ length: 15 }, (_, i) => ({
+        hex: `#${i.toString(16).padStart(6, '0')}`,
+        name: `Color ${i}`,
+      }));
+      service.loadRecentColors(manyColors);
+      expect(service.getRecentColors()).toHaveLength(10);
+    });
+  });
+
   describe('Color Validation', () => {
     it('should validate hex color format', () => {
       const validColors = [

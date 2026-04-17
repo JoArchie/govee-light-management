@@ -70,6 +70,23 @@ export class ColorPaletteService {
   }
 
   /**
+   * Load recent colors from persistent storage (bulk restore)
+   */
+  loadRecentColors(colors: Array<{ hex: string; name: string }>): void {
+    this.recentColors = colors
+      .filter((c) => this.isValidHexColor(c.hex))
+      .slice(0, this.maxRecentColors)
+      .map((c) => new ColorPreset(c.hex, c.name));
+  }
+
+  /**
+   * Export recent colors for persistence
+   */
+  exportRecentColors(): Array<{ hex: string; name: string }> {
+    return this.recentColors.map((c) => ({ hex: c.hex, name: c.name }));
+  }
+
+  /**
    * Check if a hex color string is valid
    */
   isValidHexColor(hex: string): boolean {

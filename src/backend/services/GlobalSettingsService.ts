@@ -6,6 +6,7 @@ export interface GlobalPluginSettings {
   apiKey?: string;
   apiKeyLastValidated?: number;
   pluginVersion?: string;
+  recentColors?: Array<{ hex: string; name: string }>;
   [key: string]: unknown;
 }
 
@@ -56,6 +57,22 @@ export class GlobalSettingsService {
       ...settings,
       apiKey: trimmed,
       apiKeyLastValidated: Date.now(),
+    };
+    await this.save(updated);
+  }
+
+  async getRecentColors(): Promise<Array<{ hex: string; name: string }>> {
+    const settings = await this.getSettings();
+    return settings.recentColors ?? [];
+  }
+
+  async setRecentColors(
+    colors: Array<{ hex: string; name: string }>,
+  ): Promise<void> {
+    const settings = await this.getSettings();
+    const updated: GlobalPluginSettings = {
+      ...settings,
+      recentColors: colors,
     };
     await this.save(updated);
   }
