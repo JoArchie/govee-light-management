@@ -1,0 +1,358 @@
+<!doctype html>
+<html>
+  <head lang="en-gb">
+    <meta charset="utf-8" />
+    <title>Govee Light Management | Sequence</title>
+    <link rel="stylesheet" href="./css/main.css" />
+    <script src="./js/sdpi-components.js"></script>
+    <script src="./js/setup.js"></script>
+    <style>
+      .step-list {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin: 8px 0;
+      }
+      .step-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 8px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+        font-size: 12px;
+      }
+      .step-index {
+        width: 18px;
+        text-align: center;
+        color: #888;
+      }
+      .step-icon {
+        width: 16px;
+        text-align: center;
+      }
+      .step-label {
+        flex: 1;
+      }
+      .step-remove {
+        cursor: pointer;
+        color: #ff6666;
+        padding: 0 4px;
+      }
+      .step-remove:hover {
+        color: #ff3333;
+      }
+      .step-move {
+        cursor: pointer;
+        color: #666;
+        padding: 0 2px;
+        user-select: none;
+      }
+      .step-move:hover {
+        color: #ccc;
+      }
+      .builder {
+        margin-top: 8px;
+        padding: 8px;
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 4px;
+      }
+      .builder-row {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+        margin-bottom: 6px;
+      }
+      .builder-row label {
+        font-size: 11px;
+        color: #aaa;
+        min-width: 60px;
+      }
+      .builder-row select,
+      .builder-row input {
+        flex: 1;
+      }
+      .builder-actions {
+        display: flex;
+        gap: 6px;
+        margin-top: 8px;
+      }
+      .empty-state {
+        color: #888;
+        font-size: 11px;
+        font-style: italic;
+        padding: 8px 0;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="settings" class="hidden">
+      <sdpi-item label="Name">
+        <sdpi-textfield
+          setting="sequenceName"
+          placeholder="e.g. Movie Night"
+          maxlength="40"
+        ></sdpi-textfield>
+      </sdpi-item>
+
+      <sdpi-item label="Steps">
+        <div id="stepList" class="step-list">
+          <div class="empty-state">No steps yet. Add your first step below.</div>
+        </div>
+      </sdpi-item>
+
+      <div class="builder">
+        <div class="builder-row">
+          <label>Type</label>
+          <select id="stepType">
+            <option value="action">Action</option>
+            <option value="delay">Delay</option>
+          </select>
+        </div>
+
+        <div id="actionBuilder">
+          <div class="builder-row">
+            <label>Light</label>
+            <select id="stepDevice" datasource="getDevices"></select>
+          </div>
+          <div class="builder-row">
+            <label>Command</label>
+            <select id="stepCommand">
+              <option value="on">Turn On</option>
+              <option value="off">Turn Off</option>
+              <option value="toggle">Toggle</option>
+              <option value="brightness">Set Brightness</option>
+            </select>
+          </div>
+          <div class="builder-row" id="valueRow" style="display: none">
+            <label>Value</label>
+            <input
+              id="stepValue"
+              type="number"
+              min="0"
+              max="100"
+              step="5"
+              placeholder="0-100"
+            />
+          </div>
+        </div>
+
+        <div id="delayBuilder" style="display: none">
+          <div class="builder-row">
+            <label>Duration (ms)</label>
+            <input
+              id="stepDuration"
+              type="number"
+              min="100"
+              max="300000"
+              step="100"
+              placeholder="e.g. 1000"
+            />
+          </div>
+        </div>
+
+        <div class="builder-actions">
+          <sdpi-button id="addStepBtn">Add Step</sdpi-button>
+          <sdpi-button id="clearBtn">Clear All</sdpi-button>
+        </div>
+      </div>
+
+      <div class="empty-state">Press the Stream Deck button to run the sequence. Press again to cancel.</div>
+    </div>
+
+    <div id="setup" class="hidden">
+      <sdpi-item label="API Key">
+        <sdpi-password
+          id="apiKey"
+          global
+          setting="unverifiedApiKey"
+          placeholder="API key from Govee"
+        ></sdpi-password>
+      </sdpi-item>
+      <sdpi-item>
+        <sdpi-button id="connect">Connect</sdpi-button>
+      </sdpi-item>
+    </div>
+
+    <script>
+      (function () {
+        const stepList = document.getElementById("stepList");
+        const stepType = document.getElementById("stepType");
+        const stepDevice = document.getElementById("stepDevice");
+        const stepCommand = document.getElementById("stepCommand");
+        const stepValue = document.getElementById("stepValue");
+        const stepDuration = document.getElementById("stepDuration");
+        const valueRow = document.getElementById("valueRow");
+        const actionBuilder = document.getElementById("actionBuilder");
+        const delayBuilder = document.getElementById("delayBuilder");
+        const addStepBtn = document.getElementById("addStepBtn");
+        const clearBtn = document.getElementById("clearBtn");
+
+        let currentSettings = {};
+        let client = null;
+        let devices = [];
+
+        function ensureId(settings) {
+          if (!settings.sequenceId) {
+            settings.sequenceId = `seq-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+          }
+          return settings;
+        }
+
+        function renderSteps() {
+          const steps = currentSettings.steps || [];
+          stepList.innerHTML = "";
+          if (steps.length === 0) {
+            const empty = document.createElement("div");
+            empty.className = "empty-state";
+            empty.textContent = "No steps yet. Add your first step below.";
+            stepList.appendChild(empty);
+            return;
+          }
+
+          steps.forEach((step, i) => {
+            const item = document.createElement("div");
+            item.className = "step-item";
+            item.innerHTML = `
+              <span class="step-index">${i + 1}</span>
+              <span class="step-icon">${step.type === "delay" ? "⏱" : "✦"}</span>
+              <span class="step-label">${labelFor(step)}</span>
+              <span class="step-move" data-move="up" data-index="${i}" title="Move up">↑</span>
+              <span class="step-move" data-move="down" data-index="${i}" title="Move down">↓</span>
+              <span class="step-remove" data-remove="${i}" title="Remove">×</span>
+            `;
+            stepList.appendChild(item);
+          });
+        }
+
+        function labelFor(step) {
+          if (step.type === "delay") {
+            return `Wait ${step.durationMs}ms`;
+          }
+          const device = devices.find((d) => d.value === step.targetId);
+          const deviceName = device?.label || step.targetId;
+          let cmd = step.command;
+          if (step.commandValue !== undefined) {
+            cmd += ` → ${step.commandValue}`;
+          }
+          return `${deviceName}: ${cmd}`;
+        }
+
+        function saveSteps() {
+          if (!client) return;
+          client.setSettings(ensureId({ ...currentSettings }));
+          renderSteps();
+        }
+
+        function addStep() {
+          const type = stepType.value;
+          let step;
+          if (type === "delay") {
+            const duration = parseInt(stepDuration.value, 10);
+            if (isNaN(duration) || duration < 100) return;
+            step = { type: "delay", durationMs: duration };
+          } else {
+            const targetId = stepDevice.value;
+            const command = stepCommand.value;
+            if (!targetId || !command) return;
+            step = {
+              type: "action",
+              targetId,
+              targetType: targetId.startsWith("group:") ? "group" : "light",
+              command,
+            };
+            if (command === "brightness") {
+              const val = parseInt(stepValue.value, 10);
+              if (!isNaN(val)) step.commandValue = val;
+            }
+          }
+          currentSettings.steps = [...(currentSettings.steps || []), step];
+          saveSteps();
+        }
+
+        function removeStep(index) {
+          const steps = [...(currentSettings.steps || [])];
+          steps.splice(index, 1);
+          currentSettings.steps = steps;
+          saveSteps();
+        }
+
+        function moveStep(index, direction) {
+          const steps = [...(currentSettings.steps || [])];
+          const target = direction === "up" ? index - 1 : index + 1;
+          if (target < 0 || target >= steps.length) return;
+          [steps[index], steps[target]] = [steps[target], steps[index]];
+          currentSettings.steps = steps;
+          saveSteps();
+        }
+
+        function updateVisibility() {
+          actionBuilder.style.display = stepType.value === "action" ? "" : "none";
+          delayBuilder.style.display = stepType.value === "delay" ? "" : "none";
+          valueRow.style.display = stepCommand.value === "brightness" ? "" : "none";
+        }
+
+        function onDevicesReceived(items) {
+          devices = items || [];
+          stepDevice.innerHTML = "";
+          devices.forEach((d) => {
+            const opt = document.createElement("option");
+            opt.value = d.value;
+            opt.textContent = d.label;
+            stepDevice.appendChild(opt);
+          });
+          renderSteps();
+        }
+
+        function onSettingsReceived(settings) {
+          currentSettings = ensureId({ ...settings });
+          renderSteps();
+        }
+
+        function bind() {
+          client = window.SDPIComponents?.streamDeckClient;
+          if (!client) {
+            setTimeout(bind, 100);
+            return;
+          }
+
+          client.on?.("didReceiveSettings", (msg) => {
+            onSettingsReceived(msg?.payload?.settings || {});
+          });
+
+          client.on?.("sendToPropertyInspector", (payload) => {
+            if (payload?.event === "getDevices") {
+              onDevicesReceived(payload.items);
+            }
+          });
+
+          client.send?.({ event: "getDevices" });
+
+          stepType.addEventListener("change", updateVisibility);
+          stepCommand.addEventListener("change", updateVisibility);
+          addStepBtn.addEventListener("click", addStep);
+          clearBtn.addEventListener("click", () => {
+            currentSettings.steps = [];
+            saveSteps();
+          });
+
+          stepList.addEventListener("click", (e) => {
+            const target = e.target;
+            if (target.dataset.remove !== undefined) {
+              removeStep(parseInt(target.dataset.remove, 10));
+            } else if (target.dataset.move) {
+              moveStep(parseInt(target.dataset.index, 10), target.dataset.move);
+            }
+          });
+
+          updateVisibility();
+        }
+
+        document.addEventListener("DOMContentLoaded", bind);
+        if (document.readyState !== "loading") bind();
+      })();
+    </script>
+  </body>
+</html>

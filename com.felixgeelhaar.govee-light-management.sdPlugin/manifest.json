@@ -132,6 +132,20 @@
       ]
     },
     {
+      "Name": "Sequence",
+      "UUID": "com.felixgeelhaar.govee-light-management.sequence",
+      "Icon": "imgs/actions/toggle/icon",
+      "Tooltip": "Run a multi-step sequence of light actions with delays",
+      "PropertyInspectorPath": "ui/sequence.html",
+      "Controllers": ["Keypad"],
+      "States": [
+        {
+          "Image": "imgs/actions/toggle/key",
+          "TitleAlignment": "bottom"
+        }
+      ]
+    },
+    {
       "Name": "Brightness Dial",
       "UUID": "com.felixgeelhaar.govee-light-management.brightness-dial",
       "Icon": "imgs/actions/brightness-dial/icon",
