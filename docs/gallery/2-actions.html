@@ -24,25 +24,25 @@
   .grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 44px 50px;
+    gap: 32px 40px;
     width: 100%;
     max-width: 1500px;
   }
   .item {
-    display: flex; flex-direction: column; align-items: center; gap: 18px;
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
   }
   .item img {
-    width: 160px; height: 160px;
+    width: 130px; height: 130px;
     filter: drop-shadow(0 20px 50px rgba(168,85,247,0.35));
   }
   .item .label {
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 600;
     color: var(--text);
     text-align: center;
   }
   .item .desc {
-    font-size: 14px;
+    font-size: 13px;
     color: var(--dim);
     text-align: center;
     max-width: 200px;
@@ -52,18 +52,22 @@
 <div class="wrap">
   <div class="head">
     <span class="eyebrow">What's inside</span>
-    <h1>Eight keypad <span class="grad-text">actions</span></h1>
+    <h1>Twelve keypad <span class="grad-text">actions</span></h1>
     <p class="sub">Purpose-built for Stream Deck keypads. Every control you need, one tap away.</p>
   </div>
   <div class="grid">
     <div class="item"><img src="./assets/light.svg" alt=""><div class="label">On / Off</div><div class="desc">Power toggle with state sync</div></div>
     <div class="item"><img src="./assets/brightness.svg" alt=""><div class="label">Brightness</div><div class="desc">Set level from 0–100%</div></div>
-    <div class="item"><img src="./assets/color.svg" alt=""><div class="label">Color</div><div class="desc">Full RGB color picker</div></div>
+    <div class="item"><img src="./assets/color.svg" alt=""><div class="label">Color</div><div class="desc">RGB picker + palettes</div></div>
     <div class="item"><img src="./assets/colortemp.svg" alt=""><div class="label">Color Temp</div><div class="desc">Warm to cool white</div></div>
     <div class="item"><img src="./assets/segment-color.svg" alt=""><div class="label">Segments</div><div class="desc">RGB IC strip presets</div></div>
     <div class="item"><img src="./assets/scene.svg" alt=""><div class="label">Scenes</div><div class="desc">Dynamic scene picker</div></div>
+    <div class="item"><img src="./assets/snapshot.svg" alt=""><div class="label">Snapshot</div><div class="desc">Recall saved presets</div></div>
     <div class="item"><img src="./assets/music-mode.svg" alt=""><div class="label">Music Mode</div><div class="desc">Audio-reactive lighting</div></div>
     <div class="item"><img src="./assets/toggle.svg" alt=""><div class="label">Feature Toggle</div><div class="desc">Nightlight, gradient & more</div></div>
+    <div class="item"><img src="./assets/schedule.svg" alt=""><div class="label">Schedule</div><div class="desc">Daily, weekly, delay triggers</div></div>
+    <div class="item"><img src="./assets/sequence.svg" alt=""><div class="label">Sequence</div><div class="desc">Chain multiple commands</div></div>
+    <div class="item"><img src="./assets/custom-effect.svg" alt=""><div class="label">Custom Effect</div><div class="desc">RGB animations for strips</div></div>
   </div>
 </div>
 <div class="brand-footer">

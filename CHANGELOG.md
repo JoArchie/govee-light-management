@@ -4,6 +4,77 @@ All notable changes to this project are documented below. This project adheres t
 
 ---
 
+## [2.2.0] - 2026-04-17
+
+### Major Features — 5 new capabilities across 3 new actions
+
+#### Enhanced Color Picker
+
+- **Color Palettes** — 4 preset palettes (Warm, Cool, Pastel, Vivid) with 20 curated colors
+- **Recent Colors** — Auto-tracks the last 10 colors you applied, persists across sessions
+- **Click-to-Apply** — Swatches in the Color action property inspector
+- **Clear Recent** — One-click reset for recent colors
+
+#### Scheduling System
+
+- **New Schedule Action** — Time-based automation for any light or group
+- **3 schedule types**:
+  - **Daily** — Fire at HH:MM every day
+  - **Weekly** — Fire on selected days (Mon-Sun chip selector)
+  - **Delay** — Fire N seconds after button press
+- **Press to toggle** — Press the Stream Deck button to enable/disable
+- **Background scheduler** — 30-second polling loop fires scheduled actions automatically
+- **Persistent** — Schedules survive plugin restarts via global settings
+
+#### Multi-Action Sequences
+
+- **New Sequence Action** — Chain multiple light commands with delays
+- **Step Builder UI** — Add action steps or timing delays (up to 5 min)
+- **Commands supported**: on, off, toggle, brightness
+- **Reorder** — Up/down controls for step arrangement
+- **Press to run** — Press again to cancel mid-sequence
+- **Error-resilient** — Continues through individual step failures
+
+#### Custom RGB Effects
+
+- **New Custom Effect Action** — Play animated lighting effects on RGB IC strips
+- **4 built-in presets**:
+  - **Rainbow Wave** — 36-frame looping hue rotation
+  - **Pulse** — Fading brightness loop
+  - **Fade** — 20-step color transition
+  - **Strobe** — On/off flashing
+- **Live preview** — Property inspector shows 15-segment color strip
+- **Concurrent playback** — Different effects on different lights simultaneously
+- **Once/Loop modes** — Effects auto-loop or play once
+
+#### Device Capability Improvements
+
+- **Device Classifier** — Automatic detection of Bulb, LED Strip, Light Bar, or Floor Lamp from model number
+- **Capability Registry** — Centralized metadata with helpful descriptions for all 8 capabilities
+- **Better error messages** — "My Light (LED Strip) doesn't support music mode. Music mode is available on most RGB-capable lights with a built-in microphone."
+- **Extended cache TTL** — Device discovery cache doubled from 15s to 30s, reducing API calls
+
+### Technical Improvements
+
+- **Domain-Driven Design** — 3 new entities, 5 new value objects, 8 new domain services
+- **Test Coverage** — 177 new tests (56% increase: 311 → 488)
+- **Clean Architecture** — Phase-based development with independent PRs
+- **Zero regressions** — All existing functionality preserved
+
+### Stream Deck Action Count
+
+- **v2.1.4**: 14 actions (9 keypad + 5 dial)
+- **v2.2.0**: 17 actions (12 keypad + 5 dial)
+- New actions: Schedule, Sequence, Custom Effect
+
+### Compatibility
+
+- Fully backward-compatible with v2.1.x
+- Existing settings preserved
+- Same API key, same devices, same workflows
+
+---
+
 ## [2.1.4] - 2026-04-17
 
 ### Bug Fixes

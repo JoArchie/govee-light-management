@@ -1,0 +1,119 @@
+<!doctype html>
+<html>
+  <head lang="en-gb">
+    <meta charset="utf-8" />
+    <title>Govee Light Management | Custom Effect</title>
+    <link rel="stylesheet" href="./css/main.css" />
+    <script src="./js/sdpi-components.js"></script>
+    <script src="./js/setup.js"></script>
+    <style>
+      .effect-description {
+        font-size: 11px;
+        color: #888;
+        margin-top: 4px;
+      }
+      .preset-preview {
+        display: flex;
+        gap: 2px;
+        margin-top: 6px;
+        height: 20px;
+        border-radius: 3px;
+        overflow: hidden;
+      }
+      .preset-segment {
+        flex: 1;
+        background: #333;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="settings" class="hidden">
+      <sdpi-item label="Device">
+        <sdpi-select
+          setting="selectedDeviceId"
+          datasource="getDevices"
+          show-refresh
+          label-setting="selectedLightName"
+        ></sdpi-select>
+      </sdpi-item>
+
+      <sdpi-item label="Effect">
+        <sdpi-select
+          setting="effectId"
+          id="effectSelect"
+          datasource="getEffects"
+          show-refresh
+          placeholder="Choose an effect..."
+        >
+          <option value="">Choose an effect...</option>
+        </sdpi-select>
+      </sdpi-item>
+
+      <sdpi-item>
+        <div id="preview" class="preset-preview"></div>
+      </sdpi-item>
+
+      <div class="effect-description">
+        Press the Stream Deck button to play the effect. Press again to stop.
+        Requires an RGB IC light strip with segmented control.
+      </div>
+    </div>
+
+    <div id="setup" class="hidden">
+      <sdpi-item label="API Key">
+        <sdpi-password
+          id="apiKey"
+          global
+          setting="unverifiedApiKey"
+          placeholder="API key from Govee"
+        ></sdpi-password>
+      </sdpi-item>
+      <sdpi-item>
+        <sdpi-button id="connect">Connect</sdpi-button>
+      </sdpi-item>
+    </div>
+
+    <script>
+      (function () {
+        const effectSelect = document.getElementById("effectSelect");
+        const preview = document.getElementById("preview");
+
+        function renderPreview(effectId) {
+          preview.innerHTML = "";
+          const colorsByPreset = {
+            "preset-rainbow-wave": [
+              "#FF0000",
+              "#FF7F00",
+              "#FFFF00",
+              "#00FF00",
+              "#00FFFF",
+              "#0000FF",
+              "#8B00FF",
+            ],
+            "preset-pulse": ["#FF0000", "#CC0000", "#880000", "#550000"],
+            "preset-fade": ["#FF0000", "#AA0055", "#5500AA", "#0000FF"],
+            "preset-strobe": ["#FFFFFF", "#000000", "#FFFFFF", "#000000"],
+          };
+          const colors = colorsByPreset[effectId] || ["#333333"];
+          for (let i = 0; i < 15; i++) {
+            const segment = document.createElement("div");
+            segment.className = "preset-segment";
+            segment.style.background = colors[i % colors.length];
+            preview.appendChild(segment);
+          }
+        }
+
+        function updatePreview() {
+          renderPreview(effectSelect?.value || "");
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+          effectSelect.addEventListener("change", updatePreview);
+          effectSelect.addEventListener("valuechange", updatePreview);
+          setTimeout(updatePreview, 0);
+          setTimeout(updatePreview, 100);
+        });
+      })();
+    </script>
+  </body>
+</html>

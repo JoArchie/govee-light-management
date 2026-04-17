@@ -11,14 +11,27 @@ import type { JsonValue } from "@elgato/utils";
 import { ColorRgb } from "@felixgeelhaar/govee-api-client";
 import { ActionServices, type BaseSettings } from "./shared/ActionServices";
 import { telemetryService } from "../services/TelemetryService";
+import { ColorPaletteService } from "../domain/services/ColorPaletteService";
+import { ColorPreset } from "../domain/value-objects/ColorPalette";
+import { globalSettingsService } from "../services/GlobalSettingsService";
 
 type ColorSettings = BaseSettings & {
   colorValue?: string;
+  colorName?: string;
 };
 
 @action({ UUID: "com.felixgeelhaar.govee-light-management.color" })
 export class ColorAction extends SingletonAction<ColorSettings> {
   private services = new ActionServices();
+  private paletteService = new ColorPaletteService();
+  private paletteLoaded = false;
+
+  private async ensurePaletteLoaded(): Promise<void> {
+    if (this.paletteLoaded) return;
+    const stored = await globalSettingsService.getRecentColors();
+    this.paletteService.loadRecentColors(stored);
+    this.paletteLoaded = true;
+  }
 
   override async onWillAppear(
     ev: WillAppearEvent<ColorSettings>,
@@ -52,7 +65,8 @@ export class ColorAction extends SingletonAction<ColorSettings> {
     const started = Date.now();
 
     try {
-      const color = ColorRgb.fromHex(settings.colorValue || "#ffffff");
+      const hex = settings.colorValue || "#ffffff";
+      const color = ColorRgb.fromHex(hex);
       const stopSpinner = this.services.showSpinner(ev.action);
       try {
         // Clear overlay modes for single lights and groups (see #170).
@@ -63,6 +77,9 @@ export class ColorAction extends SingletonAction<ColorSettings> {
       }
       await ev.action.setTitle(this.getTitle(settings));
       await ev.action.showOk();
+
+      // Track recent color usage
+      await this.trackRecentColor(hex, settings.colorName);
 
       telemetryService.recordCommand({
         command: `${target.type}.color`,
@@ -104,6 +121,64 @@ export class ColorAction extends SingletonAction<ColorSettings> {
       case "refreshState":
         await this.services.handleRefreshState();
         break;
+      case "getColorPalettes":
+        await this.handleGetColorPalettes(ev.action.id);
+        break;
+      case "getRecentColors":
+        await this.handleGetRecentColors(ev.action.id);
+        break;
+      case "clearRecentColors":
+        await this.handleClearRecentColors(ev.action.id);
+        break;
+    }
+  }
+
+  private async handleGetColorPalettes(actionId: string): Promise<void> {
+    const palettes = this.paletteService.getPresetPalettes().map((palette) => ({
+      name: palette.name,
+      colors: palette.colors.map((c) => ({ hex: c.hex, name: c.name })),
+    }));
+    await streamDeck.ui.sendToPropertyInspector({
+      event: "colorPalettes",
+      items: palettes,
+    });
+    void actionId;
+  }
+
+  private async handleGetRecentColors(actionId: string): Promise<void> {
+    await this.ensurePaletteLoaded();
+    const recent = this.paletteService
+      .getRecentColors()
+      .map((c) => ({ hex: c.hex, name: c.name }));
+    await streamDeck.ui.sendToPropertyInspector({
+      event: "recentColors",
+      items: recent,
+    });
+    void actionId;
+  }
+
+  private async handleClearRecentColors(actionId: string): Promise<void> {
+    await this.ensurePaletteLoaded();
+    this.paletteService.clearRecentColors();
+    await globalSettingsService.setRecentColors([]);
+    await streamDeck.ui.sendToPropertyInspector({
+      event: "recentColors",
+      items: [],
+    });
+    void actionId;
+  }
+
+  private async trackRecentColor(hex: string, name?: string): Promise<void> {
+    try {
+      await this.ensurePaletteLoaded();
+      this.paletteService.addRecentColor(
+        new ColorPreset(hex, name ?? "Custom"),
+      );
+      await globalSettingsService.setRecentColors(
+        this.paletteService.exportRecentColors(),
+      );
+    } catch (error) {
+      streamDeck.logger.error("Failed to track recent color:", error);
     }
   }
 

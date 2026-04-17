@@ -15,6 +15,7 @@ import {
   ColorRgb,
   ColorTemperature,
   LightScene,
+  DiyScene,
   Snapshot,
   MusicMode,
 } from "@felixgeelhaar/govee-api-client";
@@ -587,6 +588,7 @@ export class ActionServices {
         });
         return;
       }
+
       const lights = await withTimeout(
         this.deviceService.discover(true),
         PI_HANDLER_TIMEOUT_MS,
@@ -1018,11 +1020,25 @@ export class ActionServices {
     return this.lightRepository.getDynamicScenes(light);
   }
 
+  async getDiyScenes(light: Light): Promise<DiyScene[]> {
+    if (!this.lightRepository) {
+      throw new Error("Light repository not initialized");
+    }
+    return this.lightRepository.getDiyScenes(light);
+  }
+
   async applyDynamicScene(light: Light, scene: LightScene): Promise<void> {
     if (!this.lightRepository) {
       throw new Error("Light repository not initialized");
     }
     await this.lightRepository.setLightScene(light, scene);
+  }
+
+  async applyDiyScene(light: Light, scene: DiyScene): Promise<void> {
+    if (!this.lightRepository) {
+      throw new Error("Light repository not initialized");
+    }
+    await this.lightRepository.setDiyScene(light, scene);
   }
 
   async getSnapshots(light: Light): Promise<Snapshot[]> {

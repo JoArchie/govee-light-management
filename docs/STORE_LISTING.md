@@ -1,6 +1,6 @@
-# Elgato Marketplace Store Listing — v2.1.3
+# Elgato Marketplace Store Listing — v2.2.0
 
-Use this content when submitting v2.1.3 to the Elgato Maker Console.
+Use this content when submitting v2.2.0 to the Elgato Maker Console.
 
 ---
 
@@ -14,18 +14,22 @@ Control your Govee smart lights from Stream Deck
 
 Control your Govee smart lights directly from Stream Deck — no phone, no app switching, no delay.
 
-Govee Light Management gives you **13 purpose-built actions** across keypads and Stream Deck+ dials. Toggle power, set brightness, pick colors, apply scenes, activate music-reactive lighting, and paint individual segments on your RGB IC strips. Every action syncs live state from your lights so the display always matches reality. Full group support means control entire rooms with a single button or dial.
+Govee Light Management gives you **17 purpose-built actions** across keypads and Stream Deck+ dials. Toggle power, set brightness, pick colors, apply scenes, schedule automations, chain sequences, play custom RGB effects, activate music-reactive lighting, and paint individual segments on your RGB IC strips. Every action syncs live state so the display always matches reality. Full group support means control entire rooms with a single button or dial.
 
-### Keypad Actions (8)
+### Keypad Actions (12)
 
 - **On / Off** — Toggle power with a single tap. Shows a filled or empty dot so you always know the current state. Supports toggle, force-on, and force-off modes. Works with individual lights and light groups.
 - **Brightness** — Set brightness from 0 to 100%. Treats 0% as "turn off" so a single button can dim to black.
-- **Color** — Set any RGB color using the built-in color picker. One tap applies the color to your selected light or group.
+- **Color** _(enhanced)_ — Set any RGB color using the built-in picker, or tap preset palettes (Warm, Cool, Pastel, Vivid) and recent colors for one-click access to your favorites.
 - **Color Temperature** — Switch between warm white (2000K) and cool daylight (9000K). Choose a preset temperature and apply with one tap.
 - **Segment Color** — Paint rainbow, solid, or gradient patterns across your RGB IC light strip. Choose the start and end segments (1–15) and the hue range.
-- **Scene** _(new)_ — Apply dynamic scenes like Sunrise, Aurora, Rainbow, and more. Scenes are fetched live from each device so you only see what your light actually supports.
-- **Music Mode** _(new)_ — Activate audio-reactive lighting. Choose from device-specific modes (Rhythm, Energic, Spectrum, Rolling) with adjustable sensitivity. Your lights pulse and change color in sync with sound.
-- **Feature Toggle** _(new)_ — One-tap control for Nightlight, Gradient, DreamView, and Scene Stage. Features are auto-filtered by device capability so you never see options your light doesn't support.
+- **Scene** — Apply dynamic scenes like Sunrise, Aurora, Rainbow, and more. Scenes are fetched live from each device so you only see what your light actually supports.
+- **Snapshot** — Recall saved light presets on a Govee light. Perfect for quickly restoring your favorite configurations.
+- **Music Mode** — Activate audio-reactive lighting. Choose from device-specific modes (Rhythm, Energic, Spectrum, Rolling) with adjustable sensitivity. Your lights pulse and change color in sync with sound.
+- **Feature Toggle** — One-tap control for Nightlight, Gradient, DreamView, and Scene Stage. Features are auto-filtered by device capability so you never see options your light doesn't support.
+- **Schedule** _(new)_ — Time-based automation for any light or group. Daily at a specific time, weekly on selected days, or delayed triggers. Press to enable/disable. Persistent across plugin restarts.
+- **Sequence** _(new)_ — Chain multiple light commands with configurable delays between steps. Build complex workflows like "turn on → wait 2s → dim to 50% → set color blue". Press to run, press again to cancel.
+- **Custom Effect** _(new)_ — Play animated RGB effects on your IC strips. 4 built-in presets: Rainbow Wave, Pulse, Fade, and Strobe. Live preview in the property inspector.
 
 ### Stream Deck+ Dial Actions (5)
 
@@ -55,6 +59,46 @@ The API key is entered once and shared across all actions. No accounts, no serve
 ### Compatibility
 
 Works with all Govee lights that support the Govee Developer API, including LED strips, bulbs, light bars, floor lamps, and RGB IC strip lights. Supports Stream Deck, Stream Deck MK.2, Stream Deck XL, Stream Deck Mini, Stream Deck Neo, Stream Deck Pedal, and Stream Deck+.
+
+---
+
+## What's New / Release Notes (v2.2.0)
+
+**3 powerful new actions and major enhancements across the plugin**
+
+### New Actions
+
+- **Schedule** — Time-based automation for lights and groups. Three trigger types:
+  - **Daily** — fires at HH:MM every day
+  - **Weekly** — fires on selected days (chip-based day picker)
+  - **Delay** — fires N seconds after button press
+  - Press the button to enable/disable; schedules persist across plugin restarts
+- **Sequence** — Chain multiple light commands with configurable delays (up to 5 minutes per delay). Build step-by-step workflows with the visual step builder — add actions, insert delays, reorder with up/down controls. Press to run, press again to cancel mid-sequence.
+- **Custom Effect** — Play animated RGB effects on IC light strips. 4 built-in presets (Rainbow Wave, Pulse, Fade, Strobe) with live color preview in the property inspector. Different effects can run on different lights simultaneously.
+
+### Color Picker Enhancements
+
+- **Preset Palettes** — 4 curated palettes (Warm, Cool, Pastel, Vivid) with 20 colors total, one click to apply
+- **Recent Colors** — Auto-tracks the last 10 colors you applied, persists across sessions
+- **Clear all** — One-click reset for recent colors
+
+### Smarter Device Detection
+
+- **Device Classifier** — Automatic detection of Bulb, LED Strip, Light Bar, or Floor Lamp from Govee model numbers
+- **Better error messages** — "My Light (LED Strip) doesn't support music mode. Music mode is available on most RGB-capable lights with a built-in microphone."
+- **Capability hints** — Helpful descriptions when a feature isn't supported
+
+### Performance Improvements
+
+- **Expanded device cache** — Device discovery cache doubled from 15s to 30s, reducing API calls by 50%
+- **Improved response times** — Faster property inspector loading
+
+### Under the Hood
+
+- 177 new tests (488 total, up from 311)
+- 3 new domain entities, 5 new value objects, 8 new services
+- Full backward compatibility with v2.1.x
+- Zero regressions — all existing actions unchanged
 
 ---
 
