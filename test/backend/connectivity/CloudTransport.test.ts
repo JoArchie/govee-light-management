@@ -152,4 +152,39 @@ describe("CloudTransport.discoverDevices", () => {
     const { lights } = await transport.discoverDevices();
     expect(lights[0]?.capabilities?.colorTemperature).toBe(true);
   });
+
+  it("filters unsupported cloud group pseudo-devices from discovery", async () => {
+    const realLight = buildDevice({
+      deviceId: "light-1",
+      model: "H6001",
+      deviceName: "Desk Light",
+    });
+    const sameModelGroup = buildDevice({
+      deviceId: "group-1",
+      model: "SameModelGroup",
+      deviceName: "Bedroom Group",
+    });
+    const baseGroup = buildDevice({
+      deviceId: "group-2",
+      model: "BaseGroup",
+      deviceName: "All Lights",
+    });
+
+    const transport = new CloudTransport({
+      factory: {
+        create: () =>
+          ({
+            getControllableDevices: vi
+              .fn()
+              .mockResolvedValue([realLight, sameModelGroup, baseGroup]),
+          }) as never,
+      },
+    });
+
+    const { lights } = await transport.discoverDevices();
+
+    expect(lights).toHaveLength(1);
+    expect(lights[0]?.deviceId).toBe("light-1");
+    expect(lights[0]?.model).toBe("H6001");
+  });
 });
