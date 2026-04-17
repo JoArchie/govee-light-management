@@ -3,7 +3,7 @@
 <div align="center">
 
 ![Stream Deck Plugin](https://img.shields.io/badge/Stream%20Deck-Plugin-blue?style=flat-square&logo=elgato)
-![Version](https://img.shields.io/badge/version-2.1.4-green?style=flat-square)
+![Version](https://img.shields.io/badge/version-2.2.0-green?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.6+-blue?style=flat-square&logo=typescript)
 ![Node.js](https://img.shields.io/badge/Node.js-20+-green?style=flat-square&logo=node.js)
@@ -549,27 +549,27 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 
 ## Roadmap
 
-### v2.1.3 (Current - Released)
+### v2.2.0 (Current - Released)
 
-- [x] Individual light control with 8 modes (On/Off, Brightness, Color, Color Temp, Segment, Scene, Music, Toggle)
+- [x] Enhanced color picker with preset palettes (Warm/Cool/Pastel/Vivid) and recent colors history
+- [x] Schedule action — time-based automation with Daily/Weekly/Delay triggers
+- [x] Sequence action — chain multi-step light commands with configurable delays
+- [x] Custom Effect action — 4 RGB animations (Rainbow Wave, Pulse, Fade, Strobe) on IC strips
+- [x] Device Classifier — automatic Bulb/LED Strip/Light Bar/Floor Lamp detection
+- [x] Capability Registry — helpful error messages with device-class-specific hints
+- [x] Expanded device cache TTL (15s → 30s) for reduced API calls
+- [x] 17 total actions (12 keypad + 5 dial)
+
+### v2.1.4 (Released)
+
+- [x] Individual light control with 8 modes
 - [x] Advanced group management with full dial support
-- [x] Stream Deck+ encoder support (5 dials: Brightness, Color Temp, Color Hue, Saturation, Segment Color)
+- [x] Stream Deck+ encoder support (5 dials)
 - [x] Real-time state synchronization with live state sync on appear
-- [x] Enterprise-grade architecture (Domain-Driven Design)
-- [x] Scene management with device-specific scene discovery
-- [x] Music-reactive lighting with adjustable sensitivity
-- [x] Feature toggle control (Nightlight, Gradient, DreamView, Scene Stage)
+- [x] Scene, Music, Feature Toggle actions
 - [x] Full group support across all actions and dials
 - [x] Visual feedback system with green/red flash indicators
-- [x] Saturation dial for color intensity control
-
-### v2.2.0 (Planned)
-
-- [ ] Enhanced color picker with preset colors
-- [ ] Scheduled actions and timers
-- [ ] Multi-action sequences
-- [ ] Custom effect creation for RGB strips
-- [ ] Device-specific capability detection improvements
+- [x] Saturation dial, overlay mode clearing, dial state sync fixes
 
 ### v3.0.0 (Long-term Vision)
 
