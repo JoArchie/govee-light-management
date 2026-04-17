@@ -15,6 +15,7 @@ import {
   sendToPI,
   type BaseSettings,
 } from "./shared/ActionServices";
+import { buildSceneItems } from "./scene-items";
 
 type SceneSettings = BaseSettings & {
   selectedScene?: string;
@@ -75,41 +76,36 @@ export class SceneAction extends SingletonAction<SceneSettings> {
       const sceneKind = parsed.kind === "diy" ? "diy" : "dynamic";
       const stopSpinner = this.services.showSpinner(ev.action);
       try {
-        if (target.type === "light" && target.light) {
-          if (sceneKind === "diy") {
-            const scene = new DiyScene(parsed.id, parsed.paramId, parsed.name);
+        if (sceneKind === "diy") {
+          const scene = new DiyScene(parsed.id, parsed.paramId, parsed.name);
+          if (target.type === "light" && target.light) {
             await this.services.applyDiyScene(target.light, scene);
-          } else {
-            const scene = new LightScene(
-              parsed.id,
-              parsed.paramId,
-              parsed.name,
-            );
-            await this.services.applyDynamicScene(target.light, scene);
-          }
-        } else if (target.type === "group" && target.group) {
-          for (const light of target.group.getControllableLights()) {
-            try {
-              if (sceneKind === "diy") {
-                const scene = new DiyScene(
-                  parsed.id,
-                  parsed.paramId,
-                  parsed.name,
-                );
+          } else if (target.type === "group" && target.group) {
+            for (const light of target.group.getControllableLights()) {
+              try {
                 await this.services.applyDiyScene(light, scene);
-              } else {
-                const scene = new LightScene(
-                  parsed.id,
-                  parsed.paramId,
-                  parsed.name,
+              } catch (error) {
+                streamDeck.logger.warn(
+                  `Scene apply failed for group member ${light.name}:`,
+                  error,
                 );
-                await this.services.applyDynamicScene(light, scene);
               }
-            } catch (error) {
-              streamDeck.logger.warn(
-                `Scene apply failed for group member ${light.name}:`,
-                error,
-              );
+            }
+          }
+        } else {
+          const scene = new LightScene(parsed.id, parsed.paramId, parsed.name);
+          if (target.type === "light" && target.light) {
+            await this.services.applyDynamicScene(target.light, scene);
+          } else if (target.type === "group" && target.group) {
+            for (const light of target.group.getControllableLights()) {
+              try {
+                await this.services.applyDynamicScene(light, scene);
+              } catch (error) {
+                streamDeck.logger.warn(
+                  `Scene apply failed for group member ${light.name}:`,
+                  error,
+                );
+              }
             }
           }
         }
@@ -211,26 +207,7 @@ export class SceneAction extends SingletonAction<SceneSettings> {
       ]);
       await sendToPI(actionId, {
         event: "getScenes",
-        items: [
-          ...dynamicScenes.map((s) => ({
-            label: s.name,
-            value: JSON.stringify({
-              kind: "dynamic",
-              id: s.id,
-              paramId: s.paramId,
-              name: s.name,
-            }),
-          })),
-          ...diyScenes.map((s) => ({
-            label: `${s.name} (DIY)`,
-            value: JSON.stringify({
-              kind: "diy",
-              id: s.id,
-              paramId: s.paramId,
-              name: s.name,
-            }),
-          })),
-        ],
+        items: buildSceneItems(dynamicScenes, diyScenes),
       });
     } catch (error) {
       streamDeck.logger.error("Failed to fetch scenes:", error);
