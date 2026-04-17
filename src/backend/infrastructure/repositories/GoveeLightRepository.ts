@@ -25,6 +25,12 @@ import {
 import { safeGetColorTemperature } from "../utils/deviceStateUtils";
 import streamDeck from "@elgato/streamdeck";
 
+const UNSUPPORTED_CLOUD_GROUP_MODELS = new Set([
+  "BaseGroup",
+  "SameModelGroup",
+  "SameModeGroup",
+]);
+
 export class GoveeLightRepository implements ILightRepository {
   private client: GoveeClient;
 
@@ -40,7 +46,13 @@ export class GoveeLightRepository implements ILightRepository {
 
   async getAllLights(): Promise<Light[]> {
     try {
-      const devices = await this.client.getControllableDevices();
+      const devices = await this.client
+        .getControllableDevices()
+        .then((entries) =>
+          entries.filter(
+            (device) => !UNSUPPORTED_CLOUD_GROUP_MODELS.has(device.model),
+          ),
+        );
       return devices.map((device) => this.mapDeviceToLight(device));
     } catch (error) {
       streamDeck.logger.error("Failed to fetch lights from Govee API:", error);
@@ -52,7 +64,13 @@ export class GoveeLightRepository implements ILightRepository {
 
   async findLight(deviceId: string, model: string): Promise<Light | null> {
     try {
-      const devices = await this.client.getControllableDevices();
+      const devices = await this.client
+        .getControllableDevices()
+        .then((entries) =>
+          entries.filter(
+            (device) => !UNSUPPORTED_CLOUD_GROUP_MODELS.has(device.model),
+          ),
+        );
       const device = devices.find(
         (d) => d.deviceId === deviceId && d.model === model,
       );
@@ -72,7 +90,13 @@ export class GoveeLightRepository implements ILightRepository {
 
   async findLightsByName(name: string): Promise<Light[]> {
     try {
-      const devices = await this.client.getControllableDevices();
+      const devices = await this.client
+        .getControllableDevices()
+        .then((entries) =>
+          entries.filter(
+            (device) => !UNSUPPORTED_CLOUD_GROUP_MODELS.has(device.model),
+          ),
+        );
       const matchingDevices = devices.filter((device) =>
         device.deviceName.toLowerCase().includes(name.toLowerCase()),
       );

@@ -185,22 +185,78 @@
         function requestPalettes() {
           const client = window.SDPIComponents?.streamDeckClient;
           if (client) {
-            client.send({ event: "getColorPalettes" });
+            if (typeof client.sendToPlugin === "function") {
+              client.sendToPlugin({ event: "getColorPalettes" });
+            } else if (typeof client.send === "function") {
+              client.send("sendToPlugin", { event: "getColorPalettes" });
+            }
           }
         }
 
         function requestRecent() {
           const client = window.SDPIComponents?.streamDeckClient;
           if (client) {
-            client.send({ event: "getRecentColors" });
+            if (typeof client.sendToPlugin === "function") {
+              client.sendToPlugin({ event: "getRecentColors" });
+            } else if (typeof client.send === "function") {
+              client.send("sendToPlugin", { event: "getRecentColors" });
+            }
           }
         }
 
         function clearRecentColors() {
           const client = window.SDPIComponents?.streamDeckClient;
           if (client) {
-            client.send({ event: "clearRecentColors" });
+            if (typeof client.sendToPlugin === "function") {
+              client.sendToPlugin({ event: "clearRecentColors" });
+            } else if (typeof client.send === "function") {
+              client.send("sendToPlugin", { event: "clearRecentColors" });
+            }
           }
+        }
+
+        function toPayload(message) {
+          if (
+            message &&
+            typeof message === "object" &&
+            "payload" in message &&
+            message.payload
+          ) {
+            return message.payload;
+          }
+          return message || {};
+        }
+
+        function subscribePluginMessages(client, onMessage) {
+          const sources = [
+            client && client.sendToPropertyInspector,
+            client && client.message,
+          ].filter(Boolean);
+
+          const subscriptions = [];
+
+          sources.forEach((source) => {
+            if (source && typeof source.subscribe === "function") {
+              const handler = (message) => onMessage(toPayload(message));
+              source.subscribe(handler);
+              subscriptions.push({ source, handler });
+            }
+          });
+
+          if (subscriptions.length > 0) {
+            return () => {
+              subscriptions.forEach(({ source, handler }) => {
+                if (source && typeof source.unsubscribe === "function") {
+                  source.unsubscribe(handler);
+                }
+              });
+            };
+          }
+
+          const legacyHandler = (evt) => onMessage(evt.detail || {});
+          document.addEventListener("sdpi:message", legacyHandler);
+          return () =>
+            document.removeEventListener("sdpi:message", legacyHandler);
         }
 
         function setupListeners() {
@@ -210,7 +266,7 @@
             return;
           }
 
-          client.on?.("sendToPropertyInspector", (payload) => {
+          subscribePluginMessages(client, (payload) => {
             if (!payload || typeof payload !== "object") return;
             if (payload.event === "colorPalettes") {
               renderPalettes(payload.items || []);
