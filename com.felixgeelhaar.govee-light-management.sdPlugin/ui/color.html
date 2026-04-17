@@ -6,6 +6,53 @@
     <link rel="stylesheet" href="./css/main.css" />
     <script src="./js/sdpi-components.js"></script>
     <script src="./js/setup.js"></script>
+    <style>
+      .palette-section {
+        margin-top: 8px;
+      }
+      .palette-label {
+        font-size: 11px;
+        color: #999;
+        margin-bottom: 4px;
+        display: block;
+      }
+      .palette-swatches {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        padding: 4px 0;
+      }
+      .color-swatch {
+        width: 22px;
+        height: 22px;
+        border-radius: 3px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        cursor: pointer;
+        transition: transform 0.1s;
+      }
+      .color-swatch:hover {
+        transform: scale(1.1);
+        border-color: rgba(255, 255, 255, 0.6);
+      }
+      .palette-group {
+        margin-bottom: 8px;
+      }
+      .palette-empty {
+        font-size: 11px;
+        color: #666;
+        font-style: italic;
+      }
+      .clear-recent {
+        font-size: 10px;
+        color: #888;
+        cursor: pointer;
+        text-decoration: underline;
+        margin-left: 8px;
+      }
+      .clear-recent:hover {
+        color: #ccc;
+      }
+    </style>
   </head>
   <body>
     <div id="settings" class="hidden">
@@ -21,6 +68,21 @@
 
       <sdpi-item label="Color">
         <sdpi-color setting="colorValue"></sdpi-color>
+      </sdpi-item>
+
+      <sdpi-item label="Presets">
+        <div id="palettesContainer" class="palette-section">
+          <div class="palette-empty">Loading palettes...</div>
+        </div>
+      </sdpi-item>
+
+      <sdpi-item label="Recent">
+        <div id="recentContainer" class="palette-section">
+          <div class="palette-empty">
+            No recent colors yet
+            <span id="clearRecent" class="clear-recent hidden">Clear</span>
+          </div>
+        </div>
       </sdpi-item>
 
       <div id="groupManager"></div>
@@ -49,5 +111,121 @@
         </ol>
       </sdpi-item>
     </div>
+
+    <script>
+      (function () {
+        const palettesContainer = document.getElementById("palettesContainer");
+        const recentContainer = document.getElementById("recentContainer");
+        const clearRecentBtn = document.getElementById("clearRecent");
+
+        function createSwatch(hex, name) {
+          const swatch = document.createElement("div");
+          swatch.className = "color-swatch";
+          swatch.style.backgroundColor = hex;
+          swatch.title = `${name} (${hex})`;
+          swatch.dataset.hex = hex;
+          swatch.dataset.name = name;
+          swatch.addEventListener("click", () => applyColor(hex, name));
+          return swatch;
+        }
+
+        function applyColor(hex, name) {
+          if (window.SDPIComponents?.streamDeckClient) {
+            const client = window.SDPIComponents.streamDeckClient;
+            client.setSettings({ colorValue: hex, colorName: name });
+          }
+        }
+
+        function renderPalettes(palettes) {
+          palettesContainer.innerHTML = "";
+          palettes.forEach((palette) => {
+            const group = document.createElement("div");
+            group.className = "palette-group";
+
+            const label = document.createElement("span");
+            label.className = "palette-label";
+            label.textContent = palette.name;
+            group.appendChild(label);
+
+            const swatches = document.createElement("div");
+            swatches.className = "palette-swatches";
+            palette.colors.forEach((color) => {
+              swatches.appendChild(createSwatch(color.hex, color.name));
+            });
+            group.appendChild(swatches);
+
+            palettesContainer.appendChild(group);
+          });
+        }
+
+        function renderRecent(colors) {
+          recentContainer.innerHTML = "";
+          if (colors.length === 0) {
+            const empty = document.createElement("div");
+            empty.className = "palette-empty";
+            empty.textContent = "No recent colors yet";
+            recentContainer.appendChild(empty);
+            return;
+          }
+
+          const swatches = document.createElement("div");
+          swatches.className = "palette-swatches";
+          colors.forEach((color) => {
+            swatches.appendChild(createSwatch(color.hex, color.name));
+          });
+          recentContainer.appendChild(swatches);
+
+          const clearLink = document.createElement("span");
+          clearLink.className = "clear-recent";
+          clearLink.textContent = "Clear all";
+          clearLink.addEventListener("click", clearRecentColors);
+          recentContainer.appendChild(clearLink);
+        }
+
+        function requestPalettes() {
+          const client = window.SDPIComponents?.streamDeckClient;
+          if (client) {
+            client.send({ event: "getColorPalettes" });
+          }
+        }
+
+        function requestRecent() {
+          const client = window.SDPIComponents?.streamDeckClient;
+          if (client) {
+            client.send({ event: "getRecentColors" });
+          }
+        }
+
+        function clearRecentColors() {
+          const client = window.SDPIComponents?.streamDeckClient;
+          if (client) {
+            client.send({ event: "clearRecentColors" });
+          }
+        }
+
+        function setupListeners() {
+          const client = window.SDPIComponents?.streamDeckClient;
+          if (!client) {
+            setTimeout(setupListeners, 100);
+            return;
+          }
+
+          client.on?.("sendToPropertyInspector", (payload) => {
+            if (!payload || typeof payload !== "object") return;
+            if (payload.event === "colorPalettes") {
+              renderPalettes(payload.items || []);
+            } else if (payload.event === "recentColors") {
+              renderRecent(payload.items || []);
+            }
+          });
+
+          requestPalettes();
+          requestRecent();
+        }
+
+        document.addEventListener("DOMContentLoaded", setupListeners);
+        if (document.readyState !== "loading") setupListeners();
+      })();
+    </script>
   </body>
 </html>
