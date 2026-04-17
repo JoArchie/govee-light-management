@@ -15,6 +15,7 @@ import { SnapshotAction } from "./actions/SnapshotAction";
 import { MusicModeAction } from "./actions/MusicModeAction";
 import { ToggleAction } from "./actions/ToggleAction";
 import { ScheduleAction } from "./actions/ScheduleAction";
+import { SequenceAction } from "./actions/SequenceAction";
 import { schedulerService } from "./services/SchedulerService";
 
 streamDeck.logger.setLevel("info");
@@ -30,6 +31,7 @@ streamDeck.actions.registerAction(new SnapshotAction());
 streamDeck.actions.registerAction(new MusicModeAction());
 streamDeck.actions.registerAction(new ToggleAction());
 streamDeck.actions.registerAction(new ScheduleAction());
+streamDeck.actions.registerAction(new SequenceAction());
 
 // Encoder actions (Stream Deck+)
 streamDeck.actions.registerAction(new BrightnessDialAction());
