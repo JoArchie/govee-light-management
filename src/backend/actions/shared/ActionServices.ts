@@ -569,7 +569,7 @@ export class ActionServices {
   ): Promise<void> {
     try {
       const apiKey = await globalSettingsService.getApiKey();
-      if (!apiKey || !selectedDeviceId || !this.deviceService) {
+      if (!apiKey || !selectedDeviceId) {
         await sendToPI(actionId, {
           event: "deviceDebug",
           selectedDeviceId,
@@ -579,6 +579,14 @@ export class ActionServices {
       }
 
       await this.ensureServices(apiKey);
+      if (!this.deviceService) {
+        await sendToPI(actionId, {
+          event: "deviceDebug",
+          selectedDeviceId,
+          device: null,
+        });
+        return;
+      }
       const lights = await withTimeout(
         this.deviceService.discover(true),
         PI_HANDLER_TIMEOUT_MS,
