@@ -131,7 +131,12 @@ export class SnapshotAction extends SingletonAction<SnapshotSettings> {
         await this.services.handleRefreshState();
         break;
       case "getSnapshots": {
-        const settings = await ev.action.getSettings();
+        const settings = {
+          ...(await ev.action.getSettings()),
+          ...(typeof ev.payload.selectedDeviceId === "string"
+            ? { selectedDeviceId: ev.payload.selectedDeviceId }
+            : {}),
+        };
         await this.handleGetSnapshots(ev.action.id, settings);
         break;
       }

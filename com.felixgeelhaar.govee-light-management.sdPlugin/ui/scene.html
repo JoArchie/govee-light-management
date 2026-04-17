@@ -56,41 +56,78 @@
     </div>
 
     <script>
-      document.addEventListener("DOMContentLoaded", () => {
+      function setupDependentRefresh() {
+        if (window.__goveeSceneDependentRefreshSetup) {
+          return;
+        }
+        window.__goveeSceneDependentRefreshSetup = true;
+
         const deviceSelect = document.getElementById("deviceSelect");
         const sceneSelect = document.getElementById("sceneSelect");
-        const client =
-          typeof SDPIComponents !== "undefined"
-            ? SDPIComponents.streamDeckClient
-            : null;
+        const client = window.SDPIComponents?.streamDeckClient;
+        let currentSettings = {};
+        let refreshTimer = null;
+        let lastDeviceId = "";
 
-        const sendPluginMessage = (payload) => {
-          if (client && typeof client.sendToPlugin === "function") {
-            client.sendToPlugin(payload);
+        function getSelectedDeviceId() {
+          return (
+            deviceSelect?.shadowRoot?.querySelector("select")?.value ||
+            deviceSelect?.value ||
+            currentSettings.selectedDeviceId ||
+            ""
+          );
+        }
+
+        function getSelectedDeviceLabel() {
+          const nativeSelect = deviceSelect?.shadowRoot?.querySelector("select");
+          return nativeSelect?.selectedOptions?.[0]?.innerText?.trim() || "";
+        }
+
+        function clearSceneSelection() {
+          sceneSelect.value = "";
+          const nativeSelect = sceneSelect?.shadowRoot?.querySelector("select");
+          if (nativeSelect) {
+            nativeSelect.value = "";
+          }
+        }
+
+        function queueRefresh(delay = 120) {
+          if (refreshTimer) {
+            clearTimeout(refreshTimer);
+          }
+
+          refreshTimer = setTimeout(() => {
+            refreshTimer = null;
+            if (sceneSelect?.refresh) {
+              sceneSelect.refresh();
+            }
+          }, delay);
+        }
+
+        async function syncForCurrentDevice() {
+          const selectedDeviceId = getSelectedDeviceId();
+          if (!selectedDeviceId) {
+            lastDeviceId = "";
+            clearSceneSelection();
             return;
           }
 
-          if (client && typeof client.send === "function") {
-            client.send("sendToPlugin", payload);
-            return;
-          }
-        };
-
-        const refreshScenes = () => {
-          const selectedDeviceId = deviceSelect ? deviceSelect.value || "" : "";
-
-          if (client) {
-            sendPluginMessage({
-              event: "getScenes",
+          if (selectedDeviceId !== lastDeviceId && client?.setSettings) {
+            lastDeviceId = selectedDeviceId;
+            currentSettings = {
+              ...currentSettings,
               selectedDeviceId,
-            });
-            return;
+              selectedLightName: getSelectedDeviceLabel(),
+              selectedScene: "",
+            };
+            clearSceneSelection();
+            await client.setSettings(currentSettings);
+          } else {
+            lastDeviceId = selectedDeviceId;
           }
 
-          if (sceneSelect && sceneSelect.refresh) {
-            sceneSelect.refresh();
-          }
-        };
+          queueRefresh();
+        }
 
         window.GoveePI.attachFieldStatus(sceneSelect, "getScenes", {
           emptyMsg: "This device has no dynamic scenes available.",
@@ -98,20 +135,39 @@
             "Couldn't load scenes. Check your connection and try again.",
         });
 
-        // When device changes, refresh the scene list
-        deviceSelect.addEventListener("valuechange", refreshScenes);
-        deviceSelect.addEventListener("change", refreshScenes);
-        deviceSelect.addEventListener("input", refreshScenes);
-
-        if (client && client.didReceiveSettings) {
+        if (client?.didReceiveSettings?.subscribe) {
           client.didReceiveSettings.subscribe((msg) => {
-            const selectedDeviceId = msg?.payload?.settings?.selectedDeviceId;
-            if (selectedDeviceId) {
-              refreshScenes();
+            currentSettings = msg?.payload?.settings || {};
+            const selectedDeviceId =
+              typeof currentSettings.selectedDeviceId === "string"
+                ? currentSettings.selectedDeviceId
+                : "";
+
+            if (!selectedDeviceId) {
+              lastDeviceId = "";
+              clearSceneSelection();
+              return;
+            }
+
+            if (selectedDeviceId !== lastDeviceId) {
+              lastDeviceId = selectedDeviceId;
+              clearSceneSelection();
+              queueRefresh();
             }
           });
         }
-      });
+
+        ["valuechange", "change", "input"].forEach((eventName) => {
+          deviceSelect.addEventListener(eventName, () => {
+            void syncForCurrentDevice();
+          });
+        });
+
+        void syncForCurrentDevice();
+      }
+
+      document.addEventListener("DOMContentLoaded", setupDependentRefresh);
+      if (document.readyState !== "loading") setupDependentRefresh();
     </script>
   </body>
 </html>

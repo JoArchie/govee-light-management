@@ -128,7 +128,12 @@ export class MusicModeAction extends SingletonAction<MusicModeSettings> {
         await this.services.handleRefreshState();
         break;
       case "getMusicModes": {
-        const settings = await ev.action.getSettings();
+        const settings = {
+          ...(await ev.action.getSettings()),
+          ...(typeof ev.payload.selectedDeviceId === "string"
+            ? { selectedDeviceId: ev.payload.selectedDeviceId }
+            : {}),
+        };
         await this.handleGetMusicModes(ev.action.id, settings);
         break;
       }

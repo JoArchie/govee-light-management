@@ -25,9 +25,9 @@
         <sdpi-select
           id="modeSelect"
           setting="selectedMode"
+          placeholder="Select a device first"
           datasource="getMusicModes"
           show-refresh
-          placeholder="Select a device first"
         ></sdpi-select>
       </sdpi-item>
 
@@ -72,9 +72,86 @@
     </div>
 
     <script>
-      document.addEventListener("DOMContentLoaded", () => {
+      function setupDependentRefresh() {
+        if (window.__goveeMusicModeDependentRefreshSetup) {
+          return;
+        }
+        window.__goveeMusicModeDependentRefreshSetup = true;
+
         const deviceSelect = document.getElementById("deviceSelect");
         const modeSelect = document.getElementById("modeSelect");
+        const client = window.SDPIComponents?.streamDeckClient;
+        let currentSettings = {};
+        let refreshTimer = null;
+        let lastDeviceId = "";
+
+        function getSelectedDeviceId() {
+          return (
+            deviceSelect?.shadowRoot?.querySelector("select")?.value ||
+            deviceSelect?.value ||
+            currentSettings.selectedDeviceId ||
+            ""
+          );
+        }
+
+        function getSelectedDeviceLabel() {
+          const nativeSelect = deviceSelect?.shadowRoot?.querySelector("select");
+          return nativeSelect?.selectedOptions?.[0]?.innerText?.trim() || "";
+        }
+
+        function clearModeSelection() {
+          modeSelect.value = "";
+          const nativeSelect = modeSelect?.shadowRoot?.querySelector("select");
+          if (nativeSelect) {
+            nativeSelect.value = "";
+          }
+        }
+
+        function queueRefresh(delay = 120) {
+          if (refreshTimer) {
+            clearTimeout(refreshTimer);
+          }
+
+          refreshTimer = setTimeout(() => {
+            refreshTimer = null;
+            if (modeSelect?.refresh) {
+              modeSelect.refresh();
+            }
+          }, delay);
+        }
+
+        async function persistDeviceSelection(selectedDeviceId) {
+          if (!client?.setSettings) {
+            return;
+          }
+
+          const nextSettings = {
+            ...currentSettings,
+            selectedDeviceId,
+            selectedLightName: getSelectedDeviceLabel(),
+            selectedMode: "",
+          };
+
+          currentSettings = nextSettings;
+          clearModeSelection();
+          await client.setSettings(nextSettings);
+        }
+
+        async function syncForCurrentDevice() {
+          const selectedDeviceId = getSelectedDeviceId();
+          if (!selectedDeviceId) {
+            lastDeviceId = "";
+            clearModeSelection();
+            return;
+          }
+
+          if (selectedDeviceId !== lastDeviceId) {
+            lastDeviceId = selectedDeviceId;
+            await persistDeviceSelection(selectedDeviceId);
+          }
+
+          queueRefresh();
+        }
 
         window.GoveePI.attachFieldStatus(modeSelect, "getMusicModes", {
           emptyMsg: "This device doesn't support music modes.",
@@ -82,13 +159,39 @@
             "Couldn't load music modes. Check your connection and try again.",
         });
 
-        // When device changes, refresh the music modes list
-        deviceSelect.addEventListener("valuechange", () => {
-          if (modeSelect && modeSelect.refresh) {
-            modeSelect.refresh();
-          }
+        if (client?.didReceiveSettings?.subscribe) {
+          client.didReceiveSettings.subscribe((msg) => {
+            currentSettings = msg?.payload?.settings || {};
+            const selectedDeviceId =
+              typeof currentSettings.selectedDeviceId === "string"
+                ? currentSettings.selectedDeviceId
+                : "";
+
+            if (!selectedDeviceId) {
+              lastDeviceId = "";
+              clearModeSelection();
+              return;
+            }
+
+            if (selectedDeviceId !== lastDeviceId) {
+              lastDeviceId = selectedDeviceId;
+              clearModeSelection();
+              queueRefresh();
+            }
+          });
+        }
+
+        ["valuechange", "change", "input"].forEach((eventName) => {
+          deviceSelect.addEventListener(eventName, () => {
+            void syncForCurrentDevice();
+          });
         });
-      });
+
+        void syncForCurrentDevice();
+      }
+
+      document.addEventListener("DOMContentLoaded", setupDependentRefresh);
+      if (document.readyState !== "loading") setupDependentRefresh();
     </script>
   </body>
 </html>
