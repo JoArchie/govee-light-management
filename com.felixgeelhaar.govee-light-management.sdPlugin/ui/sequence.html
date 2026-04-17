@@ -14,7 +14,8 @@
         margin: 8px 0;
       }
       .step-item {
-        display: flex;
+        display: grid;
+        grid-template-columns: 20px 18px minmax(0, 1fr) 16px 16px 16px;
         align-items: center;
         gap: 6px;
         padding: 6px 8px;
@@ -24,21 +25,25 @@
         font-size: 12px;
       }
       .step-index {
-        width: 18px;
         text-align: center;
         color: #888;
       }
       .step-icon {
-        width: 16px;
         text-align: center;
       }
       .step-label {
-        flex: 1;
+        min-width: 0;
+        line-height: 1.35;
+        overflow-wrap: anywhere;
       }
       .step-remove {
         cursor: pointer;
         color: #ff6666;
-        padding: 0 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 16px;
+        height: 16px;
       }
       .step-remove:hover {
         color: #ff3333;
@@ -46,7 +51,11 @@
       .step-move {
         cursor: pointer;
         color: #666;
-        padding: 0 2px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 16px;
+        height: 16px;
         user-select: none;
       }
       .step-move:hover {
@@ -65,13 +74,32 @@
         margin-bottom: 6px;
       }
       .builder-row label {
-        font-size: 11px;
-        color: #aaa;
+        color: #d8d8d8;
+        font-family: var(--font-family);
+        font-size: 12px;
+        line-height: 1.2;
         min-width: 60px;
       }
-      .builder-row select,
+      .builder-row sdpi-select,
       .builder-row input {
         flex: 1;
+      }
+      .builder-row input {
+        min-height: 28px;
+        padding: 0 8px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.06);
+        color: #f5f5f5;
+        font: inherit;
+        font-size: 12px;
+        line-height: 1.2;
+        box-sizing: border-box;
+      }
+      .builder-row input:focus {
+        outline: none;
+        border-color: rgba(255, 255, 255, 0.3);
+        background: rgba(255, 255, 255, 0.08);
       }
       .builder-actions {
         display: flex;
@@ -106,25 +134,30 @@
       <div class="builder">
         <div class="builder-row">
           <label>Type</label>
-          <select id="stepType">
+          <sdpi-select id="stepType" placeholder="" default="action">
             <option value="action">Action</option>
             <option value="delay">Delay</option>
-          </select>
+          </sdpi-select>
         </div>
 
         <div id="actionBuilder">
           <div class="builder-row">
             <label>Light</label>
-            <select id="stepDevice" datasource="getDevices"></select>
+            <sdpi-select
+              id="stepDevice"
+              placeholder=""
+              datasource="getDevices"
+              show-refresh
+            ></sdpi-select>
           </div>
           <div class="builder-row">
             <label>Command</label>
-            <select id="stepCommand">
+            <sdpi-select id="stepCommand" placeholder="" default="on">
               <option value="on">Turn On</option>
               <option value="off">Turn Off</option>
               <option value="toggle">Toggle</option>
               <option value="brightness">Set Brightness</option>
-            </select>
+            </sdpi-select>
           </div>
           <div class="builder-row" id="valueRow" style="display: none">
             <label>Value</label>
@@ -141,14 +174,14 @@
 
         <div id="delayBuilder" style="display: none">
           <div class="builder-row">
-            <label>Duration (ms)</label>
+            <label>Duration (s)</label>
             <input
               id="stepDuration"
               type="number"
-              min="100"
-              max="300000"
-              step="100"
-              placeholder="e.g. 1000"
+              min="1"
+              max="300"
+              step="1"
+              placeholder="e.g. 5"
             />
           </div>
         </div>
@@ -192,7 +225,6 @@
 
         let currentSettings = {};
         let client = null;
-        let devices = [];
 
         function ensureId(settings) {
           if (!settings.sequenceId) {
@@ -229,11 +261,10 @@
 
         function labelFor(step) {
           if (step.type === "delay") {
-            return `Wait ${step.durationMs}ms`;
+            return `Wait ${formatDelaySeconds(step.durationMs)}s`;
           }
-          const device = devices.find((d) => d.value === step.targetId);
-          const deviceName = device?.label || step.targetId;
-          let cmd = step.command;
+          const deviceName = step.targetName || step.targetId;
+          let cmd = step.commandLabel || step.command;
           if (step.commandValue !== undefined) {
             cmd += ` → ${step.commandValue}`;
           }
@@ -246,22 +277,44 @@
           renderSteps();
         }
 
+        function getSdpiSelectLabel(select) {
+          const nativeSelect = select?.shadowRoot?.querySelector("select");
+          return nativeSelect?.selectedOptions?.[0]?.text?.trim() || "";
+        }
+
+        function getSdpiSelectValue(select) {
+          return (
+            select?.shadowRoot?.querySelector("select")?.value ||
+            select?.value ||
+            select?.getAttribute?.("value") ||
+            select?.getAttribute?.("default") ||
+            ""
+          );
+        }
+
+        function formatDelaySeconds(durationMs) {
+          const seconds = durationMs / 1000;
+          return Number.isInteger(seconds) ? seconds : seconds.toFixed(1);
+        }
+
         function addStep() {
-          const type = stepType.value;
+          const type = getSdpiSelectValue(stepType);
           let step;
           if (type === "delay") {
-            const duration = parseInt(stepDuration.value, 10);
-            if (isNaN(duration) || duration < 100) return;
-            step = { type: "delay", durationMs: duration };
+            const durationSeconds = parseInt(stepDuration.value, 10);
+            if (isNaN(durationSeconds) || durationSeconds < 1) return;
+            step = { type: "delay", durationMs: durationSeconds * 1000 };
           } else {
             const targetId = stepDevice.value;
-            const command = stepCommand.value;
+            const command = getSdpiSelectValue(stepCommand);
             if (!targetId || !command) return;
             step = {
               type: "action",
               targetId,
+              targetName: getSdpiSelectLabel(stepDevice),
               targetType: targetId.startsWith("group:") ? "group" : "light",
               command,
+              commandLabel: getSdpiSelectLabel(stepCommand),
             };
             if (command === "brightness") {
               const val = parseInt(stepValue.value, 10);
@@ -289,26 +342,23 @@
         }
 
         function updateVisibility() {
-          actionBuilder.style.display = stepType.value === "action" ? "" : "none";
-          delayBuilder.style.display = stepType.value === "delay" ? "" : "none";
-          valueRow.style.display = stepCommand.value === "brightness" ? "" : "none";
-        }
-
-        function onDevicesReceived(items) {
-          devices = items || [];
-          stepDevice.innerHTML = "";
-          devices.forEach((d) => {
-            const opt = document.createElement("option");
-            opt.value = d.value;
-            opt.textContent = d.label;
-            stepDevice.appendChild(opt);
-          });
-          renderSteps();
+          const type = getSdpiSelectValue(stepType);
+          const command = getSdpiSelectValue(stepCommand);
+          actionBuilder.style.display = type === "action" ? "" : "none";
+          delayBuilder.style.display = type === "delay" ? "" : "none";
+          valueRow.style.display = command === "brightness" ? "" : "none";
         }
 
         function onSettingsReceived(settings) {
           currentSettings = ensureId({ ...settings });
           renderSteps();
+          updateVisibility();
+        }
+
+        function bindSelectChange(select, handler) {
+          select.addEventListener("change", handler);
+          select.addEventListener("input", handler);
+          select.addEventListener("valuechange", handler);
         }
 
         function bind() {
@@ -318,20 +368,12 @@
             return;
           }
 
-          client.on?.("didReceiveSettings", (msg) => {
+          client.didReceiveSettings?.subscribe?.((msg) => {
             onSettingsReceived(msg?.payload?.settings || {});
           });
 
-          client.on?.("sendToPropertyInspector", (payload) => {
-            if (payload?.event === "getDevices") {
-              onDevicesReceived(payload.items);
-            }
-          });
-
-          client.send?.({ event: "getDevices" });
-
-          stepType.addEventListener("change", updateVisibility);
-          stepCommand.addEventListener("change", updateVisibility);
+          bindSelectChange(stepType, updateVisibility);
+          bindSelectChange(stepCommand, updateVisibility);
           addStepBtn.addEventListener("click", addStep);
           clearBtn.addEventListener("click", () => {
             currentSettings.steps = [];
@@ -348,6 +390,8 @@
           });
 
           updateVisibility();
+          setTimeout(updateVisibility, 0);
+          setTimeout(updateVisibility, 100);
         }
 
         document.addEventListener("DOMContentLoaded", bind);
