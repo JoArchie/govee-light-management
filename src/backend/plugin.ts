@@ -14,6 +14,8 @@ import { SceneAction } from "./actions/SceneAction";
 import { SnapshotAction } from "./actions/SnapshotAction";
 import { MusicModeAction } from "./actions/MusicModeAction";
 import { ToggleAction } from "./actions/ToggleAction";
+import { ScheduleAction } from "./actions/ScheduleAction";
+import { schedulerService } from "./services/SchedulerService";
 
 streamDeck.logger.setLevel("info");
 
@@ -27,6 +29,7 @@ streamDeck.actions.registerAction(new SceneAction());
 streamDeck.actions.registerAction(new SnapshotAction());
 streamDeck.actions.registerAction(new MusicModeAction());
 streamDeck.actions.registerAction(new ToggleAction());
+streamDeck.actions.registerAction(new ScheduleAction());
 
 // Encoder actions (Stream Deck+)
 streamDeck.actions.registerAction(new BrightnessDialAction());
@@ -36,6 +39,11 @@ streamDeck.actions.registerAction(new SaturationDialAction());
 streamDeck.actions.registerAction(new SegmentColorDialAction());
 
 streamDeck.connect();
+
+// Initialize background services after connection
+void schedulerService.initialize().catch((error) => {
+  streamDeck.logger.error("Failed to initialize scheduler:", error);
+});
 
 streamDeck.logger.info(
   "Govee Light Management plugin initialized successfully",

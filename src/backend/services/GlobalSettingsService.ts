@@ -7,6 +7,7 @@ export interface GlobalPluginSettings {
   apiKeyLastValidated?: number;
   pluginVersion?: string;
   recentColors?: Array<{ hex: string; name: string }>;
+  scheduledActions?: unknown[];
   [key: string]: unknown;
 }
 
@@ -73,6 +74,20 @@ export class GlobalSettingsService {
     const updated: GlobalPluginSettings = {
       ...settings,
       recentColors: colors,
+    };
+    await this.save(updated);
+  }
+
+  async getScheduledActions(): Promise<unknown[]> {
+    const settings = await this.getSettings();
+    return settings.scheduledActions ?? [];
+  }
+
+  async setScheduledActions(actions: unknown[]): Promise<void> {
+    const settings = await this.getSettings();
+    const updated: GlobalPluginSettings = {
+      ...settings,
+      scheduledActions: actions,
     };
     await this.save(updated);
   }
