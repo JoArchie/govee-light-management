@@ -160,6 +160,20 @@
       ]
     },
     {
+      "Name": "Custom Effect",
+      "UUID": "com.felixgeelhaar.govee-light-management.custom-effect",
+      "Icon": "imgs/actions/segment-color/icon",
+      "Tooltip": "Play a custom RGB animation effect on an IC strip",
+      "PropertyInspectorPath": "ui/custom-effect.html",
+      "Controllers": ["Keypad"],
+      "States": [
+        {
+          "Image": "imgs/actions/segment-color/key",
+          "TitleAlignment": "bottom"
+        }
+      ]
+    },
+    {
       "Name": "Brightness Dial",
       "UUID": "com.felixgeelhaar.govee-light-management.brightness-dial",
       "Icon": "imgs/actions/brightness-dial/icon",
