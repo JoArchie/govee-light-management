@@ -96,7 +96,7 @@ export class CapabilityRegistry {
   }
 
   static hasCapability(light: Light, key: CapabilityKey): boolean {
-    const caps = light.capabilities as Record<string, boolean>;
+    const caps = light.capabilities as unknown as Record<string, boolean>;
     return caps[key] === true;
   }
 
