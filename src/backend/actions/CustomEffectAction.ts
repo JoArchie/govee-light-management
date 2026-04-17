@@ -8,7 +8,11 @@ import {
   streamDeck,
 } from "@elgato/streamdeck";
 import type { JsonValue } from "@elgato/utils";
-import { ActionServices, type BaseSettings } from "./shared/ActionServices";
+import {
+  ActionServices,
+  sendToPI,
+  type BaseSettings,
+} from "./shared/ActionServices";
 import { effectService } from "../services/EffectService";
 
 type CustomEffectSettings = BaseSettings & {
@@ -97,30 +101,7 @@ export class CustomEffectAction extends SingletonAction<CustomEffectSettings> {
       value: e.id,
       label: e.name,
     }));
-
-    const MAX_ATTEMPTS = 20;
-    const RETRY_DELAY_MS = 25;
-    let contextMatched = false;
-
-    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-      if (streamDeck.ui.action?.id === actionId) {
-        contextMatched = true;
-        break;
-      }
-
-      if (attempt < MAX_ATTEMPTS - 1) {
-        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
-      }
-    }
-
-    if (!contextMatched) {
-      streamDeck.logger.warn(
-        `PI context mismatch for getEffects (expected: ${actionId}, current: ${streamDeck.ui.action?.id ?? "none"})`,
-      );
-      return;
-    }
-
-    await streamDeck.ui.sendToPropertyInspector({
+    await sendToPI(actionId, {
       event: "getEffects",
       items: effects,
     });
