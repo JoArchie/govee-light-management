@@ -83,7 +83,7 @@ export class ToggleAction extends SingletonAction<ToggleSettings> {
 
     await this.services.ensureServices(apiKey);
     const target = await this.services.resolveTarget(settings);
-    if (!target || target.type !== "light" || !target.light) {
+    if (!target) {
       await ev.action.showAlert();
       return;
     }
@@ -105,17 +105,24 @@ export class ToggleAction extends SingletonAction<ToggleSettings> {
 
       let enabled: boolean;
       if (operation === "toggle") {
+        // For toggle mode, read live state from the first available light.
         let liveState: boolean | undefined;
-        try {
-          liveState = await this.services.getToggleFeatureState(
-            target.light,
-            parsed.instance,
-          );
-        } catch (error) {
-          streamDeck.logger.warn(
-            `Falling back to cached toggle state for ${parsed.instance}:`,
-            error,
-          );
+        const queryLight =
+          target.type === "light"
+            ? target.light
+            : target.group?.getControllableLights()[0];
+        if (queryLight) {
+          try {
+            liveState = await this.services.getToggleFeatureState(
+              queryLight,
+              parsed.instance,
+            );
+          } catch (error) {
+            streamDeck.logger.warn(
+              `Falling back to cached toggle state for ${parsed.instance}:`,
+              error,
+            );
+          }
         }
         const currentState = liveState ?? originalState;
         enabled = !currentState;
@@ -128,11 +135,28 @@ export class ToggleAction extends SingletonAction<ToggleSettings> {
 
       const stopSpinner = this.services.showSpinner(ev.action);
       try {
-        await this.services.toggleFeatureRaw(
-          target.light,
-          parsed.instance,
-          enabled,
-        );
+        if (target.type === "light" && target.light) {
+          await this.services.toggleFeatureRaw(
+            target.light,
+            parsed.instance,
+            enabled,
+          );
+        } else if (target.type === "group" && target.group) {
+          for (const light of target.group.getControllableLights()) {
+            try {
+              await this.services.toggleFeatureRaw(
+                light,
+                parsed.instance,
+                enabled,
+              );
+            } catch (error) {
+              streamDeck.logger.warn(
+                `Toggle ${parsed.instance} failed for group member ${light.name}:`,
+                error,
+              );
+            }
+          }
+        }
       } finally {
         stopSpinner();
       }
@@ -199,7 +223,20 @@ export class ToggleAction extends SingletonAction<ToggleSettings> {
       }
 
       await this.services.ensureServices(apiKey);
-      const features = await this.services.getToggleFeatures(deviceId);
+
+      // For groups, query toggle features from the first controllable member.
+      const target = await this.services.resolveTarget({
+        selectedDeviceId: deviceId,
+      });
+      let queryDeviceId = deviceId;
+      if (target?.type === "group" && target.group) {
+        const first = target.group.getControllableLights()[0];
+        if (first) {
+          queryDeviceId = `light:${first.deviceId}|${first.model}`;
+        }
+      }
+
+      const features = await this.services.getToggleFeatures(queryDeviceId);
       await sendToPI(actionId, {
         event: "getToggleFeatures",
         items: features.map((f) => ({
