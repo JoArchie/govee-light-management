@@ -59,13 +59,52 @@
       document.addEventListener("DOMContentLoaded", () => {
         const deviceSelect = document.getElementById("deviceSelect");
         const sceneSelect = document.getElementById("sceneSelect");
+        const client =
+          typeof SDPIComponents !== "undefined"
+            ? SDPIComponents.streamDeckClient
+            : null;
 
-        // When device changes, refresh the scene list
-        deviceSelect.addEventListener("valuechange", () => {
+        const sendPluginMessage = (payload) => {
+          if (client && typeof client.sendToPlugin === "function") {
+            client.sendToPlugin(payload);
+            return;
+          }
+
+          if (client && typeof client.send === "function") {
+            client.send("sendToPlugin", payload);
+            return;
+          }
+        };
+
+        const refreshScenes = () => {
+          const selectedDeviceId = deviceSelect ? deviceSelect.value || "" : "";
+
+          if (client) {
+            sendPluginMessage({
+              event: "getScenes",
+              selectedDeviceId,
+            });
+            return;
+          }
+
           if (sceneSelect && sceneSelect.refresh) {
             sceneSelect.refresh();
           }
-        });
+        };
+
+        // When device changes, refresh the scene list
+        deviceSelect.addEventListener("valuechange", refreshScenes);
+        deviceSelect.addEventListener("change", refreshScenes);
+        deviceSelect.addEventListener("input", refreshScenes);
+
+        if (client && client.didReceiveSettings) {
+          client.didReceiveSettings.subscribe((msg) => {
+            const selectedDeviceId = msg?.payload?.settings?.selectedDeviceId;
+            if (selectedDeviceId) {
+              refreshScenes();
+            }
+          });
+        }
       });
     </script>
   </body>

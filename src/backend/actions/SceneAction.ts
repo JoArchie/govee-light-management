@@ -9,7 +9,7 @@ import {
   streamDeck,
 } from "@elgato/streamdeck";
 import type { JsonValue } from "@elgato/utils";
-import { LightScene } from "@felixgeelhaar/govee-api-client";
+import { DiyScene, LightScene } from "@felixgeelhaar/govee-api-client";
 import {
   ActionServices,
   sendToPI,
@@ -67,19 +67,44 @@ export class SceneAction extends SingletonAction<SceneSettings> {
 
     try {
       const parsed = JSON.parse(settings.selectedScene) as {
+        kind?: "dynamic" | "diy";
         id: number;
         paramId: number;
         name: string;
       };
-      const scene = new LightScene(parsed.id, parsed.paramId, parsed.name);
+      const sceneKind = parsed.kind === "diy" ? "diy" : "dynamic";
       const stopSpinner = this.services.showSpinner(ev.action);
       try {
         if (target.type === "light" && target.light) {
-          await this.services.applyDynamicScene(target.light, scene);
+          if (sceneKind === "diy") {
+            const scene = new DiyScene(parsed.id, parsed.paramId, parsed.name);
+            await this.services.applyDiyScene(target.light, scene);
+          } else {
+            const scene = new LightScene(
+              parsed.id,
+              parsed.paramId,
+              parsed.name,
+            );
+            await this.services.applyDynamicScene(target.light, scene);
+          }
         } else if (target.type === "group" && target.group) {
           for (const light of target.group.getControllableLights()) {
             try {
-              await this.services.applyDynamicScene(light, scene);
+              if (sceneKind === "diy") {
+                const scene = new DiyScene(
+                  parsed.id,
+                  parsed.paramId,
+                  parsed.name,
+                );
+                await this.services.applyDiyScene(light, scene);
+              } else {
+                const scene = new LightScene(
+                  parsed.id,
+                  parsed.paramId,
+                  parsed.name,
+                );
+                await this.services.applyDynamicScene(light, scene);
+              }
             } catch (error) {
               streamDeck.logger.warn(
                 `Scene apply failed for group member ${light.name}:`,
@@ -107,6 +132,14 @@ export class SceneAction extends SingletonAction<SceneSettings> {
       case "getDevices":
         await this.services.handleGetDevices(ev.action.id);
         break;
+      case "getDeviceDebug":
+        await this.services.handleGetDeviceDebug(
+          ev.action.id,
+          typeof ev.payload.selectedDeviceId === "string"
+            ? ev.payload.selectedDeviceId
+            : undefined,
+        );
+        break;
       case "getGroups":
         await this.services.handleGetGroups(ev.action.id);
         break;
@@ -121,7 +154,14 @@ export class SceneAction extends SingletonAction<SceneSettings> {
         break;
       case "getScenes": {
         const settings = await ev.action.getSettings();
-        await this.handleGetScenes(ev.action.id, settings);
+        const selectedDeviceId =
+          typeof ev.payload.selectedDeviceId === "string"
+            ? ev.payload.selectedDeviceId
+            : settings.selectedDeviceId;
+        await this.handleGetScenes(ev.action.id, {
+          ...settings,
+          selectedDeviceId,
+        });
         break;
       }
     }
@@ -165,13 +205,32 @@ export class SceneAction extends SingletonAction<SceneSettings> {
         return;
       }
 
-      const scenes = await this.services.getDynamicScenes(queryLight);
+      const [dynamicScenes, diyScenes] = await Promise.all([
+        this.services.getDynamicScenes(queryLight),
+        this.services.getDiyScenes(queryLight),
+      ]);
       await sendToPI(actionId, {
         event: "getScenes",
-        items: scenes.map((s) => ({
-          label: s.name,
-          value: JSON.stringify({ id: s.id, paramId: s.paramId, name: s.name }),
-        })),
+        items: [
+          ...dynamicScenes.map((s) => ({
+            label: s.name,
+            value: JSON.stringify({
+              kind: "dynamic",
+              id: s.id,
+              paramId: s.paramId,
+              name: s.name,
+            }),
+          })),
+          ...diyScenes.map((s) => ({
+            label: `${s.name} (DIY)`,
+            value: JSON.stringify({
+              kind: "diy",
+              id: s.id,
+              paramId: s.paramId,
+              name: s.name,
+            }),
+          })),
+        ],
       });
     } catch (error) {
       streamDeck.logger.error("Failed to fetch scenes:", error);
