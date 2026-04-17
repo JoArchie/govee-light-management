@@ -17,10 +17,10 @@ document.addEventListener("DOMContentLoaded", () => {
     colorTemp: document.getElementById("tempItem"),
   };
   const hasConditionalItems = Object.values(conditionalItems).some(Boolean);
-  let deviceDebugMap = {};
   let latestSettings = {};
-  let debugRefreshTimers = [];
-  let debugPollInterval = null;
+  let selectedDeviceDebug = null;
+  let selectedDeviceDebugId = "";
+  let pendingDeviceDebugId = "";
 
   function showPanel(isSetup) {
     if (isSetup) {
@@ -77,64 +77,57 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  function syncSelectedDeviceFromDom() {
-    const deviceSelect = document.querySelector(
-      'sdpi-select[setting="selectedDeviceId"]',
-    );
-    if (!deviceSelect) return;
-
-    const shadowSelect =
-      deviceSelect.shadowRoot &&
-      deviceSelect.shadowRoot.querySelector("select");
-    const value =
-      deviceSelect.value ||
-      deviceSelect.getAttribute("value") ||
-      deviceSelect.getAttribute("default-value") ||
-      (shadowSelect && shadowSelect.value) ||
-      (shadowSelect &&
-        shadowSelect.selectedOptions &&
-        shadowSelect.selectedOptions[0] &&
-        shadowSelect.selectedOptions[0].value);
-    if (typeof value === "string" && value.trim()) {
-      latestSettings = {
-        ...latestSettings,
-        selectedDeviceId: value,
-      };
-    }
+  function getSelectedDeviceId() {
+    const selectedDeviceId = latestSettings?.selectedDeviceId;
+    return typeof selectedDeviceId === "string" ? selectedDeviceId : "";
   }
 
-  function scheduleDebugRefresh() {
-    debugRefreshTimers.forEach((timer) => clearTimeout(timer));
-    debugRefreshTimers = [];
+  function isDebugExpanded() {
+    const details = document.getElementById("deviceDebugDetails");
+    return Boolean(details && details.open);
+  }
 
-    [0, 100, 300, 1000].forEach((delay) => {
-      const timer = setTimeout(() => {
-        syncSelectedDeviceFromDom();
-        renderDebugInfo();
-      }, delay);
-      debugRefreshTimers.push(timer);
+  function resetSelectedDeviceDebug(selectedDeviceId) {
+    if (selectedDeviceDebugId === selectedDeviceId) return;
+    selectedDeviceDebug = null;
+    selectedDeviceDebugId = selectedDeviceId;
+    pendingDeviceDebugId = "";
+  }
+
+  function requestSelectedDeviceDebug(client, force = false) {
+    const selectedDeviceId = getSelectedDeviceId();
+
+    if (!selectedDeviceId || !selectedDeviceId.startsWith("light:")) {
+      pendingDeviceDebugId = "";
+      return;
+    }
+
+    if (!isDebugExpanded()) {
+      return;
+    }
+
+    if (!force) {
+      const alreadyLoaded =
+        selectedDeviceDebugId === selectedDeviceId &&
+        selectedDeviceDebug !== null;
+      const alreadyPending = pendingDeviceDebugId === selectedDeviceId;
+      if (alreadyLoaded || alreadyPending) {
+        return;
+      }
+    }
+
+    resetSelectedDeviceDebug(selectedDeviceId);
+    pendingDeviceDebugId = selectedDeviceId;
+    sendPluginMessage(client, {
+      event: "getDeviceDebug",
+      selectedDeviceId,
     });
   }
 
-  function startDebugPolling() {
-    if (debugPollInterval) {
-      clearInterval(debugPollInterval);
-    }
-
-    debugPollInterval = setInterval(() => {
-      const previousValue = latestSettings?.selectedDeviceId;
-      syncSelectedDeviceFromDom();
-      if (!previousValue || latestSettings?.selectedDeviceId !== previousValue) {
-        renderDebugInfo();
-      }
-    }, 500);
-  }
-
   function getSelectedDeviceDebug() {
-    syncSelectedDeviceFromDom();
-    const selectedDeviceId = latestSettings?.selectedDeviceId;
+    const selectedDeviceId = getSelectedDeviceId();
 
-    if (!selectedDeviceId || typeof selectedDeviceId !== "string") {
+    if (!selectedDeviceId) {
       return null;
     }
 
@@ -145,15 +138,31 @@ document.addEventListener("DOMContentLoaded", () => {
       };
     }
 
-    const match = deviceDebugMap[selectedDeviceId];
-    if (!match) {
+    if (!isDebugExpanded()) {
+      return {
+        selection: selectedDeviceId,
+        message: "Expand this panel to load device metadata.",
+      };
+    }
+
+    if (pendingDeviceDebugId === selectedDeviceId) {
+      return {
+        selection: selectedDeviceId,
+        message: "Loading selected light metadata…",
+      };
+    }
+
+    if (
+      selectedDeviceDebugId !== selectedDeviceId ||
+      selectedDeviceDebug === null
+    ) {
       return {
         selection: selectedDeviceId,
         message: "Selected light metadata is not loaded yet.",
       };
     }
 
-    return match;
+    return selectedDeviceDebug;
   }
 
   function renderDebugInfo() {
@@ -163,15 +172,15 @@ document.addEventListener("DOMContentLoaded", () => {
     const data = getSelectedDeviceDebug();
     if (!data) {
       debugValue.innerHTML =
-        '<div style="color:#999;">Select a light to inspect device metadata.</div>';
+        '<div class="metadata-empty">Select a light to inspect device metadata.</div>';
       return;
     }
 
     if (data.message) {
       debugValue.innerHTML = `
-        <div style="display:grid;gap:6px;">
-          <div><strong>Selection:</strong> ${escapeHtml(data.selection ?? "Unknown")}</div>
-          <div style="color:#999;">${escapeHtml(data.message)}</div>
+        <div class="metadata-panel">
+          <div class="metadata-message"><strong>Selection:</strong> ${escapeHtml(data.selection ?? "Unknown")}</div>
+          <div class="metadata-empty">${escapeHtml(data.message)}</div>
         </div>
       `;
       return;
@@ -180,20 +189,20 @@ document.addEventListener("DOMContentLoaded", () => {
     const capabilities = Object.entries(data.capabilities ?? {})
       .map(
         ([key, enabled]) =>
-          `<span style="${pillStyle(Boolean(enabled))}">${escapeHtml(formatKey(key))}</span>`,
+          `<span class="${capabilityClass(Boolean(enabled))}">${escapeHtml(formatKey(key))}</span>`,
       )
       .join("");
 
     const commands = (data.supportedCommands ?? [])
       .map(
         (command) =>
-          `<span style="${tagStyle}">${escapeHtml(command)}</span>`,
+          `<span class="metadata-tag">${escapeHtml(command)}</span>`,
       )
       .join("");
 
     debugValue.innerHTML = `
-      <div style="display:grid;gap:10px;">
-        <div style="display:grid;gap:4px;">
+      <div class="metadata-panel">
+        <div class="metadata-section">
           ${renderMetaRow("Name", data.name)}
           ${renderMetaRow("Device", data.device, {
             copyValue: data.device,
@@ -204,20 +213,20 @@ document.addEventListener("DOMContentLoaded", () => {
             copyLabel: "Click to copy model",
           })}
         </div>
-        <div style="display:grid;gap:4px;">
+        <div class="metadata-section">
           ${renderMetaRow("Controllable", formatBoolean(data.controllable))}
           ${renderMetaRow("Retrievable", formatBoolean(data.retrievable))}
         </div>
-        <div style="display:grid;gap:6px;">
-          <div style="font-weight:600;">Capabilities</div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px;">
-            ${capabilities || '<span style="color:#999;">None</span>'}
+        <div class="metadata-section">
+          <div class="metadata-heading">Capabilities</div>
+          <div class="metadata-tags">
+            ${capabilities || '<span class="metadata-empty">None</span>'}
           </div>
         </div>
-        <div style="display:grid;gap:6px;">
-          <div style="font-weight:600;">Supported Commands</div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px;">
-            ${commands || '<span style="color:#999;">None</span>'}
+        <div class="metadata-section">
+          <div class="metadata-heading">Supported Commands</div>
+          <div class="metadata-tags">
+            ${commands || '<span class="metadata-empty">None</span>'}
           </div>
         </div>
       </div>
@@ -234,23 +243,20 @@ document.addEventListener("DOMContentLoaded", () => {
             data-copy="${escapeHtmlAttr(options.copyValue)}"
             aria-label="${escapeHtmlAttr(options.copyLabel || `Copy ${label}`)}"
             title="${escapeHtmlAttr(options.copyLabel || `Copy ${label}`)}"
-            style="display:inline-block;padding:1px 4px;border-radius:4px;cursor:pointer;transition:background-color 120ms ease,color 120ms ease;"
           >${escapeHtml(value ?? "Unknown")}</span>`
         : "";
 
-    return `<div style="display:grid;grid-template-columns:92px 1fr;gap:8px;align-items:start;"><div style="color:#999;">${escapeHtml(label)}</div><div style="word-break:break-word;">${valueContent || `<span>${escapeHtml(value ?? "Unknown")}</span>`}</div></div>`;
+    return `<div class="metadata-row"><div class="metadata-label">${escapeHtml(label)}</div><div class="metadata-value">${valueContent || `<span>${escapeHtml(value ?? "Unknown")}</span>`}</div></div>`;
   }
 
   function bindCopyButtons(container) {
     container.querySelectorAll(".metadata-copy-value").forEach((element) => {
       element.addEventListener("mouseenter", () => {
-        element.style.backgroundColor = "#3a3a3a";
-        element.style.color = "#ffffff";
+        element.classList.add("is-hover");
       });
 
       element.addEventListener("mouseleave", () => {
-        element.style.backgroundColor = "transparent";
-        element.style.color = "";
+        element.classList.remove("is-hover");
       });
 
       element.addEventListener("click", async () => {
@@ -300,11 +306,10 @@ document.addEventListener("DOMContentLoaded", () => {
     return escapeHtml(value);
   }
 
-  const tagStyle =
-    "display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;background:#3a3a3a;color:#e6e6e6;font-size:11px;line-height:1.5;";
-
-  function pillStyle(enabled) {
-    return `display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;font-size:11px;line-height:1.5;background:${enabled ? "#1f5f3a" : "#4a2f2f"};color:${enabled ? "#d8ffe6" : "#ffdede"};`;
+  function capabilityClass(enabled) {
+    return enabled
+      ? "metadata-tag metadata-tag-enabled"
+      : "metadata-tag metadata-tag-disabled";
   }
 
   function subscribePluginMessages(client, onMessage) {
@@ -369,13 +374,22 @@ document.addEventListener("DOMContentLoaded", () => {
     const debugItem = document.createElement("sdpi-item");
     debugItem.setAttribute("label", "Metadata");
     debugItem.innerHTML = `
-      <details class="sdpi-item-value" id="deviceDebugDetails">
+      <details class="sdpi-item-value metadata-details" id="deviceDebugDetails">
         <summary>Selected device metadata</summary>
-        <pre id="deviceDebugValue" style="margin-top:8px;white-space:pre-wrap;word-break:break-word;max-height:220px;overflow:auto;">Select a light to inspect device metadata.</pre>
+        <div id="deviceDebugValue" class="metadata-content">
+          <div class="metadata-empty">Select a light to inspect device metadata.</div>
+        </div>
       </details>
     `;
-    settingsWrapper.appendChild(debugItem, item.nextSibling);
-    scheduleDebugRefresh();
+    settingsWrapper.appendChild(debugItem);
+    const debugDetails = debugItem.querySelector("#deviceDebugDetails");
+    if (debugDetails) {
+      debugDetails.addEventListener("toggle", () => {
+        renderDebugInfo();
+        requestSelectedDeviceDebug(client, true);
+      });
+    }
+    renderDebugInfo();
   }
 
   // Keep a reference to the latest global settings so we can merge, not replace.
@@ -544,7 +558,6 @@ document.addEventListener("DOMContentLoaded", () => {
       if (p.event === "getDevices" && p.items) {
         // Flatten: items may have children (Lights/Groups optgroups)
         devices = [];
-        deviceDebugMap = p.deviceDebugMap || {};
         (p.items || []).forEach((item) => {
           if (item.children) {
             // Only include lights for group creation (not groups)
@@ -555,7 +568,18 @@ document.addEventListener("DOMContentLoaded", () => {
             devices.push(item);
           }
         });
-        scheduleDebugRefresh();
+        renderDebugInfo();
+        requestSelectedDeviceDebug(client);
+      }
+
+      if (p.event === "deviceDebug") {
+        const currentSelectedDeviceId = getSelectedDeviceId();
+        if (p.selectedDeviceId && p.selectedDeviceId === currentSelectedDeviceId) {
+          selectedDeviceDebugId = p.selectedDeviceId;
+          selectedDeviceDebug = p.device || null;
+          pendingDeviceDebugId = "";
+          renderDebugInfo();
+        }
       }
 
       if (p.event === "groupsReceived" && p.groups) {
@@ -609,10 +633,17 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!deviceSelect) return;
 
     const rerenderDebug = () => {
-      syncSelectedDeviceFromDom();
+      const selectedDeviceId = deviceSelect.value || "";
+      resetSelectedDeviceDebug(selectedDeviceId);
+      latestSettings = {
+        ...latestSettings,
+        selectedDeviceId,
+      };
       renderDebugInfo();
+      requestSelectedDeviceDebug(client);
     };
 
+    deviceSelect.addEventListener("valuechange", rerenderDebug);
     deviceSelect.addEventListener("change", rerenderDebug);
     deviceSelect.addEventListener("input", rerenderDebug);
 
@@ -641,7 +672,8 @@ document.addEventListener("DOMContentLoaded", () => {
         clearTimeout(timer);
         const hint = document.getElementById("deviceTimeout");
         if (hint) hint.remove();
-        scheduleDebugRefresh();
+        renderDebugInfo();
+        requestSelectedDeviceDebug(client);
         unsubscribeMessages();
       }
     });
@@ -660,15 +692,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (hasConditionalItems) {
       client.didReceiveSettings.subscribe((msg) => {
-        latestSettings = msg.payload?.settings || {};
+        const nextSettings = msg.payload?.settings || {};
+        resetSelectedDeviceDebug(nextSettings.selectedDeviceId || "");
+        latestSettings = nextSettings;
         const mode = latestSettings?.controlMode;
         if (mode) updateConditionalVisibility(mode);
-        scheduleDebugRefresh();
+        renderDebugInfo();
+        requestSelectedDeviceDebug(client);
       });
     } else {
       client.didReceiveSettings.subscribe((msg) => {
-        latestSettings = msg.payload?.settings || {};
-        scheduleDebugRefresh();
+        const nextSettings = msg.payload?.settings || {};
+        resetSelectedDeviceDebug(nextSettings.selectedDeviceId || "");
+        latestSettings = nextSettings;
+        renderDebugInfo();
+        requestSelectedDeviceDebug(client);
       });
     }
 
@@ -677,8 +715,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     client.getGlobalSettings();
     watchDeviceDropdown(client);
-    startDebugPolling();
-    scheduleDebugRefresh();
+    renderDebugInfo();
     try {
       initGroupManager(client);
     } catch (error) {
@@ -705,19 +742,6 @@ document.addEventListener("DOMContentLoaded", () => {
       showPanel(true);
     }
   }, 3000);
-
-  window.addEventListener(
-    "beforeunload",
-    () => {
-      debugRefreshTimers.forEach((timer) => clearTimeout(timer));
-      debugRefreshTimers = [];
-      if (debugPollInterval) {
-        clearInterval(debugPollInterval);
-        debugPollInterval = null;
-      }
-    },
-    { once: true },
-  );
 
   updateConditionalVisibility("toggle");
 });

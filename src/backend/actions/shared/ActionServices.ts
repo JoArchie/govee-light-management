@@ -495,7 +495,6 @@ export class ActionServices {
         value: string;
         children?: Array<{ label: string; value: string }>;
       }> = [];
-      const deviceDebugMap: Record<string, unknown> = {};
 
       // Add lights (with timeout to prevent hanging)
       if (this.deviceService) {
@@ -506,20 +505,9 @@ export class ActionServices {
             "Device discovery",
           );
           const lightItems = lights.map((light) => {
-            const value = `light:${light.deviceId}|${light.model}`;
-            deviceDebugMap[value] = {
-              device: light.deviceId,
-              model: light.model,
-              name: light.name,
-              controllable: light.controllable,
-              retrievable: light.retrievable,
-              supportedCommands: light.supportedCommands,
-              capabilities: light.capabilities,
-              properties: light.properties,
-            };
             return {
               label: `${light.label ?? light.name} (${light.model})`,
-              value,
+              value: `light:${light.deviceId}|${light.model}`,
             };
           });
 
@@ -565,13 +553,64 @@ export class ActionServices {
       await sendToPI(actionId, {
         event: "getDevices",
         items,
-        deviceDebugMap,
       });
     } catch (error) {
       streamDeck.logger.error("Failed to fetch devices:", error);
       await sendToPI(actionId, {
         event: "getDevices",
         items: [],
+      });
+    }
+  }
+
+  async handleGetDeviceDebug(
+    actionId: string,
+    selectedDeviceId?: string,
+  ): Promise<void> {
+    try {
+      const apiKey = await globalSettingsService.getApiKey();
+      if (!apiKey || !selectedDeviceId || !this.deviceService) {
+        await sendToPI(actionId, {
+          event: "deviceDebug",
+          selectedDeviceId,
+          device: null,
+        });
+        return;
+      }
+
+      await this.ensureServices(apiKey);
+      const lights = await withTimeout(
+        this.deviceService.discover(true),
+        PI_HANDLER_TIMEOUT_MS,
+        "Device discovery",
+      );
+      const light = lights.find(
+        (entry) =>
+          `light:${entry.deviceId}|${entry.model}` === selectedDeviceId,
+      );
+
+      await sendToPI(actionId, {
+        event: "deviceDebug",
+        selectedDeviceId,
+        device: light
+          ? {
+              device: light.deviceId,
+              model: light.model,
+              name: light.name,
+              controllable: light.controllable,
+              retrievable: light.retrievable,
+              supportedCommands: light.supportedCommands,
+              capabilities: light.capabilities,
+              properties: light.properties,
+            }
+          : null,
+      });
+    } catch (error) {
+      streamDeck.logger.error("Failed to fetch device debug metadata:", error);
+      await sendToPI(actionId, {
+        event: "deviceDebug",
+        selectedDeviceId,
+        device: null,
       });
     }
   }

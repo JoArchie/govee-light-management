@@ -185,6 +185,14 @@ export class ToggleAction extends SingletonAction<ToggleSettings> {
       case "getDevices":
         await this.services.handleGetDevices(ev.action.id);
         break;
+      case "getDeviceDebug":
+        await this.services.handleGetDeviceDebug(
+          ev.action.id,
+          typeof ev.payload.selectedDeviceId === "string"
+            ? ev.payload.selectedDeviceId
+            : undefined,
+        );
+        break;
       case "getGroups":
         await this.services.handleGetGroups(ev.action.id);
         break;
