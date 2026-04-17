@@ -15,6 +15,7 @@ import {
   ColorRgb,
   ColorTemperature,
   LightScene,
+  DiyScene,
   Snapshot,
   MusicMode,
 } from "@felixgeelhaar/govee-api-client";
@@ -561,6 +562,67 @@ export class ActionServices {
     }
   }
 
+  async handleGetDeviceDebug(
+    actionId: string,
+    selectedDeviceId?: string,
+  ): Promise<void> {
+    try {
+      const apiKey = await globalSettingsService.getApiKey();
+      if (!apiKey || !selectedDeviceId) {
+        await sendToPI(actionId, {
+          event: "deviceDebug",
+          selectedDeviceId,
+          device: null,
+        });
+        return;
+      }
+
+      await this.ensureServices(apiKey);
+      if (!this.deviceService) {
+        await sendToPI(actionId, {
+          event: "deviceDebug",
+          selectedDeviceId,
+          device: null,
+        });
+        return;
+      }
+
+      const lights = await withTimeout(
+        this.deviceService.discover(true),
+        PI_HANDLER_TIMEOUT_MS,
+        "Device discovery",
+      );
+      const light = lights.find(
+        (entry) =>
+          `light:${entry.deviceId}|${entry.model}` === selectedDeviceId,
+      );
+
+      await sendToPI(actionId, {
+        event: "deviceDebug",
+        selectedDeviceId,
+        device: light
+          ? {
+              device: light.deviceId,
+              model: light.model,
+              name: light.name,
+              controllable: light.controllable,
+              retrievable: light.retrievable,
+              supportedCommands: light.supportedCommands,
+              capabilities: light.capabilities,
+              properties: light.properties,
+            }
+          : null,
+      });
+    } catch (error) {
+      streamDeck.logger.error("Failed to fetch device debug metadata:", error);
+      await sendToPI(actionId, {
+        event: "deviceDebug",
+        selectedDeviceId,
+        device: null,
+      });
+    }
+  }
+
   /**
    * Handle saveGroup from PI
    */
@@ -956,11 +1018,25 @@ export class ActionServices {
     return this.lightRepository.getDynamicScenes(light);
   }
 
+  async getDiyScenes(light: Light): Promise<DiyScene[]> {
+    if (!this.lightRepository) {
+      throw new Error("Light repository not initialized");
+    }
+    return this.lightRepository.getDiyScenes(light);
+  }
+
   async applyDynamicScene(light: Light, scene: LightScene): Promise<void> {
     if (!this.lightRepository) {
       throw new Error("Light repository not initialized");
     }
     await this.lightRepository.setLightScene(light, scene);
+  }
+
+  async applyDiyScene(light: Light, scene: DiyScene): Promise<void> {
+    if (!this.lightRepository) {
+      throw new Error("Light repository not initialized");
+    }
+    await this.lightRepository.setDiyScene(light, scene);
   }
 
   async getSnapshots(light: Light): Promise<Snapshot[]> {
