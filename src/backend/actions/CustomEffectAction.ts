@@ -84,7 +84,7 @@ export class CustomEffectAction extends SingletonAction<CustomEffectSettings> {
         await this.services.handleGetDevices(ev.action.id);
         break;
       case "getEffects":
-        await this.handleGetEffects();
+        await this.handleGetEffects(ev.action.id);
         break;
       case "refreshState":
         await this.services.handleRefreshState();
@@ -92,13 +92,36 @@ export class CustomEffectAction extends SingletonAction<CustomEffectSettings> {
     }
   }
 
-  private async handleGetEffects(): Promise<void> {
+  private async handleGetEffects(actionId: string): Promise<void> {
     const effects = effectService.getPresets().map((e) => ({
       value: e.id,
       label: e.name,
     }));
+
+    const MAX_ATTEMPTS = 20;
+    const RETRY_DELAY_MS = 25;
+    let contextMatched = false;
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      if (streamDeck.ui.action?.id === actionId) {
+        contextMatched = true;
+        break;
+      }
+
+      if (attempt < MAX_ATTEMPTS - 1) {
+        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+      }
+    }
+
+    if (!contextMatched) {
+      streamDeck.logger.warn(
+        `PI context mismatch for getEffects (expected: ${actionId}, current: ${streamDeck.ui.action?.id ?? "none"})`,
+      );
+      return;
+    }
+
     await streamDeck.ui.sendToPropertyInspector({
-      event: "effects",
+      event: "getEffects",
       items: effects,
     });
   }

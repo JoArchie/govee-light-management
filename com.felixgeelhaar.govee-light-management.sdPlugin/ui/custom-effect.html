@@ -38,7 +38,13 @@
       </sdpi-item>
 
       <sdpi-item label="Effect">
-        <sdpi-select setting="effectId" id="effectSelect">
+        <sdpi-select
+          setting="effectId"
+          id="effectSelect"
+          datasource="getEffects"
+          show-refresh
+          placeholder="Choose an effect..."
+        >
           <option value="">Choose an effect...</option>
         </sdpi-select>
       </sdpi-item>
@@ -71,7 +77,6 @@
       (function () {
         const effectSelect = document.getElementById("effectSelect");
         const preview = document.getElementById("preview");
-        let client = null;
 
         function renderPreview(effectId) {
           preview.innerHTML = "";
@@ -98,42 +103,16 @@
           }
         }
 
-        function onEffectsReceived(items) {
-          // Remove existing options except the placeholder
-          while (effectSelect.options.length > 1) {
-            effectSelect.remove(1);
-          }
-          (items || []).forEach((e) => {
-            const opt = document.createElement("option");
-            opt.value = e.value;
-            opt.textContent = e.label;
-            effectSelect.appendChild(opt);
-          });
-          if (effectSelect.value) renderPreview(effectSelect.value);
+        function updatePreview() {
+          renderPreview(effectSelect?.value || "");
         }
 
-        function bind() {
-          client = window.SDPIComponents?.streamDeckClient;
-          if (!client) {
-            setTimeout(bind, 100);
-            return;
-          }
-
-          client.on?.("sendToPropertyInspector", (payload) => {
-            if (payload?.event === "effects") {
-              onEffectsReceived(payload.items);
-            }
-          });
-
-          effectSelect.addEventListener("change", (e) => {
-            renderPreview(e.target.value);
-          });
-
-          client.send?.({ event: "getEffects" });
-        }
-
-        document.addEventListener("DOMContentLoaded", bind);
-        if (document.readyState !== "loading") bind();
+        document.addEventListener("DOMContentLoaded", () => {
+          effectSelect.addEventListener("change", updatePreview);
+          effectSelect.addEventListener("valuechange", updatePreview);
+          setTimeout(updatePreview, 0);
+          setTimeout(updatePreview, 100);
+        });
       })();
     </script>
   </body>
