@@ -132,6 +132,20 @@
       ]
     },
     {
+      "Name": "Schedule",
+      "UUID": "com.felixgeelhaar.govee-light-management.schedule",
+      "Icon": "imgs/actions/toggle/icon",
+      "Tooltip": "Schedule a light action to run at a specific time or on a recurring basis",
+      "PropertyInspectorPath": "ui/schedule.html",
+      "Controllers": ["Keypad"],
+      "States": [
+        {
+          "Image": "imgs/actions/toggle/key",
+          "TitleAlignment": "bottom"
+        }
+      ]
+    },
+    {
       "Name": "Brightness Dial",
       "UUID": "com.felixgeelhaar.govee-light-management.brightness-dial",
       "Icon": "imgs/actions/brightness-dial/icon",
