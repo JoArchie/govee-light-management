@@ -4,6 +4,24 @@ All notable changes to this project are documented below. This project adheres t
 
 ---
 
+## [2.1.4] - 2026-04-17
+
+### Bug Fixes
+
+- **Fixed dial state sync** — Dials now properly detect and read current light state on first appear
+  - Resolves issue where dial values would default to 50% even if light was off
+  - `syncLightState()` now returns boolean to indicate successful sync
+  - Better handling of offline devices during initial state loading
+- **Improved brightness dial display** — Shows "Off" when light is powered off instead of brightness percentage
+- **Fixed overlay mode clearing** — Brightness and other actions now properly clear gradient/nightlight overlays before setting solid colors (issue #170)
+
+### Performance
+
+- Reduced state sync failures by adding fallback to cached state data
+- Better offline device handling prevents timeout delays
+
+---
+
 ## [2.1.3] - 2026-04-17
 
 ### Major Features
