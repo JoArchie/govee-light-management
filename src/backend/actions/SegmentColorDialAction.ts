@@ -162,7 +162,7 @@ export class SegmentColorDialAction extends BaseDialAction<SegmentColorDialSetti
 
   /**
    * Sync power state only. The Govee API does not expose per-segment color
-   * state, so hue always starts at the default (0 deg). Only power can be synced.
+   * state, so hue always starts at the default (0 °). Only power can be synced.
    */
   protected async syncLiveState(
     ctx: string,
@@ -211,7 +211,7 @@ export class SegmentColorDialAction extends BaseDialAction<SegmentColorDialSetti
 
     await action.setFeedback({
       label: `Segment ${segmentDisplay}`,
-      value: isOn ? `${hue} deg` : "Off",
+      value: isOn ? `${hue} °` : "Off",
       bar: { value: isOn ? Math.round((hue / 360) * 100) : 0 },
     });
   }

@@ -142,7 +142,7 @@ export class ColorHueDialAction extends BaseDialAction<ColorHueDialSettings> {
     const displayMode = this.displayModeMap.get(ctx) ?? "single";
     const indicator =
       displayMode === "mixed" ? "🔀 " : displayMode === "group" ? "👥 " : "";
-    const title = !isOn ? "Off" : `${indicator}${hue} deg`;
+    const title = !isOn ? "Off" : `${indicator}${hue} °`;
 
     await action.setFeedback({
       label: "Color",
