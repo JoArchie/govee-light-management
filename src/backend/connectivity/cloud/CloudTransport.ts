@@ -33,6 +33,12 @@ const factory: ClientFactory = {
   },
 };
 
+const UNSUPPORTED_CLOUD_GROUP_MODELS = new Set([
+  "BaseGroup",
+  "SameModelGroup",
+  "SameModeGroup",
+]);
+
 export class CloudTransport implements ITransport {
   readonly descriptor: TransportDescriptor = {
     kind: TransportKind.Cloud,
@@ -72,7 +78,13 @@ export class CloudTransport implements ITransport {
   async discoverDevices(): Promise<DeviceDiscoveryResult> {
     try {
       const client = await this.ensureClient();
-      const devices = await client.getControllableDevices();
+      const devices = await client
+        .getControllableDevices()
+        .then((entries) =>
+          entries.filter(
+            (device) => !UNSUPPORTED_CLOUD_GROUP_MODELS.has(device.model),
+          ),
+        );
       const lights: LightItem[] = devices.map((device) => {
         // Detect advanced capabilities from the device's capability list
         const capInstances = new Set(

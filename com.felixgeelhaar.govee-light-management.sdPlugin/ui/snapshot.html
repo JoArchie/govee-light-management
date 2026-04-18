@@ -24,9 +24,9 @@
         <sdpi-select
           id="snapshotSelect"
           setting="selectedSnapshot"
+          placeholder="Select a device first"
           datasource="getSnapshots"
           show-refresh
-          placeholder="Select a device first"
         ></sdpi-select>
       </sdpi-item>
     </div>
@@ -56,9 +56,87 @@
     </div>
 
     <script>
-      document.addEventListener("DOMContentLoaded", () => {
+      function setupDependentRefresh() {
+        if (window.__goveeSnapshotDependentRefreshSetup) {
+          return;
+        }
+        window.__goveeSnapshotDependentRefreshSetup = true;
+
         const deviceSelect = document.getElementById("deviceSelect");
         const snapshotSelect = document.getElementById("snapshotSelect");
+        const client = window.SDPIComponents?.streamDeckClient;
+        let currentSettings = {};
+        let refreshTimer = null;
+        let lastDeviceId = "";
+
+        function getSelectedDeviceId() {
+          return (
+            deviceSelect?.shadowRoot?.querySelector("select")?.value ||
+            deviceSelect?.value ||
+            currentSettings.selectedDeviceId ||
+            ""
+          );
+        }
+
+        function getSelectedDeviceLabel() {
+          const nativeSelect = deviceSelect?.shadowRoot?.querySelector("select");
+          return nativeSelect?.selectedOptions?.[0]?.innerText?.trim() || "";
+        }
+
+        function clearSnapshotSelection() {
+          snapshotSelect.value = "";
+          const nativeSelect =
+            snapshotSelect?.shadowRoot?.querySelector("select");
+          if (nativeSelect) {
+            nativeSelect.value = "";
+          }
+        }
+
+        function queueRefresh(delay = 120) {
+          if (refreshTimer) {
+            clearTimeout(refreshTimer);
+          }
+
+          refreshTimer = setTimeout(() => {
+            refreshTimer = null;
+            if (snapshotSelect?.refresh) {
+              snapshotSelect.refresh();
+            }
+          }, delay);
+        }
+
+        async function persistDeviceSelection(selectedDeviceId) {
+          if (!client?.setSettings) {
+            return;
+          }
+
+          const nextSettings = {
+            ...currentSettings,
+            selectedDeviceId,
+            selectedLightName: getSelectedDeviceLabel(),
+            selectedSnapshot: "",
+          };
+
+          currentSettings = nextSettings;
+          clearSnapshotSelection();
+          await client.setSettings(nextSettings);
+        }
+
+        async function syncForCurrentDevice() {
+          const selectedDeviceId = getSelectedDeviceId();
+          if (!selectedDeviceId) {
+            lastDeviceId = "";
+            clearSnapshotSelection();
+            return;
+          }
+
+          if (selectedDeviceId !== lastDeviceId) {
+            lastDeviceId = selectedDeviceId;
+            await persistDeviceSelection(selectedDeviceId);
+          }
+
+          queueRefresh();
+        }
 
         window.GoveePI.attachFieldStatus(snapshotSelect, "getSnapshots", {
           emptyMsg:
@@ -67,13 +145,39 @@
             "Couldn't load snapshots. Check your connection and try again.",
         });
 
-        // When device changes, refresh the snapshot list
-        deviceSelect.addEventListener("valuechange", () => {
-          if (snapshotSelect && snapshotSelect.refresh) {
-            snapshotSelect.refresh();
-          }
+        if (client?.didReceiveSettings?.subscribe) {
+          client.didReceiveSettings.subscribe((msg) => {
+            currentSettings = msg?.payload?.settings || {};
+            const selectedDeviceId =
+              typeof currentSettings.selectedDeviceId === "string"
+                ? currentSettings.selectedDeviceId
+                : "";
+
+            if (!selectedDeviceId) {
+              lastDeviceId = "";
+              clearSnapshotSelection();
+              return;
+            }
+
+            if (selectedDeviceId !== lastDeviceId) {
+              lastDeviceId = selectedDeviceId;
+              clearSnapshotSelection();
+              queueRefresh();
+            }
+          });
+        }
+
+        ["valuechange", "change", "input"].forEach((eventName) => {
+          deviceSelect.addEventListener(eventName, () => {
+            void syncForCurrentDevice();
+          });
         });
-      });
+
+        void syncForCurrentDevice();
+      }
+
+      document.addEventListener("DOMContentLoaded", setupDependentRefresh);
+      if (document.readyState !== "loading") setupDependentRefresh();
     </script>
   </body>
 </html>

@@ -17,6 +17,11 @@ document.addEventListener("DOMContentLoaded", () => {
     colorTemp: document.getElementById("tempItem"),
   };
   const hasConditionalItems = Object.values(conditionalItems).some(Boolean);
+  const UNSUPPORTED_CLOUD_GROUP_MODELS = new Set([
+    "BaseGroup",
+    "SameModelGroup",
+    "SameModeGroup",
+  ]);
   let latestSettings = {};
   let selectedDeviceDebug = null;
   let selectedDeviceDebugId = "";
@@ -643,6 +648,35 @@ document.addEventListener("DOMContentLoaded", () => {
       'sdpi-select[setting="selectedDeviceId"]',
     );
     if (!deviceSelect) return;
+    const unsupportedHint = document.createElement("div");
+    unsupportedHint.id = "deviceUnsupported";
+    unsupportedHint.className = "field-hint error hidden";
+    deviceSelect.parentNode.insertBefore(unsupportedHint, deviceSelect.nextSibling);
+
+    function getSelectedModel(selectedDeviceId) {
+      if (typeof selectedDeviceId !== "string") return "";
+      if (!selectedDeviceId.startsWith("light:")) return "";
+      const raw = selectedDeviceId.substring(6);
+      const parts = raw.split("|");
+      return parts.length >= 2 ? parts[1] : "";
+    }
+
+    function updateUnsupportedHint() {
+      const selectedDeviceId =
+        deviceSelect.value ||
+        (typeof latestSettings?.selectedDeviceId === "string"
+          ? latestSettings.selectedDeviceId
+          : "");
+      const model = getSelectedModel(selectedDeviceId);
+      if (UNSUPPORTED_CLOUD_GROUP_MODELS.has(model)) {
+        unsupportedHint.textContent =
+          "Govee cloud groups like BaseGroup / SameModelGroup are not supported. Use a plugin group instead.";
+        unsupportedHint.className = "field-hint error";
+      } else {
+        unsupportedHint.textContent = "";
+        unsupportedHint.className = "field-hint error hidden";
+      }
+    }
 
     const rerenderDebug = () => {
       const selectedDeviceId = deviceSelect.value || "";
@@ -651,6 +685,7 @@ document.addEventListener("DOMContentLoaded", () => {
         ...latestSettings,
         selectedDeviceId,
       };
+      updateUnsupportedHint();
       renderDebugInfo();
       requestSelectedDeviceDebug(client);
     };
@@ -688,11 +723,14 @@ document.addEventListener("DOMContentLoaded", () => {
         clearTimeout(timer);
         const hint = document.getElementById("deviceTimeout");
         if (hint) hint.remove();
+        updateUnsupportedHint();
         renderDebugInfo();
         requestSelectedDeviceDebug(client);
         unsubscribeMessages();
       }
     });
+
+    updateUnsupportedHint();
   }
 
   // ── Field Status Hints ──

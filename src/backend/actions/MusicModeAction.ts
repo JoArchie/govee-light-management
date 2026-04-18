@@ -12,7 +12,7 @@ import type { JsonValue } from "@elgato/utils";
 import { MusicMode } from "@felixgeelhaar/govee-api-client";
 import {
   ActionServices,
-  sendToPI,
+  sendPIDatasource,
   type BaseSettings,
 } from "./shared/ActionServices";
 
@@ -128,7 +128,12 @@ export class MusicModeAction extends SingletonAction<MusicModeSettings> {
         await this.services.handleRefreshState();
         break;
       case "getMusicModes": {
-        const settings = await ev.action.getSettings();
+        const settings = {
+          ...(await ev.action.getSettings()),
+          ...(typeof ev.payload.selectedDeviceId === "string"
+            ? { selectedDeviceId: ev.payload.selectedDeviceId }
+            : {}),
+        };
         await this.handleGetMusicModes(ev.action.id, settings);
         break;
       }
@@ -141,7 +146,7 @@ export class MusicModeAction extends SingletonAction<MusicModeSettings> {
   ): Promise<void> {
     const deviceId = settings.selectedDeviceId;
     if (!deviceId) {
-      await sendToPI(actionId, {
+      await sendPIDatasource(actionId, {
         event: "getMusicModes",
         items: [],
         status: "empty",
@@ -153,7 +158,7 @@ export class MusicModeAction extends SingletonAction<MusicModeSettings> {
     try {
       const apiKey = await this.services.getApiKey(settings);
       if (!apiKey) {
-        await sendToPI(actionId, {
+        await sendPIDatasource(actionId, {
           event: "getMusicModes",
           items: [],
           status: "error",
@@ -178,7 +183,7 @@ export class MusicModeAction extends SingletonAction<MusicModeSettings> {
 
       const modes = await this.services.getMusicModes(queryDeviceId);
       if (modes.length === 0) {
-        await sendToPI(actionId, {
+        await sendPIDatasource(actionId, {
           event: "getMusicModes",
           items: [],
           status: "empty",
@@ -186,7 +191,7 @@ export class MusicModeAction extends SingletonAction<MusicModeSettings> {
         });
         return;
       }
-      await sendToPI(actionId, {
+      await sendPIDatasource(actionId, {
         event: "getMusicModes",
         status: "ok",
         items: modes.map((m) => ({
@@ -196,7 +201,7 @@ export class MusicModeAction extends SingletonAction<MusicModeSettings> {
       });
     } catch (error) {
       streamDeck.logger.error("Failed to fetch music modes:", error);
-      await sendToPI(actionId, {
+      await sendPIDatasource(actionId, {
         event: "getMusicModes",
         items: [],
         status: "error",
