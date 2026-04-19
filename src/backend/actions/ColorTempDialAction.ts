@@ -123,6 +123,14 @@ export class ColorTempDialAction extends BaseDialAction<ColorTempDialSettings> {
         }
         const synced = await this.services.syncLightState(target.light);
         if (!synced) {
+          const fallbackKelvin = target.light.colorTemperature?.kelvin;
+          if (
+            typeof fallbackKelvin === "number" &&
+            fallbackKelvin > 0 &&
+            this.powerMap.get(ctx) === false
+          ) {
+            this.powerMap.set(ctx, true);
+          }
           return;
         }
         this.powerMap.set(ctx, target.light.isOn);
@@ -146,7 +154,7 @@ export class ColorTempDialAction extends BaseDialAction<ColorTempDialSettings> {
           }
           if (light.isOn) anyOn = true;
           else anyOff = true;
-          if (light.colorTemperature) {
+          if (light.isOn && light.colorTemperature) {
             kelvinValues.push(
               normalizeKelvin(light.colorTemperature.kelvin, range),
             );

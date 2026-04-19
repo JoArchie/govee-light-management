@@ -91,6 +91,17 @@ export class BrightnessDialAction extends BaseDialAction<BrightnessDialSettings>
         }
         const synced = await this.services.syncLightState(target.light);
         if (!synced) {
+          // Some devices can leave us with a stale cached power bit while still
+          // exposing a usable brightness value. Avoid rendering a false "Off"
+          // state on the dial when we have a non-zero brightness reading.
+          const fallbackBrightness = target.light.brightness?.level;
+          if (
+            typeof fallbackBrightness === "number" &&
+            fallbackBrightness > 0 &&
+            this.powerMap.get(ctx) === false
+          ) {
+            this.powerMap.set(ctx, true);
+          }
           return;
         }
         this.powerMap.set(ctx, target.light.isOn);
@@ -111,7 +122,7 @@ export class BrightnessDialAction extends BaseDialAction<BrightnessDialSettings>
           }
           if (light.isOn) anyOn = true;
           else anyOff = true;
-          if (light.brightness) {
+          if (light.isOn && light.brightness) {
             brightnessValues.push(light.brightness.level);
           }
         }

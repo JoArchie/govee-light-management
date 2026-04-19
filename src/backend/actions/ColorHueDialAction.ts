@@ -91,6 +91,9 @@ export class ColorHueDialAction extends BaseDialAction<ColorHueDialSettings> {
         }
         const synced = await this.services.syncLightState(target.light);
         if (!synced) {
+          if (target.light.color && this.powerMap.get(ctx) === false) {
+            this.powerMap.set(ctx, true);
+          }
           return;
         }
         this.powerMap.set(ctx, target.light.isOn);
@@ -111,7 +114,7 @@ export class ColorHueDialAction extends BaseDialAction<ColorHueDialSettings> {
           }
           if (light.isOn) anyOn = true;
           else anyOff = true;
-          if (light.color) {
+          if (light.isOn && light.color) {
             hueValues.push(rgbToHue(light.color));
           }
         }

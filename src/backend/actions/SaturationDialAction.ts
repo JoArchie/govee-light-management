@@ -112,6 +112,9 @@ export class SaturationDialAction extends BaseDialAction<SaturationDialSettings>
         }
         const synced = await this.services.syncLightState(target.light);
         if (!synced) {
+          if (target.light.color && this.powerMap.get(ctx) === false) {
+            this.powerMap.set(ctx, true);
+          }
           return;
         }
         this.powerMap.set(ctx, target.light.isOn);
@@ -142,7 +145,7 @@ export class SaturationDialAction extends BaseDialAction<SaturationDialSettings>
           }
           if (light.isOn) anyOn = true;
           else anyOff = true;
-          if (light.color) {
+          if (light.isOn && light.color) {
             hueValues.push(rgbToHue(light.color));
             saturationValues.push(rgbToSaturation(light.color));
           }
